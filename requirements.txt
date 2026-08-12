@@ -1,0 +1,31 @@
+# Runtime dependencies (production install).
+# Dev/test-only tools live in requirements.dev.txt.
+anthropic>=0.116.0
+openai>=1.109.1
+python-dotenv>=1.2.2
+rich>=13.9.4
+prompt-toolkit>=3.0.52
+tiktoken>=0.7.0
+textual>=0.79
+PyYAML>=6.0
+pathspec>=0.11
+websockets>=14.0
+httpx-sse>=0.4
+# Capped below 2.0: mcp 2.0.0 removed ``mcp.client.websocket``, which
+# src/services/mcp/transport.py imports. See the longer note in pyproject.toml.
+# THIS is the file CI installs from (ci.yml -> requirements.dev.txt -> here);
+# pyproject.toml is packaging metadata only, so both need the cap.
+mcp>=1.27.0,<2
+keyring>=25.0
+
+# Desktop gateway server (`clawcodex serve`, ui-desktop backend). Both are
+# already transitive deps of `mcp`; declared directly because
+# src/server/desktop_serve.py imports them directly.
+starlette>=0.27
+uvicorn>=0.31.1
+Pillow>=10.0
+markdownify>=0.11
+pydantic>=2.0
+regex>=2023.0
+wcwidth>=0.2
+typing_extensions>=4.16.0; python_version < '3.11'

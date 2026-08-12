@@ -1,0 +1,200 @@
+schema_version: 1
+reference_target: claude-code-2.1.88
+auxiliary_mechanisms:
+  - id: AUX-01
+    name: Main Agent Query Loop
+    primary_component: Agent Loop
+    secondary_component: Interfaces
+    status: PARTIAL
+    reference:
+      files:
+        - src/query.ts
+      symbols:
+        - query
+    clauderuntime:
+      files:
+        - src/query/query.py
+      symbols:
+        - query
+    runtime_paths: [RP-01, RP-02, RP-03, RP-04, RP-06, RP-11, RP-12]
+    tests:
+      - tests/test_query_loop.py
+      - tests/parity/test_query_state_parity.py
+  - id: AUX-02
+    name: Tool Execution Loop
+    primary_component: Agent Loop
+    secondary_component: Tools
+    status: SEMANTIC_EQUIVALENT
+    python:
+      path: src/query/tool_round.py
+      symbol: execute_tool_round
+    tests:
+      - tests/test_query_loop.py
+      - tests/test_ch07_concurrency_round4.py
+  - id: AUX-03
+    name: Permission Escalation Loop
+    primary_component: Permission System
+    secondary_component: Tools
+    status: PARTIAL
+    clauderuntime:
+      files:
+        - src/permissions
+        - src/bridge
+      symbols: []
+    runtime_paths: [RP-04]
+    tests:
+      - tests/integration/test_permission_integration.py
+      - tests/parity/test_permission_flow_parity.py
+      - tests/bridge/test_bridge_permission_callbacks.py
+  - id: AUX-04
+    name: Retry / Model Recovery Loop
+    primary_component: Agent Loop
+    secondary_component: State & Persistence
+    status: PARTIAL
+    clauderuntime:
+      files:
+        - src/query/recovery.py
+        - src/query/model_call.py
+      symbols:
+        - is_withheld_error
+        - invoke_provider
+    runtime_paths: [RP-06]
+    tests:
+      - tests/test_query_error_recovery.py
+  - id: AUX-05
+    name: Compaction Loop
+    primary_component: Agent Loop
+    secondary_component: State & Persistence
+    status: PARTIAL
+    python:
+      path: src/query/recovery.py
+      symbol: is_withheld_prompt_too_long
+    notes:
+      - 恢复判定已提取；完整 compaction lifecycle 仍由后续专项验证。
+    tests:
+      - tests/test_query_error_recovery.py
+  - id: AUX-06
+    name: Stop Hook Loop
+    primary_component: Agent Loop
+    secondary_component: Tools
+    status: UNKNOWN
+    clauderuntime:
+      files:
+        - src/hooks
+      symbols: []
+    runtime_paths: []
+    tests: []
+  - id: AUX-07
+    name: Subagent Query Loop
+    primary_component: Agent Loop
+    secondary_component: State & Persistence
+    status: PARTIAL
+    clauderuntime:
+      files:
+        - src/agent
+        - src/tasks
+      symbols: []
+    runtime_paths: [RP-07]
+    tests:
+      - tests/parity/test_e2e_agent_spawn.py
+      - tests/tasks
+  - id: AUX-08
+    name: Background Agent Lifecycle Loop
+    primary_component: Agent Loop
+    secondary_component: Execution Environment
+    status: PARTIAL
+    clauderuntime:
+      files:
+        - src/background
+        - src/tasks
+      symbols: []
+    runtime_paths: [RP-08]
+    tests:
+      - tests/background/test_tasks.py
+      - tests/server/test_background_scheduler.py
+  - id: AUX-09
+    name: MCP Lifecycle Loop
+    primary_component: Tools
+    secondary_component: Execution Environment
+    status: PARTIAL
+    clauderuntime:
+      files:
+        - src/services/mcp
+        - src/entrypoints
+      symbols: []
+    runtime_paths: [RP-09]
+    tests:
+      - tests/integration/test_mcp_integration.py
+      - tests/entrypoints/test_mcp_serve.py
+      - tests/server/test_mcp_runtime.py
+  - id: AUX-10
+    name: Scheduler / Cron Loop
+    primary_component: Agent Loop
+    secondary_component: State & Persistence
+    status: PARTIAL
+    clauderuntime:
+      files:
+        - src/scheduled_tasks
+        - src/server
+      symbols: []
+    runtime_paths: [RP-10]
+    tests:
+      - tests/scheduled_tasks
+      - tests/server/test_cron_control.py
+  - id: AUX-11
+    name: Resume / Fork / Rewind Loop
+    primary_component: State & Persistence
+    secondary_component: Agent Loop
+    status: PARTIAL
+    clauderuntime:
+      files:
+        - src/server
+        - src/tasks
+        - src/state
+      symbols: []
+    runtime_paths: [RP-11]
+    tests:
+      - tests/server/test_session_manager.py
+      - tests/tasks/test_local_agent_lifecycle.py
+  - id: AUX-12
+    name: Surface Streaming / Interrupt Loop
+    primary_component: Interfaces
+    secondary_component: Agent Loop
+    status: PARTIAL
+    clauderuntime:
+      files:
+        - src/bridge
+        - src/query
+        - ui-tui
+      symbols: []
+    runtime_paths: [RP-12]
+    tests:
+      - tests/bridge/test_async_cancel_canary.py
+      - tests/test_abort_controller.py
+  - id: AUX-13
+    name: Session Persistence / Recovery Loop
+    primary_component: State & Persistence
+    secondary_component: Interfaces
+    status: PARTIAL
+    clauderuntime:
+      files:
+        - src/server
+        - src/assistant
+        - src/state
+      symbols: []
+    runtime_paths: [RP-11]
+    tests:
+      - tests/assistant/test_session_history.py
+      - tests/server/test_desktop_sessions.py
+  - id: AUX-14
+    name: Long-output Result Budgeting Loop
+    primary_component: Tools
+    secondary_component: Agent Loop
+    status: UNKNOWN
+    clauderuntime:
+      files:
+        - src/tool_system
+        - src/query/budget.py
+      symbols: []
+    runtime_paths: [RP-04]
+    tests: []

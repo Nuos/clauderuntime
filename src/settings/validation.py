@@ -1,0 +1,143 @@
+"""Settings validation matching TypeScript settings/validation.ts."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+from .constants import (
+    VALID_EFFORT_VALUES,
+    VALID_PERMISSION_MODES,
+    VALID_SPINNER_VERB_MODES,
+)
+from .types import SettingsSchema
+
+
+@dataclass
+class ValidationError:
+    """A single validation error."""
+    field: str
+    message: str
+    value: Any = None
+
+
+def validate_settings(settings: SettingsSchema) -> list[ValidationError]:
+    """Validate a SettingsSchema, returning a list of errors (empty = valid)."""
+    errors: list[ValidationError] = []
+
+    # Effort
+    if settings.effort and settings.effort not in VALID_EFFORT_VALUES:
+        errors.append(ValidationError(
+            field="effort",
+            message=f"Invalid effort value: {settings.effort!r}. Must be one of {VALID_EFFORT_VALUES}",
+            value=settings.effort,
+        ))
+
+    # Advisor effort — same ladder as ``effort``; empty inherits it.
+    advisor_effort = getattr(settings, "advisor_effort", "")
+    if advisor_effort and advisor_effort not in VALID_EFFORT_VALUES:
+        errors.append(ValidationError(
+            field="advisor_effort",
+            message=(
+                f"Invalid advisor_effort value: {advisor_effort!r}. "
+                f"Must be one of {VALID_EFFORT_VALUES}"
+            ),
+            value=advisor_effort,
+        ))
+
+    # Permission mode
+    if settings.permission_mode not in VALID_PERMISSION_MODES:
+        errors.append(ValidationError(
+            field="permission_mode",
+            message=f"Invalid permission mode: {settings.permission_mode!r}",
+            value=settings.permission_mode,
+        ))
+
+    # Output style: a free-form name (TS settings schema is z.string() —
+    # custom user styles make a fixed enum impossible to validate here;
+    # unknown names fall back to "default" at resolve time). OS-1 removed
+    # the invented VALID_OUTPUT_STYLES enum check, which rejected the real
+    # builtin "explanatory" and accepted three styles that never existed.
+
+    # Max width
+    if settings.output_style.max_width < 40:
+        errors.append(ValidationError(
+            field="output_style.max_width",
+            message="max_width must be >= 40",
+            value=settings.output_style.max_width,
+        ))
+
+    # Spinner verbs (optional; only the merge mode is constrained)
+    if settings.spinner_verbs is not None and (
+        settings.spinner_verbs.mode not in VALID_SPINNER_VERB_MODES
+    ):
+        errors.append(ValidationError(
+            field="spinner_verbs.mode",
+            message=f"Invalid spinner verbs mode: {settings.spinner_verbs.mode!r}. "
+                    f"Must be one of {VALID_SPINNER_VERB_MODES}",
+            value=settings.spinner_verbs.mode,
+        ))
+
+    # Max turns (0 = unlimited, otherwise must be positive)
+    if settings.max_turns < 0:
+        errors.append(ValidationError(
+            field="max_turns",
+            message="max_turns must be >= 0",
+            value=settings.max_turns,
+        ))
+
+    # Max cost
+    if settings.max_cost_usd < 0:
+        errors.append(ValidationError(
+            field="max_cost_usd",
+            message="max_cost_usd must be >= 0",
+            value=settings.max_cost_usd,
+        ))
+
+    # Sandbox (C8): a hard gate — enabled + failIfUnavailable but no
+    # enforcement engine in this build → invalid (TS "exit with error at
+    # startup", sandboxTypes.ts:96-103). The warning-only case (enabled,
+    # not failIfUnavailable) is NOT an error here — it's surfaced as a
+    # runtime warning at the bash path so settings still load.
+    from src.permissions.sandbox_guard import sandbox_hard_gate_error
+    _gate = sandbox_hard_gate_error(settings)
+    if _gate:
+        errors.append(ValidationError(
+            field="sandbox",
+            message=_gate,
+            value=True,
+        ))
+
+    # Session retention
+    if settings.session_retention_days < 1:
+        errors.append(ValidationError(
+            field="session_retention_days",
+            message="session_retention_days must be >= 1",
+            value=settings.session_retention_days,
+        ))
+
+    # Compact threshold
+    if settings.compact.threshold_tokens < 1000:
+        errors.append(ValidationError(
+            field="compact.threshold_tokens",
+            message="compact threshold must be >= 1000",
+            value=settings.compact.threshold_tokens,
+        ))
+
+    # Hooks timeout
+    if settings.hooks.timeout_ms < 1000:
+        errors.append(ValidationError(
+            field="hooks.timeout_ms",
+            message="hooks timeout must be >= 1000ms",
+            value=settings.hooks.timeout_ms,
+        ))
+
+    # Permission rules
+    for i, rule in enumerate(settings.permissions):
+        if not rule.tool:
+            errors.append(ValidationError(
+                field=f"permissions[{i}].tool",
+                message="Permission rule must have a 'tool' field",
+            ))
+
+    return errors

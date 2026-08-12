@@ -1,0 +1,95 @@
+schema_version: 1
+reference_target: claude-code-2.1.88
+clauderuntime_commit: d29bfe597fe03da951888b0ec7732660852a6196
+components:
+  - id: C01
+    name: User
+    status: UNKNOWN
+    primary_paths: []
+    tests: []
+    notes:
+      - User-facing contracts still need a confirmed source and behavior map.
+  - id: C02
+    name: Interfaces
+    status: PARTIAL
+    primary_paths:
+      - src/cli.py
+      - src/repl
+      - ui-tui
+      - ui-desktop
+    tests:
+      - tests/entrypoints
+      - tests/server
+      - ui-tui/packages/clawcodex-ink/src
+    notes:
+      - Interface surfaces are identified; reference call-edge evidence is incomplete.
+  - id: C03
+    name: Agent Loop
+    status: PARTIAL
+    primary_paths:
+      - src/query
+      - src/agent
+      - src/tasks
+      - src/background
+    tests:
+      - tests/test_query_loop.py
+      - tests/parity
+      - tests/tasks
+      - tests/background
+    notes:
+      - Query-loop extraction has evidence; subagent/background paths need fuller parity mapping.
+  - id: C04
+    name: Permission System
+    status: PARTIAL
+    primary_paths:
+      - src/permissions
+      - src/services/tool_execution
+      - src/bridge
+    tests:
+      - tests/integration/test_permission_integration.py
+      - tests/parity/test_permission_flow_parity.py
+      - tests/bridge/test_bridge_permission_callbacks.py
+    notes:
+      - Permission tests exist; escalation state-machine evidence needs consolidation.
+  - id: C05
+    name: Tools
+    status: PARTIAL
+    primary_paths:
+      - src/tool_system
+      - src/services/mcp
+      - src/services/tool_execution
+    tests:
+      - tests/parity/test_tool_parity.py
+      - tests/parity/test_tool_execution_order.py
+      - tests/integration/test_mcp_integration.py
+    notes:
+      - Tool execution loop has evidence; MCP lifecycle and long-output budgeting remain partial.
+  - id: C06
+    name: State & Persistence
+    status: PARTIAL
+    primary_paths:
+      - src/state
+      - src/context_system
+      - src/memory
+      - src/memdir
+      - src/server
+    tests:
+      - tests/test_app_state_persistence_round3.py
+      - tests/memory
+      - tests/server/test_session_manager.py
+    notes:
+      - Context and memory are represented here and under Agent Loop, not as an eighth component.
+  - id: C07
+    name: Execution Environment
+    status: PARTIAL
+    primary_paths:
+      - src/execution
+      - src/workflow
+      - src/bridge
+      - src/remote
+    tests:
+      - tests/workflow
+      - tests/bridge
+      - tests/remote
+    notes:
+      - Execution surfaces are identified; sandbox and remote lifecycle parity need fuller evidence.

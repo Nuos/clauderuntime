@@ -1,0 +1,13 @@
+# Known parity UNKNOWN records captured on 2026-08-11 during the
+# repository-governance migration. This file is a baseline, not permission to
+# add new UNKNOWN evidence.
+docs/parity/runtime/reference-aux-loop-map.yaml -> AUX-06 -> status: UNKNOWN
+docs/parity/runtime/reference-aux-loop-map.yaml -> AUX-14 -> status: UNKNOWN
+docs/parity/runtime/reference-runtime-path-map.yaml -> RP-03 -> status: UNKNOWN
+docs/parity/runtime/reference-runtime-path-map.yaml -> RP-07 -> symbol: UNKNOWN
+docs/parity/runtime/reference-runtime-path-map.yaml -> RP-08 -> symbol: UNKNOWN
+docs/parity/runtime/reference-runtime-path-map.yaml -> RP-09 -> symbol: UNKNOWN
+docs/parity/runtime/reference-runtime-path-map.yaml -> RP-10 -> symbol: UNKNOWN
+docs/parity/runtime/reference-runtime-path-map.yaml -> RP-11 -> symbol: UNKNOWN
+docs/parity/runtime/reference-runtime-path-map.yaml -> RP-12 -> symbol: UNKNOWN
+docs/parity/source-map/reference-component-map.yaml -> C01 -> status: UNKNOWN

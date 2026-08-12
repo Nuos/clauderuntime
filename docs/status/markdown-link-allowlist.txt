@@ -1,0 +1,40 @@
+# Known broken local Markdown links captured on 2026-08-11 during the
+# repository-governance migration. This file is a baseline, not permission to
+# add new broken links.
+CHANGELOG.md:578 -> url
+docs/i18n/README_AR.md:36 -> ../assets/readme/claw-codex-bash.png
+docs/i18n/README_AR.md:38 -> ../assets/readme/claude-code-webfetch.png
+docs/i18n/README_AR.md:40 -> ../assets/readme/claw-codex-write-read.png
+docs/i18n/README_AR.md:42 -> ../assets/readme/claw-codex-skill.png
+docs/i18n/README_AR.md:294 -> ../assets/readme/claw-codex-tool-skill-json.png
+docs/i18n/README_FR.md:36 -> ../assets/readme/claw-codex-bash.png
+docs/i18n/README_FR.md:38 -> ../assets/readme/claude-code-webfetch.png
+docs/i18n/README_FR.md:40 -> ../assets/readme/claw-codex-write-read.png
+docs/i18n/README_FR.md:42 -> ../assets/readme/claw-codex-skill.png
+docs/i18n/README_FR.md:295 -> ../assets/readme/claw-codex-tool-skill-json.png
+docs/i18n/README_HI.md:36 -> ../assets/readme/claw-codex-bash.png
+docs/i18n/README_HI.md:38 -> ../assets/readme/claude-code-webfetch.png
+docs/i18n/README_HI.md:40 -> ../assets/readme/claw-codex-write-read.png
+docs/i18n/README_HI.md:42 -> ../assets/readme/claw-codex-skill.png
+docs/i18n/README_HI.md:294 -> ../assets/readme/claw-codex-tool-skill-json.png
+docs/i18n/README_PT.md:36 -> ../assets/readme/claw-codex-bash.png
+docs/i18n/README_PT.md:38 -> ../assets/readme/claude-code-webfetch.png
+docs/i18n/README_PT.md:40 -> ../assets/readme/claw-codex-write-read.png
+docs/i18n/README_PT.md:42 -> ../assets/readme/claw-codex-skill.png
+docs/i18n/README_PT.md:295 -> ../assets/readme/claw-codex-tool-skill-json.png
+docs/i18n/README_RU.md:36 -> ../assets/readme/claw-codex-bash.png
+docs/i18n/README_RU.md:38 -> ../assets/readme/claude-code-webfetch.png
+docs/i18n/README_RU.md:40 -> ../assets/readme/claw-codex-write-read.png
+docs/i18n/README_RU.md:42 -> ../assets/readme/claw-codex-skill.png
+docs/i18n/README_RU.md:295 -> ../assets/readme/claw-codex-tool-skill-json.png
+docs/reference/claude-code/raw/claude-code-sourcemap-learning-notebook/README.md:6 -> README_CN.md
+docs/reference/claude-code/raw/claude-code-sourcemap-learning-notebook/README.md:26 -> zh-CN/00_index.md
+docs/reference/claude-code/raw/claude-code-sourcemap-learning-notebook/README.md:27 -> zh-CN/01_architecture_overview.md
+docs/reference/claude-code/raw/claude-code-sourcemap-learning-notebook/README.md:28 -> zh-CN/02_tool_system.md
+docs/reference/claude-code/raw/claude-code-sourcemap-learning-notebook/README.md:29 -> zh-CN/03_permission_security.md
+docs/reference/claude-code/raw/claude-code-sourcemap-learning-notebook/README.md:30 -> zh-CN/04_query_loop_api.md
+docs/reference/claude-code/raw/claude-code-sourcemap-learning-notebook/README.md:31 -> zh-CN/05_multi_agent_system.md
+docs/reference/claude-code/raw/claude-code-sourcemap-learning-notebook/README.md:32 -> zh-CN/06_mcp_extensions.md
+docs/reference/claude-code/raw/claude-code-sourcemap-learning-notebook/README.md:33 -> zh-CN/07_prompt_engineering.md
+docs/reference/claude-code/raw/claude-code-sourcemap-learning-notebook/README.md:34 -> zh-CN/08_voice_buddy.md
+docs/reference/claude-code/raw/claude-code-sourcemap-learning-notebook/README.md:38 -> zh-CN/

@@ -1,0 +1,138 @@
+{
+  "_comment": "Canonical TS tool names from tools.ts getAllBaseTools, mapped to Python equivalents. NOTE: StructuredOutput/SyntheticOutputTool is a 'specialTool' EXCLUDED from getAllBaseTools (tools.ts:293-299) and is injected per-call only for schema/jsonSchema runs \u2014 so it is intentionally NOT a core base tool (C6).",
+  "core_tools": {
+    "Agent": {
+      "python_name": "Agent",
+      "factory": true,
+      "aliases": [
+        "Task"
+      ]
+    },
+    "AskUserQuestion": {
+      "python_name": "AskUserQuestion"
+    },
+    "Bash": {
+      "python_name": "Bash"
+    },
+    "Brief": {
+      "python_name": "Brief"
+    },
+    "ClipboardRead": {
+      "python_name": "ClipboardRead"
+    },
+    "ClipboardWrite": {
+      "python_name": "ClipboardWrite"
+    },
+    "Config": {
+      "python_name": "Config"
+    },
+    "CronCreate": {
+      "python_name": "CronCreate"
+    },
+    "CronDelete": {
+      "python_name": "CronDelete"
+    },
+    "CronList": {
+      "python_name": "CronList"
+    },
+    "Edit": {
+      "python_name": "Edit"
+    },
+    "EnterPlanMode": {
+      "python_name": "EnterPlanMode"
+    },
+    "EnterWorktree": {
+      "python_name": "EnterWorktree"
+    },
+    "ExitPlanMode": {
+      "python_name": "ExitPlanMode"
+    },
+    "ExitWorktree": {
+      "python_name": "ExitWorktree"
+    },
+    "Glob": {
+      "python_name": "Glob"
+    },
+    "Grep": {
+      "python_name": "Grep"
+    },
+    "LSP": {
+      "python_name": "LSP"
+    },
+    "ListMcpResourcesTool": {
+      "python_name": "ListMcpResourcesTool"
+    },
+    "MCP": {
+      "python_name": "MCP"
+    },
+    "NotebookEdit": {
+      "python_name": "NotebookEdit"
+    },
+    "Read": {
+      "python_name": "Read"
+    },
+    "ReadMcpResourceTool": {
+      "python_name": "ReadMcpResourceTool"
+    },
+    "SendUserMessage": {
+      "python_name": "SendUserMessage"
+    },
+    "Skill": {
+      "python_name": "Skill"
+    },
+    "Sleep": {
+      "python_name": "Sleep"
+    },
+    "Status": {
+      "python_name": "Status"
+    },
+    "TaskCreate": {
+      "python_name": "TaskCreate"
+    },
+    "TaskGet": {
+      "python_name": "TaskGet"
+    },
+    "TaskList": {
+      "python_name": "TaskList"
+    },
+    "TaskOutput": {
+      "python_name": "TaskOutput"
+    },
+    "TaskStop": {
+      "python_name": "TaskStop"
+    },
+    "TaskUpdate": {
+      "python_name": "TaskUpdate"
+    },
+    "TeamCreate": {
+      "python_name": "TeamCreate"
+    },
+    "TeamDelete": {
+      "python_name": "TeamDelete"
+    },
+    "TodoWrite": {
+      "python_name": "TodoWrite"
+    },
+    "ToolSearch": {
+      "python_name": "ToolSearch",
+      "factory": true
+    },
+    "WebFetch": {
+      "python_name": "WebFetch"
+    },
+    "WebSearch": {
+      "python_name": "WebSearch"
+    },
+    "Write": {
+      "python_name": "Write"
+    },
+    "Monitor": {
+      "python_name": "Monitor"
+    }
+  },
+  "not_yet_implemented": [
+    "PowerShell",
+    "REPL",
+    "RemoteTrigger"
+  ]
+}

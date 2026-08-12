@@ -1,0 +1,191 @@
+[build-system]
+requires = ["setuptools>=77.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clawcodex-cli"
+version = "1.5.0"
+description = "A production-oriented Python rebuild of Claude Code — real architecture, reliable CLI agent"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [
+    {name = "Nuos"}
+]
+keywords = ["claude", "cli", "ai", "llm", "anthropic", "openai", "glm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+
+dependencies = [
+    "anthropic>=0.116.0",
+    "openai>=1.109.1",
+    "python-dotenv>=1.2.2",
+    "rich>=13.9.4",
+    "prompt-toolkit>=3.0.52",
+    "tiktoken>=0.7.0",
+    "textual>=0.79",
+    # YAML frontmatter parser (SKILL.md, agent files, output styles).
+    # Required for nested structures like ``hooks:`` and ``shell:`` to
+    # round-trip through ``src.skills.frontmatter.parse_frontmatter``.
+    "PyYAML>=6.0",
+    # gitwildmatch path matching for conditional-skill ``paths:`` rules.
+    # The TS port uses the `ignore` library; ``pathspec`` is the Python
+    # equivalent (full ``**`` recursion + anchoring + negation).
+    "pathspec>=0.11",
+    # Ch16 Phase 0: WebSocket client/server for the CCR bridge (Bridge v2,
+    # Direct Connect, Remote Session). The 14.0 lower bound is required for
+    # the new asyncio API's ``additional_headers`` kwarg; v12/v13 use
+    # ``extra_headers`` and would TypeError against our planned API.
+    "websockets>=14.0",
+    # Ch16 Phase 0: SSE consumer for the CCR v2 SSE read transport. ``httpx``
+    # itself is transitively available via the ``anthropic`` SDK.
+    "httpx-sse>=0.4",
+    # Official Model Context Protocol SDK used by ``src.services.mcp`` for
+    # stdio, SSE, Streamable HTTP, WebSocket, OAuth discovery, and JSON-RPC
+    # message models.
+    #
+    # Capped below 2.0 deliberately. mcp 2.0.0 (2026-07-28) is a restructure
+    # that REMOVED ``mcp.client.websocket`` — the module
+    # ``src/services/mcp/transport.py:30`` imports ``websocket_client`` from.
+    # Because the old bound was open-ended, CI began resolving 2.0.0 the day it
+    # published and every PR died with 26 collection errors
+    # (``ModuleNotFoundError: No module named 'mcp.client.websocket'``) in files
+    # nobody had touched. 1.29.0 still ships the module.
+    #
+    # Lifting the cap is a real migration, not a version bump: 2.0 also renames
+    # the client internals (``_transport``, ``caching``, ``subscriptions`` are
+    # new; ``experimental`` is gone). Do that on its own branch, with the
+    # websocket transport either ported or explicitly dropped.
+    "mcp>=1.27.0,<2",
+    # Secure MCP OAuth/token storage. ``src.services.mcp.auth.McpTokenStore``
+    # imports keyring directly and rejects plaintext fallback unless explicitly
+    # opted in.
+    "keyring>=25.0",
+    # Desktop gateway server (`clawcodex serve`): direct imports in
+    # src/server/desktop_serve.py; already transitive via mcp.
+    "starlette>=0.27",
+    "uvicorn>=0.31.1",
+    # Image decode/resize/encode for the FileReadTool image pipeline (port
+    # of TS imageResizer.ts which uses sharp). Pillow has pure-Python wheels
+    # for all platforms and covers PNG/JPEG/GIF/WebP and palette quantization.
+    # Without this, oversized images get rejected instead of downscaled.
+    "Pillow>=10.0",
+    # HTML -> Markdown conversion for the WebFetch tool (port of TS Turndown).
+    # Preserves headings/lists/links so fetched pages are usable for research;
+    # without it WebFetch falls back to a flat regex tag-strip (no structure).
+    # Pulls in beautifulsoup4 (pure-Python).
+    "markdownify>=0.11",
+    # Runtime schema validation for bridge poll config, MCP output validation,
+    # hook output schemas, and env-less bridge config.
+    "pydantic>=2.0",
+    # Unicode-aware regex (``\p{...}`` property classes) used by the bridge
+    # status renderer; the stdlib ``re`` lacks these.
+    "regex>=2023.0",
+    # Terminal display-width measurement for the bridge status renderer.
+    "wcwidth>=0.2",
+    # ``typing.Self`` backport for Python 3.10 (added to stdlib in 3.11).
+    "typing_extensions>=4.16.0; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "build>=1.0.0",
+    "twine>=5.0.0",
+    "pytest>=8.0.0",
+    # ``pyproject.toml`` declares ``asyncio_mode = "auto"`` (below) which
+    # requires the pytest-asyncio plugin. Without it, async tests fail at
+    # run time with "async def functions are not natively supported."
+    "pytest-asyncio>=1.3.0",
+    # Ch16 Phase 0: coverage reporting for the ≥90% line-coverage DoD on
+    # the new ``src/bridge/`` modules.
+    "pytest-cov>=5.0",
+]
+
+[project.scripts]
+clawcodex = "src.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/agentforce314/clawcodex"
+Repository = "https://github.com/agentforce314/clawcodex"
+Documentation = "https://github.com/agentforce314/clawcodex#readme"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# Prepend the project root so pytest imports the worktree's ``src/`` rather
+# than the parent repo's editable-install mapping.
+pythonpath = ["."]
+markers = [
+    "integration: marks tests as integration (deselect with '-m \"not integration\"')",
+    "linux_only: marks tests that require Linux (auto-skipped on macOS/Windows)",
+]
+filterwarnings = [
+    # Phase 18 removed src/services/bridge; the scripts/audit/remote_runtime
+    # placeholder still emits a DeprecationWarning on import (its absence
+    # would break the test that asserts the warning fires).
+    "ignore::DeprecationWarning:scripts.audit.remote_runtime",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+# ---------------------------------------------------------------------------
+# import-linter — DAG-leaf enforcement for src/bootstrap/state.py
+# ---------------------------------------------------------------------------
+# Mirrors the TS ``bootstrap-isolation`` ESLint rule (typescript/src/.eslintrc).
+# Bootstrap state is a DAG leaf — it cannot import from feature subsystems
+# (``src/tui``, ``src/repl``, ``src/agent``, ``src/services``, ``src/query``,
+# ``src/context_system``, ``src/permissions``, ``src/command_system``,
+# ``src/tool_system``, ``src/coordinator``). The contract below enforces
+# this on every commit when ``lint-imports`` runs in CI.
+#
+# To run locally: ``pip install import-linter && lint-imports``.
+# (Not in ``dev`` extras yet — install ad-hoc until CI wires it in.)
+[tool.importlinter]
+root_package = "src"
+
+[[tool.importlinter.contracts]]
+name = "bootstrap/state.py cannot import from feature subsystems (DAG-leaf rule)"
+type = "forbidden"
+source_modules = ["src.bootstrap.state"]
+forbidden_modules = [
+    "src.tui",
+    "src.repl",
+    "src.agent",
+    "src.services",
+    "src.query",
+    "src.context_system",
+    "src.permissions",
+    "src.command_system",
+    "src.tool_system",
+    "src.coordinator",
+    "src.providers",
+    "src.tasks",
+    "src.bridge",
+    "src.remote",
+    "src.skills",
+]
+# ch01 round-2 P3: ``src.commands`` was removed (audit-only module relocated
+# to ``scripts/audit/commands.py``). The production command surface is
+# ``src/command_system/`` which is already covered by ``src.command_system``.
+
+# TODO: add a positive-allowlist (kept) contract restricting bootstrap to
+# import only from ``src.utils.signal`` and a small set of leaf utilities.
+# The forbidden contract above misses the case where someone adds
+# ``from src.utils.tui_helpers import foo`` to bootstrap — ``src.utils`` is
+# not in the blocklist. ``import-linter`` doesn't have a perfect positive-
+# allowlist primitive; the closest is the ``independence`` contract or a
+# custom contract. Plan §P1.0 acknowledged the ~30 min research cost.
+# Tracking as a Phase-2 follow-up.

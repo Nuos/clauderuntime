@@ -1,0 +1,1963 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import math
+import random
+import os
+import re
+import sys
+import time
+from dataclasses import dataclass, field
+from typing import Any, AsyncGenerator, Callable
+from uuid import uuid4
+
+from ..types.messages import (
+    AssistantMessage,
+    Message,
+    SystemMessage,
+    UserMessage,
+    create_assistant_api_error_message,
+)
+from ..types.content_blocks import TextBlock, ToolResultBlock, ToolUseBlock
+from ..tool_system.build_tool import Tool, Tools
+from ..tool_system.context import ToolContext
+from ..tool_system.protocol import ToolCall, ToolResult
+from ..tool_system.registry import ToolRegistry
+from ..utils.abort_controller import AbortController, AbortError
+from ..utils.image_validation import ImageSizeError
+from ..providers.base import BaseProvider, ChatResponse
+
+from .config import QueryConfig, build_query_config
+from .continuation_nudge import (
+    EMPTY_TURN_NUDGE,
+    MAX_CONTINUATION_NUDGES,
+    NUDGE_MESSAGE,
+    detect_continuation_signal,
+)
+from .model_call import (
+    PROMPT_CACHING_SCOPE_BETA_HEADER,
+    _append_session_context_tail,
+    _call_model_sync,
+    _split_system_prompt_blocks,
+    _strip_block_metadata,
+)
+from .recovery import (
+    get_context_window as _get_context_window,
+    is_withheld_max_output_tokens as _is_withheld_max_output_tokens,
+    is_withheld_media_size as _is_withheld_media_size,
+    is_withheld_prompt_too_long as _is_withheld_prompt_too_long,
+)
+from .stop_hooks import StopHookResult, handle_stop_hooks_streaming
+from .token_budget import (
+    ContinueDecision,
+    check_token_budget,
+    create_budget_tracker,
+)
+from .tool_failure_loop_guard import (
+    create_tool_failure_loop_guard_state,
+    update_tool_failure_loop_guard,
+)
+from .tool_round import (
+    ToolRoundState,
+    _is_hook_stopped_continuation,
+    execute_tool_round,
+)
+from .terminal import (
+    Terminal,
+    TerminalHolder,
+    set_terminal,
+)
+from .transitions import QueryState, Transition
+from ..services.compact.pipeline import (
+    CompressionPipeline,
+    PipelineConfig,
+    run_compression_pipeline,
+)
+from ..token_estimation import rough_token_count_estimation_for_messages
+
+logger = logging.getLogger(__name__)
+
+ESCALATED_MAX_TOKENS = 64_000
+
+# ch04 round-3 G3 — 529/overloaded retry lane. TS withRetry.ts: general
+# budget DEFAULT_MAX_RETRIES=10 with a 529-specific MAX_529_RETRIES=3
+# counter that triggers model-fallback or the external-user bail
+# (:346-385); the port adopts the bail posture (3 retries then the
+# existing model_error path). Gated to foreground sources only
+# (withRetry.ts:62-90) -- background lanes (compact, session_memory)
+# bail immediately to avoid gateway amplification.
+MAX_529_RETRIES = 3
+# ch04 round-4 GAP B — general retryable budget (429/5xx/connection/
+# timeout), TS DEFAULT_MAX_RETRIES (withRetry.ts:52).
+DEFAULT_MAX_RETRIES = 10
+RETRY_BASE_DELAY_SECONDS = 0.5
+# Narrower than TS's FOREGROUND_529_RETRY_SOURCES (agents/compact/
+# side_question etc., withRetry.ts:62-90) -- minimal posture; widen to
+# agent sources when subagent traffic matters. 'sdk' added in ch05
+# round-4 alongside the headless query_source relabel ('repl_main_thread'
+# -> 'sdk'): TS's set includes 'sdk' (withRetry.ts:67), so headless keeps
+# the yield-based retry lane after the relabel.
+FOREGROUND_529_RETRY_SOURCES = frozenset({"repl_main_thread", "sdk"})
+MAX_OUTPUT_TOKENS_RECOVERY_LIMIT = 3
+PROMPT_TOO_LONG_ERROR_MESSAGE = (
+    "Your conversation is too long. Please use /compact to reduce context size, "
+    "or start a new conversation."
+)
+
+
+@dataclass
+class QueryParams:
+    messages: list[Message]
+    # WI-1.1: ``system_prompt`` accepts either the legacy ``str`` shape
+    # (joined sections, no cache_control markers) OR the block-list shape
+    # ``list[dict]`` produced by ``build_full_system_prompt_blocks``. The
+    # block-list shape is what engages Anthropic's prompt cache via
+    # ``cache_control: {type: 'ephemeral'}`` markers; the str shape is
+    # retained for backward compat with callers that pass a custom prompt.
+    system_prompt: str | list[dict[str, Any]]
+    tools: Tools
+    tool_registry: ToolRegistry
+    tool_use_context: ToolContext
+    provider: BaseProvider
+    abort_controller: AbortController
+    query_source: str = "repl_main_thread"
+    # ch05 round-3 G2: the +500k turn budget. Deliberate deviation from
+    # TS's ambient bootstrap-global design — params is the carrier; the
+    # bootstrap globals remain the mechanism (snapshot at query() entry).
+    token_budget: int | None = None
+    max_output_tokens_override: int | None = None
+    max_turns: int | None = None
+    # Runtime cost backstop. Zero/None means unlimited. Checked before every
+    # model attempt (including retries) and before a tool round.
+    max_cost_usd: float | None = None
+    # ch04 round-4 GAP B — model to switch to after MAX_529_RETRIES
+    # consecutive overloaded errors (TS QueryParams.fallbackModel,
+    # query.ts:276; --fallback-model in headless). Session-sticky switch
+    # via provider.model; never persisted to settings.
+    fallback_model: str | None = None
+    # ch05 round-4 note — N/A-by-architecture on the LIVE paths: the
+    # adapter's build_effective_system_prompt already injects CLAWCODEX.md
+    # ("## Project Instructions") and the date via the SYSTEM prompt, so
+    # wiring TS's prependUserContext there would double-inject. Only the
+    # test-only engine path uses the message-based mechanism
+    # (prepend_user_context at engine.py:221). One mechanism per surface.
+    user_context: dict[str, str] | None = None
+    system_context: dict[str, str] | None = None
+    pipeline_config: PipelineConfig | None = None
+    # Ch5/F-followup: live streaming text callback. When set, the
+    # provider's chat_stream_response receives this callback so each
+    # SSE text-delta drives the UI in real time. Critical for the
+    # TUI/headless live-stream UX after the F.2/F.3 migration to this
+    # loop — without it, callers see the entire response materialize
+    # at once after the model turn completes. The callback can also
+    # raise AbortError from inside the SDK's stream context to tear
+    # down the HTTP socket on ESC.
+    on_text_chunk: Callable[[str], None] | None = None
+    # Live thinking deltas (separate channel from on_text_chunk) for the TUI's
+    # streaming thinking view. None → thinking isn't surfaced live.
+    on_thinking_chunk: Callable[[str], None] | None = None
+
+    # Extended thinking ("adaptive" mode) — opt the model into a private
+    # reasoning scratchpad before producing its visible answer. Defaults
+    # to ``None`` which auto-enables on Anthropic Claude 4.x models
+    # (the only family the API supports it on) and stays off elsewhere.
+    # Pass ``False`` to force-disable (e.g. for determinism in tests).
+    # Mirrors the TS reference which always passes
+    # ``thinking: {type: "adaptive"}`` on these models.
+    extended_thinking: bool | None = None
+    # Output-effort hint forwarded as ``output_config.effort`` on models
+    # that support it. ``None`` = auto: the persisted ``settings.effort``
+    # when set, else the parameter is OMITTED and the API applies its model
+    # default (TS parity). An explicit value ("low" | "medium" | "high" |
+    # "xhigh" | "max") wins over settings — precedence mirrors TS
+    # ``parseEffortValue(options.effort) ?? getInitialEffortSetting()``
+    # (main.tsx:2631). "xhigh" degrades to "high" on models that reject it
+    # (see :func:`resolve_thinking_effort`). Only sent when extended
+    # thinking is active.
+    thinking_effort: str | None = None
+
+
+@dataclass
+class StreamEvent:
+    type: str
+    data: Any = None
+
+
+def _is_prompt_too_long_message(msg: Message) -> bool:
+    if not isinstance(msg, AssistantMessage):
+        return False
+    if not hasattr(msg, "_api_error"):
+        return False
+    return getattr(msg, "_api_error", None) == "prompt_too_long"
+
+
+def _create_user_message(content: str, *, is_meta: bool = False) -> UserMessage:
+    return UserMessage(
+        content=content,
+        isMeta=is_meta,
+    )
+
+
+def _create_assistant_api_error_message(
+    content: str,
+    *,
+    error: str | None = None,
+) -> AssistantMessage:
+    msg = AssistantMessage(content=content, isApiErrorMessage=True)
+    msg._api_error = error  # type: ignore[attr-defined]
+    return msg
+
+
+def _create_user_interruption_message(*, tool_use: bool = False) -> UserMessage:
+    from ..types.messages import INTERRUPT_MESSAGE, INTERRUPT_MESSAGE_FOR_TOOL_USE
+    content = INTERRUPT_MESSAGE_FOR_TOOL_USE if tool_use else INTERRUPT_MESSAGE
+    return UserMessage(content=content, isMeta=True)
+
+
+def _create_max_turns_attachment(max_turns: int, turn_count: int) -> SystemMessage:
+    return SystemMessage(
+        content=f"Reached maximum number of turns ({max_turns})",
+        subtype="max_turns_reached",
+    )
+
+
+async def _fire_post_sampling_hooks(
+    assistant_messages: list[AssistantMessage],
+    provider: Any,
+    tool_use_context: Any,
+) -> None:
+    """Run configured ``PostSampling`` hooks for a completed model stream.
+
+    ch01 round-4 WI-2 — restores the dependency-graph edge "Query Loop
+    fires Hooks" for the one event TS fires from query.ts itself
+    (``executePostSamplingHooks``, query.ts:1079-1089). Reads the global
+    ``AsyncHookRegistry`` (populated at startup by
+    ``bootstrap_hook_config_manager``); with no ``PostSampling`` hooks
+    configured this returns after one in-memory lookup.
+
+    Deviation from TS, deliberate: awaited inline instead of
+    fire-and-forget. The agent-server drives each turn with
+    ``asyncio.run(...)``, so a task created on the loop's final iteration
+    would be cancelled at teardown — losing the hook on exactly the
+    turn-final response. Inline await trades stream/hook overlap for a
+    completion guarantee.
+
+    Hook failures are logged and swallowed — a hook must never kill the
+    turn (TS parity: logError + continue). ``additional_contexts`` from
+    hook results are debug-logged and dropped: TS post-sampling hooks
+    return void, so there are no injection semantics to mirror; a uniform
+    injection lane across events is the ch12 round-4 subject.
+    """
+    if not assistant_messages:
+        return
+    try:
+        from ..hooks.post_sampling_hooks import run_post_sampling_hooks
+        from ..hooks.trust_gate import should_skip_hook_due_to_trust
+
+        last = assistant_messages[-1]
+        results = await run_post_sampling_hooks(
+            model=(
+                getattr(last, "model", None)
+                or getattr(provider, "model", None)
+                or ""
+            ),
+            usage=getattr(last, "usage", None) or {},
+            stop_reason=getattr(last, "stop_reason", None),
+            # Same trust rule as the tool-hook lane: untrusted workspace →
+            # policy hooks only (trust_gate WI-0.2).
+            untrusted_workspace=should_skip_hook_due_to_trust(tool_use_context),
+        )
+        for entry in results:
+            injected = entry.get("injected_messages")
+            if injected:
+                logger.debug(
+                    "PostSampling hook additional_contexts dropped "
+                    "(no injection lane yet — ch12): %d block(s)",
+                    len(injected),
+                )
+    except (asyncio.CancelledError, AbortError):
+        # User intent wins — AbortError subclasses Exception, so without the
+        # explicit re-raise the blanket handler below would swallow it.
+        raise
+    except Exception:  # noqa: BLE001 — hook failure must never kill the turn
+        logger.error("PostSampling hook execution failed", exc_info=True)
+
+
+def _drain_pending_user_messages(tool_use_context: Any) -> list[UserMessage]:
+    """Drain the running agent's ``pending_messages`` inbox, if any.
+
+    Chapter-10 / Chunk D / WI-3.3 hook. The TS implementation drains at
+    the tool-round boundary inside the agent's run loop; the Python
+    equivalent is here, between `tool_results` and the next API call,
+    where the chapter's "messages arrive between tool rounds, not
+    mid-execution" contract holds.
+
+    No-op when:
+    * The context has no ``agent_id`` (top-level / non-runtime-task agents).
+    * The context has no ``runtime_tasks`` registry (test fixtures
+      that didn't construct a real ToolContext).
+    * The agent's entry isn't a ``LocalAgentTaskState`` (defensive —
+      a future task type that runs through the same query loop).
+    * The inbox is empty.
+
+    Returns the drained messages as a list of fresh ``UserMessage``
+    objects, which the caller appends to the next turn's prompt.
+    """
+    agent_id = getattr(tool_use_context, "agent_id", None)
+    runtime = getattr(tool_use_context, "runtime_tasks", None)
+    if not agent_id or runtime is None:
+        return []
+    # Local import to avoid pulling the tasks package into the query
+    # module's import graph at startup; this hook only fires when an
+    # agent_id is set, so the tasks module will already be loaded.
+    try:
+        from src.tasks.local_agent import (
+            LocalAgentTaskState,
+            drain_pending_messages,
+        )
+    except ImportError:
+        return []
+    state = runtime.get(agent_id)
+    if not isinstance(state, LocalAgentTaskState):
+        return []
+    drained = drain_pending_messages(agent_id, runtime)
+    if not drained:
+        return []
+    return [UserMessage(content=text) for text in drained]
+
+
+def _yield_missing_tool_result_blocks(
+    assistant_messages: list[AssistantMessage],
+    error_message: str,
+) -> list[UserMessage]:
+    results: list[UserMessage] = []
+    for assistant_msg in assistant_messages:
+        content = assistant_msg.content
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if isinstance(block, ToolUseBlock):
+                results.append(
+                    UserMessage(
+                        content=[
+                            ToolResultBlock(
+                                tool_use_id=block.id,
+                                content=error_message,
+                                is_error=True,
+                            )
+                        ],
+                    )
+                )
+    return results
+
+
+
+
+_THINKING_ELIGIBLE_MODEL_PATTERN = re.compile(
+    r"claude-(?:sonnet|opus|haiku|fable)-(?:4-\d+|[5-9]\b|\d{2,})",
+    re.IGNORECASE,
+)
+
+
+def _model_supports_extended_thinking(model: str | None) -> bool:
+    """True iff the model supports extended thinking at all (any type).
+
+    Thinking was introduced with the Claude 4 series — the Anthropic API
+    rejects any ``thinking`` param on 3.x and earlier. On the first-party
+    endpoint every Claude 4+ model (Sonnet, Opus, AND Haiku 4.5) supports
+    thinking (TS ``modelSupportsThinking``, thinking.ts:117-148, firstParty
+    branch). Detection is by name pattern so unreleased snapshots
+    (e.g. ``claude-opus-4-7-20260201``) opt in automatically.
+
+    NOTE: supporting thinking does NOT imply supporting the *adaptive*
+    thinking type — that's the narrower :func:`_model_supports_adaptive_thinking`
+    allowlist. Models here that aren't adaptive-capable take a token budget
+    instead (see the caller in ``_call_model_sync``).
+    """
+    if not model:
+        return False
+    return bool(_THINKING_ELIGIBLE_MODEL_PATTERN.search(model))
+
+
+def _model_supports_adaptive_thinking(model: str | None) -> bool:
+    """True iff the model supports the *adaptive* thinking type.
+
+    Only a subset of Claude 4 models accept ``thinking={"type": "adaptive"}``;
+    the rest support thinking only with an explicit ``budget_tokens``. Sending
+    adaptive to a non-adaptive model is rejected with HTTP 400 "adaptive
+    thinking is not supported on this model". Allowlist ported from TS
+    ``modelSupportsAdaptiveThinking`` (thinking.ts:152-169): Opus 4.6/4.7
+    and Sonnet 4.6; extended with Opus 4.8, Opus 5 and Fable 5, where
+    adaptive is the ONLY accepted thinking config — the budget fallback
+    below would be a hard 400 on them (``budget_tokens`` is removed on
+    4.7+; Fable 5 also rejects ``{"type": "disabled"}``, and accepts
+    adaptive or an omitted param). On Opus 5 thinking is ON by default, so
+    ``{"type": "adaptive"}`` is equivalent to omitting the param; the one
+    combination it rejects is ``{"type": "disabled"}`` at effort xhigh/max,
+    which this code never emits (it sends adaptive or budget, never
+    disabled). Substring match mirrors the reference's ``.includes()`` so
+    dated snapshots (``claude-sonnet-4-6-20250929``) match.
+    """
+    if not model:
+        return False
+    m = model.lower()
+    return (
+        "fable-5" in m
+        or "opus-5" in m
+        or "opus-4-8" in m
+        or "opus-4-7" in m
+        or "opus-4-6" in m
+        or "sonnet-4-6" in m
+    )
+
+
+def _model_supports_effort(model: str | None) -> bool:
+    """True iff the model accepts ``output_config={"effort": ...}``.
+
+    Narrower than thinking support — Opus 4.6/4.8, Opus 5, Sonnet 4.6, and
+    Fable 5 (TS ``modelSupportsEffort``, effort.ts:32-51, plus the
+    4.8/Fable/Opus-5 additions where effort is GA). Sending effort to a
+    model that doesn't support it is rejected, so the caller gates on this
+    independently of the thinking type. Being absent here is silent, not
+    fatal: the request succeeds with the API's own default effort and a
+    requested ``--effort`` is dropped on the floor — which is why a new
+    effort-capable model has to be added here, not just to the thinking
+    allowlist.
+    """
+    if not model:
+        return False
+    m = model.lower()
+    return (
+        "fable-5" in m
+        or "opus-5" in m
+        or "opus-4-8" in m
+        or "opus-4-6" in m
+        or "sonnet-4-6" in m
+    )
+
+
+def _model_supports_xhigh_effort(model: str | None) -> bool:
+    """True iff the model accepts ``output_config={"effort": "xhigh"}``.
+
+    The Claude effort ladder is low|medium|high|xhigh|max, but ``xhigh``
+    acceptance is model-dependent. Wire-probed on the first-party API
+    2026-07-18: opus-4-8 accepts it; sonnet-4-6 and opus-4-6 reject it with
+    400 "This model does not support effort level 'xhigh'. Supported
+    levels: high, low, max, medium" — note the same error confirms ``max``
+    is broadly accepted, so only ``xhigh`` needs gating (the vendored TS
+    snapshot's opus-4-6-only ``modelSupportsMaxEffort`` predates this).
+    Fable 5 is included by analogy with opus-4-8 (Claude Code exposes the
+    full ladder on it; unprobed — subscription plans don't carry it).
+    Opus 5 carries the full ladder (low|medium|high|xhigh|max), with xhigh
+    the recommended setting for coding/agentic work — wire-probed
+    2026-07-25 over subscription OAuth: ``claude-opus-5`` + adaptive
+    thinking accepts both ``xhigh`` and ``max`` (200, ``stop_reason:
+    end_turn``).
+
+    Note which direction is safe: an entry MISSING from this allowlist is
+    harmless to the REQUEST (resolve_thinking_effort clamps xhigh to high)
+    though a requested xhigh is then silently downgraded — the same quiet
+    failure the effort allowlist above warns about. A WRONG entry is
+    outright fatal: being listed here sends xhigh to the wire, and a 400
+    on the effort level is not retried or downgraded anywhere, so every
+    request fails. Add a model here on documentation or a probe, never on
+    the theory that a bad guess degrades gracefully.
+    """
+    if not model:
+        return False
+    m = model.lower()
+    return "opus-5" in m or "opus-4-8" in m or "fable-5" in m
+
+
+# Kept in sync with settings.constants.VALID_EFFORT_VALUES (minus the empty
+# "auto" sentinel) — a dedicated test asserts the two ladders match.
+VALID_THINKING_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
+
+
+def resolve_thinking_effort(
+    explicit: str | None, model: str | None, *, clamp_xhigh: bool = True
+) -> str | None:
+    """Effective reasoning-effort value for one request, or ``None``
+    to omit the parameter entirely.
+
+    Precedence mirrors TS main.tsx:2631 ``parseEffortValue(options.effort)
+    ?? getInitialEffortSetting()``: an explicit per-session value (the
+    ``--effort`` flag via ``QueryParams.thinking_effort``) wins over the
+    persisted ``settings.effort``. When NEITHER is set the parameter is
+    omitted, matching TS ``configureEffortParams`` (services/api/claude.ts:
+    449-463 — ``effortValue === undefined`` sends no ``outputConfig``) and
+    letting the API apply its own model default (per TS
+    ``getDisplayedEffortLevel`` that default is "high"; the pre-wiring
+    Python hardcode of "medium" was a divergence, not the wire default).
+    ``"xhigh"`` degrades to ``"high"`` on models outside
+    :func:`_model_supports_xhigh_effort`'s allowlist rather than 400ing the
+    request; ``"max"`` passes through everywhere effort-capable (see the
+    probe notes on the allowlist helper).
+
+    ``clamp_xhigh=False`` disables that degradation, for callers on the
+    OpenAI-compatible wire. The allowlist is a list of ANTHROPIC model names
+    (``opus-5``, ``opus-4-8``, …) checked by substring, so it matches nothing
+    on that wire and would downgrade every ``xhigh`` to ``high`` — silently
+    ignoring what the user asked for. ``xhigh`` is a first-class OpenAI level
+    (developers.openai.com/api/docs/guides/reasoning lists none | minimal |
+    low | medium | high | xhigh | max, and recommends xhigh precisely for
+    "agentic tasks that require long runs"); verified accepted by
+    ``openai/gpt-5.6-luna`` on 2026-07-31. Providers that don't know the
+    field ignore it, so passing it through is the safe direction there —
+    whereas on the Anthropic wire an unsupported ``xhigh`` is a hard 400,
+    which is why the clamp stays on by default.
+    """
+    value = (explicit or "").strip().lower()
+    if value not in VALID_THINKING_EFFORT_LEVELS:
+        # Local import: settings is read at the wire boundary only, keeping
+        # QueryParams construction sites free of hidden global reads.
+        from ..settings.settings import get_settings
+
+        try:
+            value = (get_settings().effort or "").strip().lower()
+        except Exception:  # noqa: BLE001 — settings must never break a request
+            value = ""
+    if value not in VALID_THINKING_EFFORT_LEVELS:
+        return None
+    if value == "xhigh" and clamp_xhigh and not _model_supports_xhigh_effort(model):
+        logger.debug(
+            "effort xhigh not supported on %s; sending high instead", model
+        )
+        return "high"
+    return value
+
+
+def normalize_effort_for_provider(
+    provider: Any, resolved_effort: str | None
+) -> str | None:
+    """Translate an effort level into the provider's own vocabulary.
+
+    THE single source of truth for this step, shared by the main loop
+    (:func:`_call_model_sync`) and the client-side advisor. Both send
+    ``extra_body.reasoning_effort`` on non-Anthropic wires and both must
+    translate first — the advisor originally skipped it and so silently
+    reintroduced the bug the hook exists to prevent: a DeepSeek advisor got
+    ``xhigh`` where the main loop sends ``max``, and DeepSeek — which does
+    not know ``xhigh`` — drops the field and applies its own default. No
+    error, just a level the user did not ask for, biased DOWNWARD on the
+    setting people reach for when a task is hard.
+
+    The result is VALIDATED, not trusted. This is a duck-typed ``getattr``
+    on whatever the caller passed, and providers are not all real
+    ``BaseProvider`` subclasses — mocks, gateway shims and third-party
+    wrappers all reach here. A ``MagicMock`` in particular answers every
+    attribute with a callable returning another Mock, so an unguarded
+    assignment writes a ``<MagicMock ...>`` repr into the request body.
+    Anything that is not a plain string on the known ladder is discarded in
+    favour of the level already resolved.
+    """
+    if resolved_effort is None:
+        return None
+    _normalize = getattr(provider, "normalize_reasoning_effort", None)
+    if not callable(_normalize):
+        return resolved_effort
+    try:
+        _mapped = _normalize(resolved_effort)
+    except Exception:  # noqa: BLE001 — never fail a request on this
+        return resolved_effort
+    if isinstance(_mapped, str) and _mapped in VALID_THINKING_EFFORT_LEVELS:
+        return _mapped
+    return resolved_effort
+
+
+def build_anthropic_thinking_kwargs(
+    model: str | None,
+    *,
+    explicit_effort: str | None = None,
+    max_tokens: int = 0,
+    force_thinking: bool = False,
+) -> dict[str, Any]:
+    """Build the Anthropic-wire ``thinking`` / ``output_config`` kwargs.
+
+    THE single source of truth for the adaptive-vs-budget selection and
+    the effort gate. Two callers share it and must never drift:
+
+    * the main loop (:func:`_call_model_sync`), and
+    * the client-side advisor (``src/utils/advisor.py``), whose separate
+      API call previously sent neither parameter — so a reviewer model
+      configured precisely because it reasons harder ran with thinking
+      off and the API's default effort.
+
+    The adaptive-vs-budget split mirrors TS claude.ts:1612-1640: models
+    that support the adaptive type get ``{type: "adaptive"}``; models that
+    support thinking but not adaptive get an explicit ``budget_tokens``
+    instead, because adaptive is a hard 400 on them. ``output_config.effort``
+    is gated separately and more narrowly (:func:`_model_supports_effort`).
+
+    ``max_tokens`` is only consulted on the budget branch, where the budget
+    must land in ``[1024, max_tokens)``; pass the value already resolved for
+    the request. ``force_thinking`` mirrors the caller's explicit
+    ``extended_thinking=True`` override, which enables thinking even for a
+    model the eligibility regex doesn't recognise.
+
+    Returns a dict to merge into the request kwargs — empty when the model
+    supports neither, so merging is always safe.
+    """
+    out: dict[str, Any] = {}
+    if not (force_thinking or _model_supports_extended_thinking(model)):
+        return out
+    if _model_supports_adaptive_thinking(model):
+        out["thinking"] = {"type": "adaptive"}
+    else:
+        # Budget thinking is the safe direction — it works on any
+        # thinking-capable model, whereas adaptive 400s where unsupported.
+        # TS defaults an unknown first-party alias to adaptive
+        # (thinking.ts:178-183); we deliberately prefer budget. TS clamps to
+        # maxOutputTokens-1 (claude.ts:1628-1635); we clamp identically.
+        _max_tok = int(max_tokens or 0)
+        if _max_tok > 1024:
+            out["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": max(1024, _max_tok - 1),
+            }
+        else:
+            # No budget in [1024, max_tokens) fits — omit thinking rather
+            # than send an invalid request (max_tokens this small only
+            # happens via an explicit tiny override).
+            logger.debug(
+                "thinking omitted: max_tokens=%s too small for a "
+                "valid budget on non-adaptive model %s",
+                _max_tok, model,
+            )
+    if _model_supports_effort(model):
+        resolved_effort = resolve_thinking_effort(explicit_effort, model)
+        # None = nothing requested anywhere — omit the parameter so the API
+        # applies its own model default (TS parity; see resolve_thinking_effort).
+        if resolved_effort is not None:
+            out["output_config"] = {"effort": resolved_effort}
+    return out
+
+
+def _is_overloaded_error(e: Exception) -> bool:
+    """Anthropic 529 / overloaded_error classification (duck-typed so
+    test fakes and other providers' shapes participate)."""
+    status = getattr(e, "status_code", None)
+    if status == 529:
+        return True
+    text = str(e).lower()
+    return "overloaded_error" in text or "overloaded" in text
+
+
+def _retry_after_seconds(e: Exception, default: float) -> float:
+    """Honor a Retry-After header when the SDK exposes response headers."""
+    response = getattr(e, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers:
+        raw = headers.get("retry-after")
+        if raw:
+            try:
+                value = float(raw)
+                if 0 < value <= 60:
+                    return value
+            except (TypeError, ValueError):
+                pass
+    return default
+
+
+async def _fire_stop_failure_hooks(last_message: Any, tool_use_context: Any) -> None:
+    """Dispatch StopFailure hooks at the error-exit paths (ch05 G1).
+
+    TS fires fire-and-forget at query.ts:1256/:1263/:1347; the port
+    awaits (terminal paths; latency bounded by the hook timeout) and
+    never raises.
+    """
+    try:
+        from ..hooks.hook_executor import execute_stop_failure_hooks
+
+        async for _result in execute_stop_failure_hooks(
+            last_message, tool_use_context
+        ):
+            pass
+    except Exception:
+        logger.debug("StopFailure hook dispatch failed", exc_info=True)
+
+
+
+
+
+# Max tools to run in parallel (TS default: 10, configurable via env var).
+async def query(
+    params: QueryParams,
+    *,
+    terminal_holder: TerminalHolder | None = None,
+) -> AsyncGenerator[Message | StreamEvent, None]:
+    """Canonical agent loop (chapter 5, Phase A foundation).
+
+    The async generator yields messages and stream events to the consumer.
+    The final ``Terminal`` is written to ``terminal_holder.value`` just
+    before the generator returns (Python async generators cannot return
+    values: PEP 525). Callers who care about the terminal pass their own
+    ``TerminalHolder`` and read its ``.value`` after iteration.
+
+    See :func:`run_query` for a convenience helper that consumes the
+    generator and returns ``(messages, terminal)``.
+
+    Recovery integration, stop hooks, token budget, the continuation
+    nudge (ch05 rounds 2-3), and the retry lane with model fallback
+    (ch04 round-4) are all wired: after ``MAX_529_RETRIES`` consecutive
+    overloaded errors with ``params.fallback_model`` configured, the lane
+    switches ``provider.model`` session-sticky (never persisted) and
+    keeps going. No tombstones by design — the lane only retries when
+    nothing streamed, so no partial assistant message ever needs
+    retraction (TS retries wrap partial streams and must tombstone).
+    """
+    _diag = os.environ.get("CLAWCODEX_DEBUG", "").lower() in ("1", "true", "yes")
+    holder = terminal_holder or TerminalHolder()
+    # Inner-only flag for the future outer two-layer wrapper (Phase G).
+    # Until that lands, the flag is local; set_terminal still writes it
+    # so every exit site uses the canonical helper.
+    natural_termination: list[bool] = [False]
+    state = QueryState(
+        messages=list(params.messages),
+        tool_use_context=params.tool_use_context,
+        max_output_tokens_override=params.max_output_tokens_override,
+    )
+    config = build_query_config()
+    # Created once per query() call, persisting across turns — mirrors TS
+    # query.ts:311 (state built before the while(true) at :327). Any
+    # successful tool result resets the counters inside the guard.
+    tool_failure_guard_state = create_tool_failure_loop_guard_state()
+    # ch05 round-3 G2: snapshot the turn-token baseline + budget into the
+    # bootstrap globals (zero callers before this — without the snapshot,
+    # get_turn_output_tokens() returns SESSION-cumulative tokens and the
+    # budget check is silently wrong after any prior output). Tracker is
+    # once-per-query (TS query.ts:299) — per-iteration construction would
+    # disable diminishing-returns detection.
+    from ..bootstrap.state import snapshot_output_tokens_for_turn
+
+    # Top-level queries only: a nested subagent query() (Agent tool runs
+    # inside the main turn's tool phase) or a sidechannel must NOT
+    # re-snapshot — it would null the budget, re-baseline the turn counter,
+    # and zero the continuation count mid-turn. TS snapshots only at the
+    # REPL surface (REPL.tsx:2944); agent_id mirrors check_token_budget's
+    # own subagent discriminator.
+    if (
+        getattr(params.tool_use_context, "agent_id", None) is None
+        and params.query_source not in ("compact", "session_memory")
+    ):
+        snapshot_output_tokens_for_turn(params.token_budget)
+    budget_tracker = create_budget_tracker()
+    from .budget import BudgetGuard
+    from ..bootstrap.state import get_total_cost_usd
+
+    max_cost_usd = params.max_cost_usd
+    if max_cost_usd is None:
+        try:
+            from ..settings import get_settings
+
+            max_cost_usd = float(get_settings().max_cost_usd or 0.0)
+        except Exception:  # noqa: BLE001 — settings failure must not kill Query
+            max_cost_usd = 0.0
+    runtime_budget = BudgetGuard(
+        max_turns=params.max_turns,
+        max_cost_usd=max_cost_usd,
+    )
+
+    def _budget_violation(*, next_model_turn: bool = False):
+        return runtime_budget.check(
+            turn_count=turn_count + 1 if next_model_turn else turn_count,
+            cost_usd=get_total_cost_usd(),
+        )
+
+    # ch07 round-3 G1: the orchestrator lane sources tool lookup AND the
+    # concurrency partition from context.options.tools — production
+    # previously left it empty ([] default), which would silently route
+    # every tool through the base-list fallback and classify off
+    # defaults. Sync once per query.
+    params.tool_use_context.options.tools = list(params.tools)
+
+    # ch09 round-4 WI-1 — capture the parent's rendered system prompt onto
+    # its context so a fork spawned DURING this turn threads the parent's
+    # EXACT prompt (byte-identical), letting the fork child chain onto the
+    # parent's warm [system+tools+history] cache. Without this the field
+    # was dead scaffolding (permanently None) and fork children fell back
+    # to DEFAULT_AGENT_PROMPT — diverging at byte 0 and reprocessing the
+    # whole history at full price (fork's entire economic point, inert).
+    # TS: toolUseContext.renderedSystemPrompt (AgentTool.tsx:496). The
+    # captured value is the INPUT to _call_model_sync's assembly; the fork
+    # child threads the same input and goes through the same assembly, so
+    # the wire bytes match. Set unconditionally (cheap; only fork reads it;
+    # a fork-of-subagent is guarded regardless).
+    if params.system_prompt:
+        try:
+            params.tool_use_context.rendered_system_prompt = params.system_prompt
+        except Exception:  # noqa: BLE001 — read-only stub context
+            pass
+
+    # How much of the session-lifetime outbox predates THIS query. Entries
+    # below the mark belong to earlier prompts and must not count as "the
+    # model already spoke" for the degenerate-turn check below —
+    # ``ToolContext.outbox`` is created once per session and never cleared,
+    # so without this a single AskUserQuestion / Brief / SendUserMessage
+    # anywhere in the session suppressed the check for every prompt after it.
+    _outbox_watermark = len(getattr(params.tool_use_context, "outbox", None) or [])
+
+    while True:
+        messages = state.messages
+        if _diag:
+            logger.warning(
+                "[DIAG] query loop: turn=%d  messages=%d  transition=%s",
+                state.turn_count, len(messages),
+                state.transition.reason if state.transition else "initial",
+            )
+        tool_use_context = state.tool_use_context
+        # WI-5.1: reset the per-message aggregate counter at each turn
+        # boundary. The 200K cap is PER USER MESSAGE (the next batch of
+        # tool_result blocks the model will see), not per session. Without
+        # this reset the counter grows monotonically and every tool result
+        # eventually gets persisted regardless of size. Mirrors TS
+        # ``toolResultStorage.ts:collectCandidatesByMessage`` which
+        # partitions evaluation by message.
+        tool_use_context.tool_result_chars_so_far = 0
+        max_output_tokens_recovery_count = state.max_output_tokens_recovery_count
+        has_attempted_reactive_compact = state.has_attempted_reactive_compact
+        max_output_tokens_override = state.max_output_tokens_override
+        turn_count = state.turn_count
+
+        violation = _budget_violation()
+        if violation is not None:
+            if violation.reason == "max_cost":
+                yield SystemMessage(
+                    content=(
+                        f"Maximum cost (${float(violation.limit):.4f}) reached. "
+                        "Stopping before further model or tool execution."
+                    ),
+                    level="warning",
+                    subtype="max_cost_reached",
+                )
+                set_terminal(
+                    holder, natural_termination,
+                    Terminal(reason="max_cost", turn_count=turn_count),
+                )
+                return
+
+        yield StreamEvent(type="stream_request_start")
+
+        # --- Phase 0: Compression Pipeline ---
+        # Mirrors TS query loop Phase 0: toolResultBudget → snip → microcompact → collapse → autocompact
+        snip_tokens_freed = 0
+        if params.pipeline_config is not None:
+            try:
+                # Estimate input tokens so layer 5 (autocompact) can decide
+                # whether to fire. Without this the MIN_INPUT_TOKENS_FOR_AUTOCOMPACT
+                # guard short-circuits and auto-compact never triggers.
+                est_input_tokens = rough_token_count_estimation_for_messages(messages)
+                pipeline_result = await run_compression_pipeline(
+                    messages,
+                    input_token_count=est_input_tokens,
+                    config=params.pipeline_config,
+                )
+                if pipeline_result.tokens_saved > 0:
+                    messages = pipeline_result.messages
+                    snip_tokens_freed = pipeline_result.tokens_saved
+                    if _diag:
+                        logger.warning(
+                            "[DIAG] Compression pipeline saved %d tokens (layers: %s)",
+                            pipeline_result.tokens_saved,
+                            ", ".join(pipeline_result.layers_applied),
+                        )
+            except Exception:
+                logger.warning("Compression pipeline failed, continuing with original messages", exc_info=True)
+
+        # Ch5/B.4 + B.5 — pre-emption guards before the API call.
+        # Two distinct guards:
+        #   B.4: hard blocking limit (auto-compact off OR no other
+        #        recovery available) — saves the 500 the API would
+        #        return anyway.
+        #   B.5: autocompact circuit-breaker tripped (3 consecutive
+        #        failures) AND we're still over the autocompact
+        #        threshold — gives the user an actionable message
+        #        instead of an opaque 500.
+        # Skip when this iteration is a recovery retry (the messages
+        # were already validated under the limit), or when this is a
+        # compact/session_memory forked query (those need to run to
+        # REDUCE the token count, blocking would deadlock).
+        from ..services.compact.autocompact import (
+            MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES,
+            calculate_token_warning_state,
+            is_auto_compact_enabled,
+        )
+
+        skip_blocking_guards = (
+            params.query_source in ("compact", "session_memory")
+            or (
+                state.transition is not None
+                and state.transition.reason
+                in ("collapse_drain_retry", "reactive_compact_retry")
+            )
+        )
+
+        if not skip_blocking_guards:
+            context_window = _get_context_window(params.provider)
+            # NB: ``messages`` here is already the post-pipeline list (we
+            # reassigned ``messages = pipeline_result.messages`` above when
+            # the pipeline freed tokens). So ``rough_token_count_estimation``
+            # already reflects all compression-layer savings; subtracting
+            # ``snip_tokens_freed`` again would double-count. The variable
+            # is retained for B.5 logging / future TS-style snip-only
+            # measurement, but the guard math uses the post-pipeline count
+            # directly.
+            token_usage = rough_token_count_estimation_for_messages(messages)
+            warning = calculate_token_warning_state(token_usage, context_window)
+
+            # B.5 (checked first — gives the more actionable message
+            # when the breaker has tripped). Mirrors TS query.ts:705-725.
+            tracking = state.auto_compact_tracking or (
+                params.pipeline_config.autocompact_tracking
+                if params.pipeline_config is not None
+                else None
+            )
+            consec = (
+                getattr(tracking, "consecutive_failures", 0)
+                if tracking is not None
+                else 0
+            )
+            if (
+                consec >= MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES
+                and is_auto_compact_enabled()
+                and warning["is_above_auto_compact_threshold"]
+            ):
+                yield _create_assistant_api_error_message(
+                    content=(
+                        "The conversation has exceeded the context limit "
+                        "and automatic compaction has failed. Press esc twice "
+                        "to go up a few messages and try again, or start a "
+                        "new session with /new."
+                    ),
+                    error="invalid_request",
+                )
+                set_terminal(
+                    holder, natural_termination, Terminal(reason="blocking_limit"),
+                )
+                return
+
+            # B.4 (hard blocking limit). Mirrors TS query.ts:683-696.
+            # Only fires when reactive-compact recovery is NOT available
+            # — otherwise we let the API 413 and the B.2 recovery path
+            # handle it. This matches TS: the guard exists to short-
+            # circuit only when no recovery would catch the 500 anyway.
+            elif (
+                warning["is_at_blocking_limit"]
+                and not (
+                    config.reactive_compact_enabled
+                    and is_auto_compact_enabled()
+                )
+            ):
+                yield _create_assistant_api_error_message(
+                    content=PROMPT_TOO_LONG_ERROR_MESSAGE,
+                    error="invalid_request",
+                )
+                set_terminal(
+                    holder, natural_termination, Terminal(reason="blocking_limit"),
+                )
+                return
+
+        assistant_messages: list[AssistantMessage] = []
+        tool_results: list[UserMessage] = []
+        tool_use_blocks: list[ToolUseBlock] = []
+        needs_follow_up = False
+
+        # ch04 round-3 G3, widened by round-4 GAP B: the retry lane.
+        # Yield-based like TS withRetry (status surfaces in the message
+        # stream, not a side channel). Constraints preserved from round-3:
+        # foreground sources only; never after partial output (a mid-stream
+        # failure with rendered text follows the normal error path — no
+        # duplicate text); SDK auto-retry disabled underneath via
+        # sdk_max_retries=0 so attempt counts tell the truth.
+        #
+        # Round-4 additions (TS withRetry.ts parity):
+        #   * general retryable classes — 429 / 5xx / connection / timeout —
+        #     retry under DEFAULT_MAX_RETRIES with exponential backoff +
+        #     0-25% jitter (TS getRetryDelay); quota-exhausted and
+        #     non-retryable errors bail immediately;
+        #   * model fallback — after MAX_529_RETRIES consecutive 529s with
+        #     params.fallback_model configured, switch provider.model
+        #     (session-sticky like TS's mainLoopModel switch; NOT persisted
+        #     to settings), announce it, reset the 529 counter, keep going.
+        #     No tombstones needed (deliberate divergence): this lane only
+        #     retries when NOTHING streamed; TS's retry wraps partial
+        #     streams and must tombstone the orphans (query.ts:795-824).
+        _is_foreground = params.query_source in FOREGROUND_529_RETRY_SOURCES
+        _streamed_any = [False]
+        _outer_chunk_cb = params.on_text_chunk
+
+        def _marking_chunk_cb(text: str) -> None:
+            _streamed_any[0] = True
+            if _outer_chunk_cb is not None:
+                _outer_chunk_cb(text)
+
+        try:
+            _general_attempts = 0
+            _consecutive_529s = 0
+            while True:
+                violation = _budget_violation()
+                if violation is not None and violation.reason == "max_cost":
+                    yield SystemMessage(
+                        content=(
+                            f"Maximum cost (${float(violation.limit):.4f}) reached. "
+                            "Stopping before further model or tool execution."
+                        ),
+                        level="warning",
+                        subtype="max_cost_reached",
+                    )
+                    set_terminal(
+                        holder, natural_termination,
+                        Terminal(reason="max_cost", turn_count=turn_count),
+                    )
+                    return
+                _streamed_any[0] = False
+                try:
+                    returned_assistants, returned_tool_blocks = await _call_model_sync(
+                        provider=params.provider,
+                        messages=messages,
+                        system_prompt=params.system_prompt,
+                        tools=params.tools,
+                        max_output_tokens_override=max_output_tokens_override,
+                        abort_signal=params.abort_controller.signal,
+                        on_text_chunk=(
+                            _marking_chunk_cb if _outer_chunk_cb is not None
+                            else None
+                        ),
+                        on_thinking_chunk=params.on_thinking_chunk,
+                        extended_thinking=params.extended_thinking,
+                        thinking_effort=params.thinking_effort,
+                        sdk_max_retries=0 if _is_foreground else None,
+                    )
+                    break
+                except AbortError:
+                    raise
+                except Exception as retry_exc:
+                    if (
+                        not _is_foreground
+                        or _streamed_any[0]
+                        or params.abort_controller.signal.aborted
+                    ):
+                        raise
+
+                    from ..services.api.errors import (
+                        categorize_retryable_api_error,
+                        is_quota_exhausted,
+                    )
+
+                    is_529 = _is_overloaded_error(retry_exc)
+                    if not is_529:
+                        classification = categorize_retryable_api_error(retry_exc)
+                        if not classification.retryable or is_quota_exhausted(retry_exc):
+                            raise
+
+                    _general_attempts += 1
+                    if is_529:
+                        _consecutive_529s += 1
+                    else:
+                        _consecutive_529s = 0
+
+                    # Model fallback — TS withRetry.ts:345-369 →
+                    # query.ts:977-1032. Fires once; a 529 storm on the
+                    # fallback model then follows the normal exhaustion path
+                    # (the model equality check keeps it single-shot).
+                    if (
+                        is_529
+                        and _consecutive_529s >= MAX_529_RETRIES
+                        and params.fallback_model
+                        and params.fallback_model
+                        != getattr(params.provider, "model", None)
+                    ):
+                        _original_model = getattr(params.provider, "model", "?")
+                        try:
+                            params.provider.model = params.fallback_model
+                        except Exception:  # noqa: BLE001 — read-only provider stub
+                            raise retry_exc
+                        logger.warning(
+                            "model fallback: %s -> %s after %d consecutive "
+                            "overloaded errors",
+                            _original_model, params.fallback_model,
+                            _consecutive_529s,
+                        )
+                        yield SystemMessage(
+                            content=(
+                                f"Switched to {params.fallback_model} due to "
+                                f"high demand for {_original_model}"
+                            ),
+                            level="warning",
+                            subtype="model_fallback",
+                        )
+                        _consecutive_529s = 0
+                        continue
+
+                    if is_529 and _consecutive_529s > MAX_529_RETRIES:
+                        raise
+                    if _general_attempts > DEFAULT_MAX_RETRIES:
+                        raise
+
+                    _base = RETRY_BASE_DELAY_SECONDS * (2 ** (_general_attempts - 1))
+                    # 0-25% jitter (TS getRetryDelay, withRetry.ts:561-566);
+                    # capped so a long exponential tail can't exceed the
+                    # Retry-After clamp either way.
+                    _base = min(_base, 60.0) * (1.0 + random.random() * 0.25)
+                    delay = _retry_after_seconds(retry_exc, _base)
+                    if is_529:
+                        _status = (
+                            f"Server overloaded — retrying in {delay:.1f}s "
+                            f"(attempt {_consecutive_529s}/{MAX_529_RETRIES})"
+                        )
+                    else:
+                        _status = (
+                            f"API error ({classification.error_type}) — "
+                            f"retrying in {delay:.1f}s "
+                            f"(attempt {_general_attempts}/{DEFAULT_MAX_RETRIES})"
+                        )
+                    yield SystemMessage(
+                        content=_status, level="warning", subtype="api_retry",
+                    )
+                    # Abort-aware backoff (critic): TS sleeps WITH the
+                    # signal (withRetry sleep(delay, signal)); a
+                    # Retry-After can direct up to 60s — ESC must not
+                    # be stuck behind it. Sliced sleep, checked every
+                    # 250ms; an abort falls through to the existing
+                    # aborted_streaming handling on the next attempt.
+                    _remaining = delay
+                    while _remaining > 0:
+                        if params.abort_controller.signal.aborted:
+                            break
+                        _tick = min(0.25, _remaining)
+                        await asyncio.sleep(_tick)
+                        _remaining -= _tick
+                    if params.abort_controller.signal.aborted:
+                        # Land in the REAL abort lane (the outer
+                        # except AbortError + post-call abort block),
+                        # so the user sees the interruption message
+                        # rather than a retry-lane model_error.
+                        raise AbortError("interrupted during retry backoff") from retry_exc
+                    continue
+            assistant_messages = returned_assistants
+            tool_use_blocks = returned_tool_blocks
+            needs_follow_up = len(tool_use_blocks) > 0
+
+            for msg in assistant_messages:
+                # Ch5/B.1 — three-source withholding pattern.
+                # Mirrors TS query.ts:866-903. Recoverable errors are
+                # suppressed from the yield stream so SDK consumers
+                # (Cowork, the desktop app) don't disconnect mid-recovery.
+                # If recovery exhausts, the message is surfaced later by
+                # the dispatch code in the no-follow-up branch (B.2).
+                withheld = (
+                    _is_withheld_max_output_tokens(msg)
+                    or _is_withheld_prompt_too_long(msg)
+                    or _is_withheld_media_size(msg)
+                )
+                if not withheld:
+                    yield msg
+
+        except AbortError:
+            # The provider's abort listener closed the streaming HTTP
+            # response mid-flight (ESC pressed while the model was still
+            # generating). The signal is already tripped, so let the
+            # ``if params.abort_controller.signal.aborted`` block right
+            # below us do the cancellation processing in exactly one
+            # place — anything we did here would duplicate that work.
+            pass
+
+        except Exception as e:
+            logger.error("Query error: %s", e)
+            error_message = str(e)
+
+            for err_msg in _yield_missing_tool_result_blocks(assistant_messages, error_message):
+                yield err_msg
+
+            yield _create_assistant_api_error_message(content=error_message)
+            set_terminal(holder, natural_termination, Terminal(reason="model_error", error=e))
+            return
+
+        if params.abort_controller.signal.aborted:
+            for err_msg in _yield_missing_tool_result_blocks(
+                assistant_messages, "Interrupted by user"
+            ):
+                yield err_msg
+
+            if params.abort_controller.signal.reason != "interrupt":
+                yield _create_user_interruption_message(tool_use=False)
+            set_terminal(holder, natural_termination, Terminal(reason="aborted_streaming"))
+            return
+
+        # ch01 round-4 WI-2 — PostSampling hook wire (TS query.ts:1079-1089).
+        # Placed after the abort check: TS fires before it, but its call is
+        # non-blocking (`void …`) so pre-abort is free there; an inline await
+        # before the abort return would delay ESC responsiveness by the hook
+        # runtime. Consequence: hooks do not fire for user-aborted streams.
+        if assistant_messages:
+            await _fire_post_sampling_hooks(
+                assistant_messages, params.provider, tool_use_context,
+            )
+
+        if not needs_follow_up:
+            last_message = assistant_messages[-1] if assistant_messages else None
+
+            if _is_withheld_max_output_tokens(last_message):
+                if (
+                    max_output_tokens_override is None
+                    and max_output_tokens_recovery_count == 0
+                ):
+                    state = QueryState(
+                        messages=messages,
+                        tool_use_context=tool_use_context,
+                        auto_compact_tracking=state.auto_compact_tracking,
+                        max_output_tokens_recovery_count=max_output_tokens_recovery_count,
+                        has_attempted_reactive_compact=has_attempted_reactive_compact,
+                        max_output_tokens_override=ESCALATED_MAX_TOKENS,
+                        stop_hook_active=None,
+                        turn_count=turn_count,
+                        transition=Transition(reason="max_output_tokens_escalate"),
+                    )
+                    continue
+
+                if max_output_tokens_recovery_count < MAX_OUTPUT_TOKENS_RECOVERY_LIMIT:
+                    recovery_message = _create_user_message(
+                        "Output token limit hit. Resume directly — no apology, no recap of what you were doing. "
+                        "Pick up mid-thought if that is where the cut happened. Break remaining work into smaller pieces.",
+                        is_meta=True,
+                    )
+                    state = QueryState(
+                        messages=[*messages, *assistant_messages, recovery_message],
+                        tool_use_context=tool_use_context,
+                        auto_compact_tracking=state.auto_compact_tracking,
+                        max_output_tokens_recovery_count=max_output_tokens_recovery_count + 1,
+                        has_attempted_reactive_compact=has_attempted_reactive_compact,
+                        max_output_tokens_override=None,
+                        stop_hook_active=None,
+                        turn_count=turn_count,
+                        transition=Transition(
+                            reason="max_output_tokens_recovery",
+                            attempt=max_output_tokens_recovery_count + 1,
+                        ),
+                    )
+                    continue
+
+                yield last_message  # type: ignore[arg-type]
+
+            # Ch5/B.2 — PTL / media-size recovery via reactive_compact.
+            # Mirrors TS query.ts:1195-1260. When the streaming model
+            # returned a withheld PTL or media-size error AND we have
+            # not yet attempted reactive_compact in this loop iteration,
+            # try to compact and retry. The one-shot guard
+            # (``has_attempted_reactive_compact``) prevents the
+            # death-spiral failure mode documented in chapter §"Death
+            # Spiral Guard": without it, a compact-then-still-413 loop
+            # burns thousands of API calls.
+            is_withheld_ptl = _is_withheld_prompt_too_long(last_message)
+            is_withheld_media = _is_withheld_media_size(last_message)
+
+            # Phase B post-critic: if the guard ALREADY tripped (we tried
+            # reactive_compact this turn and the post-compact retry STILL
+            # raised PTL/media), surface the withheld error and emit the
+            # appropriate Terminal — do NOT fall through to the
+            # "API error → Terminal(completed)" path. Mirrors TS at
+            # query.ts:1244-1252.
+            if (
+                (is_withheld_ptl or is_withheld_media)
+                and has_attempted_reactive_compact
+            ):
+                if last_message is not None:
+                    yield last_message
+                # ch05 G1: StopFailure fires on error exits (TS :1256).
+                await _fire_stop_failure_hooks(last_message, tool_use_context)
+                set_terminal(
+                    holder,
+                    natural_termination,
+                    Terminal(
+                        reason="image_error"
+                        if is_withheld_media
+                        else "prompt_too_long"
+                    ),
+                )
+                return
+
+            if (
+                (is_withheld_ptl or is_withheld_media)
+                and not has_attempted_reactive_compact
+                and config.reactive_compact_enabled
+            ):
+                from ..services.compact.reactive_compact import (
+                    ReactiveCompactResult,
+                    reactive_compact,
+                )
+                from ..services.api.errors import PromptTooLongError
+
+                # A MEDIA rejection is a COUNT/SIZE violation, not a token
+                # one, so fix it directly instead of routing through the
+                # token-shaped compactor.
+                #
+                # reactive_compact's emergency fallback drops the OLDEST
+                # messages and accepts the result when tokens fall 30%
+                # (reactive_compact.py). Image count is never consulted. For
+                # the case that motivates this path — an agent reading frames
+                # in a loop, so the images are all in the RECENT tail —
+                # dropping old text satisfies the token test while leaving
+                # the images in place: measured 200 msgs/60 images -> 40
+                # msgs/40 images, reported as ``compacted=True``. The retry
+                # then hits the same cap with the one-shot flag already
+                # burned.
+                #
+                # Stripping is deterministic, needs no summarizer call, and
+                # keeps the text context that a full compaction would replace
+                # with a summary. Upstream models these as distinct
+                # operations too (reactiveCompact.ts carries a
+                # 'media_unstrippable' outcome); the port had collapsed them.
+                media_result: ReactiveCompactResult | None = None
+                if is_withheld_media:
+                    from ..context_system.microcompact import (
+                        strip_images_from_typed_messages,
+                    )
+
+                    def _n_images(ms: list[Message]) -> int:
+                        n = 0
+                        for m in ms:
+                            c = getattr(m, "content", None)
+                            if isinstance(c, list):
+                                n += sum(
+                                    1 for b in c
+                                    if getattr(b, "type", None) in ("image", "document")
+                                )
+                        return n
+
+                    before_imgs = _n_images(messages)
+                    stripped = strip_images_from_typed_messages(messages)
+                    after_imgs = _n_images(stripped)
+                    if before_imgs and after_imgs < before_imgs:
+                        logger.info(
+                            "media recovery: stripped %d media block(s) from "
+                            "the conversation and retrying",
+                            before_imgs - after_imgs,
+                        )
+                        media_result = ReactiveCompactResult(
+                            compacted=True,
+                            messages=stripped,
+                            tokens_before=0,
+                        )
+                if is_withheld_media and media_result is not None:
+                    result = media_result
+                else:
+                    # Either a prompt-too-long, or a media error with nothing
+                    # strippable in the typed conversation (media referenced
+                    # some other way). Fall back to the general compactor
+                    # rather than giving up — strip is an OPTIMISATION for the
+                    # case it can fix deterministically, not a replacement.
+                    # Synthesize an exception for reactive_compact's
+                    # is_prompt_too_long_error check. The withheld message
+                    # holds the original error string; we don't need to
+                    # round-trip it precisely because reactive_compact only
+                    # uses the exception for classification.
+                    #
+                    # That predicate is TYPE-aware (reactive_compact.py) --
+                    # it has to be, because this message deliberately is not
+                    # the default one. When it was string-only this synthetic
+                    # error failed the gate and the WHOLE lane was dead: no
+                    # compaction, no retry, one provider call, for both the
+                    # PTL and media paths.
+                    synthetic_err = PromptTooLongError(
+                        "withheld during streaming, recovering"
+                    )
+                    result = await reactive_compact(
+                        messages=messages,
+                        error=synthetic_err,
+                        provider=params.provider,
+                        model=config.model,
+                    )
+                if result.compacted:
+                    # ReactiveCompactResult.messages is list[Message]
+                    # (verified 2026-05-12 against reactive_compact.py
+                    # :33-39, :205-210, :230-236; the field
+                    # concatenates CompactionResult.summary_messages
+                    # which is list[UserMessage], with
+                    # messages_to_keep which is list[Message]).
+                    post_compact_messages: list[Message] = result.messages
+                    for msg in post_compact_messages:
+                        yield msg
+                    # Critic finding (Phase B post-review): a successful
+                    # reactive_compact MUST reset the engine's autocompact
+                    # circuit-breaker counter. Otherwise the next iteration's
+                    # B.5 guard re-reads the engine's persistent
+                    # ``consecutive_failures`` (still ≥3 if the breaker
+                    # tripped earlier in the session) and would trip
+                    # ``Terminal(blocking_limit)`` immediately even though
+                    # we just successfully compacted. Mirrors TS query.ts
+                    # auto-compact success path (resets failures to 0).
+                    if (
+                        params.pipeline_config is not None
+                        and params.pipeline_config.autocompact_tracking is not None
+                    ):
+                        params.pipeline_config.autocompact_tracking.consecutive_failures = 0
+                    state = QueryState(
+                        messages=post_compact_messages,
+                        tool_use_context=tool_use_context,
+                        # Carry the engine's tracking through the retry so
+                        # next iteration's B.5 reads the post-reset count.
+                        auto_compact_tracking=(
+                            params.pipeline_config.autocompact_tracking
+                            if params.pipeline_config is not None
+                            else None
+                        ),
+                        max_output_tokens_recovery_count=max_output_tokens_recovery_count,
+                        has_attempted_reactive_compact=True,  # one-shot
+                        max_output_tokens_override=None,
+                        stop_hook_active=state.stop_hook_active,
+                        turn_count=turn_count,
+                        pending_tool_use_summary=state.pending_tool_use_summary,
+                        continuation_nudge_count=state.continuation_nudge_count,
+                    empty_turn_nudge_count=state.empty_turn_nudge_count,
+                        transition=Transition(reason="reactive_compact_retry"),
+                    )
+                    continue
+
+                # No recovery — surface the (until-now withheld) error
+                # and exit with the appropriate Terminal reason.
+                # DEATH-SPIRAL GUARD: do NOT fall through to a future
+                # stop-hooks call here. Mirrors TS query.ts:1244-1252
+                # ("error -> hook blocking -> retry -> error -> ...
+                # the hook injects more tokens each cycle"). When C.1
+                # lands the stop-hooks dispatch, this early return
+                # must remain.
+                if last_message is not None:
+                    yield last_message
+                # ch05 G1: StopFailure fires on error exits (TS :1263).
+                await _fire_stop_failure_hooks(last_message, tool_use_context)
+                set_terminal(
+                    holder,
+                    natural_termination,
+                    Terminal(
+                        reason="image_error"
+                        if is_withheld_media
+                        else "prompt_too_long"
+                    ),
+                )
+                return
+
+            if last_message and (
+                getattr(last_message, "isApiErrorMessage", False)
+                or _is_withheld_max_output_tokens(last_message)
+            ):
+                # Death-spiral guard (TS query.ts:1346-1349): NO Stop hooks
+                # on an API-error response ("error -> hook blocking ->
+                # retry -> error -> ... the hook injects more tokens each
+                # cycle"); StopFailure hooks fire instead. The recovery-
+                # exhausted max-output-tokens message is included explicitly:
+                # the port tags it isApiErrorMessage=False (it carries real
+                # partial content), while TS's equivalent is a synthetic
+                # error message with isApiErrorMessage=true
+                # (claude.ts:2289-2295) — without this clause a blocking
+                # Stop hook re-opens the truncation spiral the recovery
+                # counter just closed.
+                await _fire_stop_failure_hooks(last_message, tool_use_context)
+                set_terminal(holder, natural_termination, Terminal(reason="completed"))
+                return
+
+            # ch05 round-3 G1 — Stop hooks at the clean no-tool-use exit
+            # (TS query.ts:1351-1391 via query/stopHooks.ts). The handler
+            # streams its own progress/system messages, then yields the
+            # final StopHookResult.
+            stop_result = StopHookResult()
+            try:
+                async for item in handle_stop_hooks_streaming(
+                    messages,
+                    assistant_messages,
+                    # The system-prompt param is signature-parity only —
+                    # _handle_stop_hooks_generator never reads it, so ""
+                    # for block-list prompts is deliberate.
+                    params.system_prompt
+                    if isinstance(params.system_prompt, str)
+                    else "",
+                    tool_use_context,
+                    params.query_source,
+                    state.stop_hook_active,
+                ):
+                    if isinstance(item, StopHookResult):
+                        stop_result = item
+                    else:
+                        yield item
+            except Exception:
+                logger.exception("stop hooks failed; continuing to exit")
+
+            if stop_result.prevent_continuation:
+                set_terminal(
+                    holder,
+                    natural_termination,
+                    Terminal(reason="stop_hook_prevented"),
+                )
+                return
+
+            if stop_result.blocking_errors:
+                # Stop hook says "not done" — retry with the blocking
+                # errors appended. PRESERVE has_attempted_reactive_compact:
+                # if compact already ran and couldn't recover, retrying
+                # after a stop-hook blocking error will produce the same
+                # result; resetting to False here caused an infinite loop
+                # burning thousands of API calls (TS query.ts:1375-1381).
+                state = QueryState(
+                    messages=[
+                        *messages,
+                        *assistant_messages,
+                        *stop_result.blocking_errors,
+                    ],
+                    tool_use_context=tool_use_context,
+                    auto_compact_tracking=state.auto_compact_tracking,
+                    max_output_tokens_recovery_count=0,
+                    has_attempted_reactive_compact=has_attempted_reactive_compact,
+                    max_output_tokens_override=None,
+                    stop_hook_active=True,
+                    turn_count=turn_count,
+                    pending_tool_use_summary=None,
+                    continuation_nudge_count=state.continuation_nudge_count,
+                    empty_turn_nudge_count=state.empty_turn_nudge_count,
+                    transition=Transition(reason="stop_hook_blocking"),
+                )
+                continue
+
+            # ch05 round-3 G2 — token budget (TS query.ts:1393-1441).
+            # No MAX_CONTINUATION_NUDGES interaction: budget continuations
+            # are bounded only by check_token_budget's 90%/diminishing
+            # rules (the nudge cap below is a SEPARATE mechanism).
+            from ..bootstrap.state import (
+                get_current_turn_token_budget,
+                get_turn_output_tokens,
+                increment_budget_continuation_count,
+            )
+
+            budget_decision = check_token_budget(
+                budget_tracker,
+                getattr(tool_use_context, "agent_id", None),
+                get_current_turn_token_budget(),
+                get_turn_output_tokens(),
+            )
+            if isinstance(budget_decision, ContinueDecision):
+                increment_budget_continuation_count()
+                logger.debug(
+                    "Token budget continuation #%d: %d%% (%d/%d)",
+                    budget_decision.continuation_count,
+                    budget_decision.pct,
+                    budget_decision.turn_tokens,
+                    budget_decision.budget,
+                )
+                state = QueryState(
+                    messages=[
+                        *messages,
+                        *assistant_messages,
+                        UserMessage(
+                            content=budget_decision.nudge_message,
+                            isMeta=True,
+                        ),
+                    ],
+                    tool_use_context=tool_use_context,
+                    auto_compact_tracking=state.auto_compact_tracking,
+                    max_output_tokens_recovery_count=0,
+                    has_attempted_reactive_compact=False,
+                    max_output_tokens_override=None,
+                    stop_hook_active=None,
+                    turn_count=turn_count,
+                    pending_tool_use_summary=None,
+                    continuation_nudge_count=state.continuation_nudge_count,
+                    empty_turn_nudge_count=state.empty_turn_nudge_count,
+                    transition=Transition(reason="token_budget_continuation"),
+                )
+                continue
+            if getattr(budget_decision, "completion_event", None):
+                logger.debug(
+                    "token budget completed: %s",
+                    budget_decision.completion_event,
+                )
+
+            # ch05 round-3 G5 — continuation nudge (TS query.ts:1443-1512):
+            # the model SAID it would act but called no tools. Capped at
+            # MAX_CONTINUATION_NUDGES per turn-chain.
+            # The last assistant turn's visible output, computed ONCE: both
+            # nudge arms below and the degenerate-completion check after them
+            # need it. It used to be computed inside the nudge block, which is
+            # gated on the nudge budget — so once the budget was spent the
+            # check disappeared along with it (see ``is_degenerate`` below).
+            last_text = ""
+            spoke_via_outbox = False
+            if assistant_messages:
+                last_assistant = assistant_messages[-1]
+                content = getattr(last_assistant, "content", "")
+                if isinstance(content, str):
+                    last_text = content
+                else:
+                    last_text = " ".join(
+                        getattr(b, "text", "")
+                        for b in content
+                        if getattr(b, "type", None) == "text"
+                    )
+                # ...unless the model spoke through the user-visible outbox
+                # instead. SendUserMessage advertises itself as the primary
+                # visible output channel, so a model that obeys it
+                # legitimately ends with empty assistant text;
+                # agent_loop_compat already treats the outbox as the response
+                # text in that case. Treating that as degenerate would
+                # re-prompt — or fail — a turn that actually delivered.
+                #
+                # Scoped two ways, both load-bearing:
+                #   * to THIS query (``_outbox_watermark``) — the outbox is
+                #     session-lifetime and never cleared, so an unscoped check
+                #     let one early entry suppress the degenerate-turn check
+                #     for the whole rest of the session;
+                #   * to SendUserMessage — that is the ONLY tool whose entry
+                #     agent_loop_compat promotes to ``response_text``, so an
+                #     AskUserQuestion / Brief / StructuredOutput entry
+                #     suppressed the check while contributing nothing to the
+                #     answer, which is the opposite of what this guard is for.
+                _new_outbox = (
+                    getattr(tool_use_context, "outbox", None) or []
+                )[_outbox_watermark:]
+                spoke_via_outbox = any(
+                    isinstance(entry, dict)
+                    and entry.get("tool") == "SendUserMessage"
+                    and isinstance(entry.get("message"), str)
+                    and entry["message"]
+                    for entry in _new_outbox
+                )
+
+            # No tool calls, no text, nothing in the outbox: not a completion,
+            # a degenerate response.
+            is_degenerate = (
+                bool(assistant_messages)
+                and not last_text.strip()
+                and not spoke_via_outbox
+            )
+
+            # The empty-turn arm runs on its OWN budget, ahead of the
+            # continuation-signal gate below. Sharing one counter meant a few
+            # continuation nudges could spend it before the first empty turn
+            # ever arrived — so the empty turn got no retry at all and the run
+            # hard-failed without the single round trip that recovers it. The
+            # two arms fire on opposite signals ("the model said it would act"
+            # vs "the model said nothing"), so they get separate budgets.
+            if (
+                is_degenerate
+                and (params.max_turns is None or turn_count < params.max_turns)
+                and state.empty_turn_nudge_count < MAX_CONTINUATION_NUDGES
+            ):
+                logger.warning(
+                    "empty assistant turn (no text, no tool calls) — "
+                    "re-prompting (%d/%d)",
+                    state.empty_turn_nudge_count + 1,
+                    MAX_CONTINUATION_NUDGES,
+                )
+                state = QueryState(
+                    messages=[
+                        *messages,
+                        *assistant_messages,
+                        UserMessage(content=EMPTY_TURN_NUDGE, isMeta=True),
+                    ],
+                    tool_use_context=tool_use_context,
+                    auto_compact_tracking=state.auto_compact_tracking,
+                    max_output_tokens_recovery_count=0,
+                    has_attempted_reactive_compact=False,
+                    max_output_tokens_override=None,
+                    stop_hook_active=None,
+                    turn_count=turn_count,
+                    pending_tool_use_summary=None,
+                    continuation_nudge_count=state.continuation_nudge_count,
+                    empty_turn_nudge_count=state.empty_turn_nudge_count + 1,
+                    transition=Transition(reason="empty_turn_nudge"),
+                )
+                continue
+
+            if (
+                assistant_messages
+                and (params.max_turns is None or turn_count < params.max_turns)
+                and state.continuation_nudge_count < MAX_CONTINUATION_NUDGES
+            ):
+                # An assistant turn with NO tool calls and NO text is not a
+                # completion — it is a degenerate response, and accepting it
+                # ends the run with an empty answer while every caller
+                # (including eval harnesses) records a clean success. The
+                # nudge below can't catch it: it gates on ``last_text``
+                # being truthy, so an empty turn falls straight through to
+                # ``Terminal(reason="completed")``.
+                #
+                # Measured on terminal-bench 2.1 (2026-07-25): 3 of 89
+                # trials — break-filter-js-from-html, crack-7z-hash,
+                # vulnerable-secret — ended after ONE turn and ONE output
+                # token in ~3 seconds, each reported ``subtype: success``
+                # with an empty result and scored 0. Claude Code solved all
+                # three. Re-prompting costs one round trip and is bounded by
+                # the same MAX_CONTINUATION_NUDGES cap as every other nudge.
+                if last_text and detect_continuation_signal(last_text):
+                    logger.debug(
+                        "Continuation nudge triggered (%d/%d)",
+                        state.continuation_nudge_count + 1,
+                        MAX_CONTINUATION_NUDGES,
+                    )
+                    state = QueryState(
+                        messages=[
+                            *messages,
+                            *assistant_messages,
+                            UserMessage(content=NUDGE_MESSAGE, isMeta=True),
+                        ],
+                        tool_use_context=tool_use_context,
+                        auto_compact_tracking=state.auto_compact_tracking,
+                        max_output_tokens_recovery_count=0,
+                        has_attempted_reactive_compact=False,
+                        max_output_tokens_override=None,
+                        stop_hook_active=None,
+                        turn_count=turn_count,
+                        pending_tool_use_summary=None,
+                        continuation_nudge_count=state.continuation_nudge_count + 1,
+                        empty_turn_nudge_count=state.empty_turn_nudge_count,
+                        transition=Transition(reason="continuation_nudge"),
+                    )
+                    continue
+
+            if is_degenerate:
+                # The nudge budget is spent (or max_turns is up) and the model
+                # STILL returned nothing. Falling through to ``completed`` here
+                # is what made this a silent success: every caller — the TUI,
+                # the agent-server turn outcome, headless, and every eval
+                # adapter downstream of them — recorded a clean run whose
+                # answer happened to be empty. A distinct reason lets the
+                # boundary report it (transitions.EARLY_STOP_SUBTYPES maps it
+                # to ``error_during_execution``) without any of them having to
+                # guess from an empty string.
+                set_terminal(
+                    holder, natural_termination, Terminal(reason="empty_response")
+                )
+                return
+
+            set_terminal(holder, natural_termination, Terminal(reason="completed"))
+            return
+
+        for block in tool_use_blocks:
+            yield SystemMessage(
+                content=f"Running tool: {block.name}",
+                subtype="tool_use_progress",
+            )
+
+        if _diag:
+            _tools_t0 = time.monotonic()
+            from ..services.tool_execution.orchestrator import (
+                partition_tool_calls as _diag_partition,
+            )
+            _batches = _diag_partition(tool_use_blocks, tool_use_context)
+            _batch_desc = ", ".join(
+                f"[{'parallel' if b.is_concurrency_safe else 'exclusive'}: {[bl.name for bl in b.blocks]}]"
+                for b in _batches
+            )
+            logger.warning(
+                "[DIAG] query loop: running %d tools in %d batches: %s",
+                len(tool_use_blocks), len(_batches), _batch_desc,
+            )
+
+        # Snapshot the current conversation onto the ToolContext so
+        # tools that need history (currently: the client-side advisor)
+        # can read it via ``ctx.messages``. The list is the post-pipeline
+        # message stream up to and including the assistant message that
+        # just emitted the tool_use blocks we're about to dispatch. The
+        # advisor strips its own prior blocks via
+        # ``build_advisor_forwarded_messages`` before forwarding. Other
+        # tools ignore the field (the existing default factory was an
+        # empty list, so behavior is unchanged for them).
+        violation = _budget_violation()
+        if violation is not None and violation.reason == "max_cost":
+            yield SystemMessage(
+                content=(
+                    f"Maximum cost (${float(violation.limit):.4f}) reached. "
+                    "Stopping before further model or tool execution."
+                ),
+                level="warning",
+                subtype="max_cost_reached",
+            )
+            set_terminal(
+                holder, natural_termination,
+                Terminal(reason="max_cost", turn_count=turn_count),
+            )
+            return
+
+        tool_use_context.messages = list(messages)
+        # Also snapshot the active provider via a dynamic attribute so
+        # the client-side advisor can reuse it (and its config) when
+        # the user is on a proxy that probably proxies the advisor
+        # model too. Set as a plain attribute (not a dataclass field)
+        # to avoid touching ToolContext's public surface.
+        setattr(tool_use_context, "_active_provider", params.provider)
+
+        round_state = ToolRoundState(context=tool_use_context)
+        async for message in execute_tool_round(
+            tool_use_blocks=tool_use_blocks,
+            assistant_messages=assistant_messages,
+            state=round_state,
+            provider=params.provider,
+        ):
+            yield message
+        tool_use_context = round_state.context
+        tool_results = round_state.results
+        hook_stopped = round_state.hook_stopped
+
+        if _diag:
+            logger.warning(
+                "[DIAG] query loop: tools finished in %.1fs, %d results",
+                time.monotonic() - _tools_t0, len(tool_results),
+            )
+            for tr in tool_results:
+                if isinstance(tr.content, list):
+                    for b in tr.content:
+                        if hasattr(b, 'content'):
+                            clen = len(b.content) if isinstance(b.content, str) else len(str(b.content))
+                            logger.warning("[DIAG]   result: tool_use_id=%s  is_error=%s  content_len=%d", getattr(b, 'tool_use_id', '?'), getattr(b, 'is_error', False), clen)
+
+        if params.abort_controller.signal.aborted:
+            # NOTE: unlike the streaming-abort path above (which calls
+            # ``_yield_missing_tool_result_blocks`` for the in-flight
+            # assistant turn), we deliberately do NOT synthesize results
+            # for tool_use blocks left unrun by a mid-execution abort.
+            # ``normalize_messages_for_api`` → ``ensure_tool_result_pairing``
+            # backfills the missing tool_result blocks at API-prep time on
+            # the next turn, so the model never sees a dangling tool_use.
+            # Do not "fix" this by yielding blocks here without first
+            # confirming it doesn't double-pair against that backstop.
+            if params.abort_controller.signal.reason != "interrupt":
+                yield _create_user_interruption_message(tool_use=True)
+            # ch05 round-4 GAP C — TS query.ts:1621-1629: an abort that
+            # lands ON the max-turns boundary also announces the limit
+            # before the aborted_tools return (the terminal reason stays
+            # aborted_tools either way).
+            next_turn_count_on_abort = turn_count + 1
+            if params.max_turns and next_turn_count_on_abort > params.max_turns:
+                yield _create_max_turns_attachment(
+                    params.max_turns, next_turn_count_on_abort,
+                )
+            set_terminal(holder, natural_termination, Terminal(reason="aborted_tools"))
+            return
+
+        # Ch5/round2 — hook_stopped terminal mapping. Mirrors TS at
+        # query.ts:1698-1701. After tool execution, scan tool_results
+        # for any AttachmentMessage carrying a
+        # ``hook_stopped_continuation`` marker. If found, exit cleanly
+        # with Terminal(reason='hook_stopped') rather than advancing to
+        # the next turn.
+        #
+        # Order matters:
+        #   * AFTER abort check (above) — user-driven abort wins,
+        #     matching TS at query.ts:1665.
+        #   * BEFORE max_turns check (below) — a hook-stopped exit must
+        #     NOT also yield ``max_turns_reached``; the loop is exiting
+        #     for a different reason. Matches TS where the hook_stopped
+        #     return at :1701 precedes the max_turns check at :1885.
+        #   * BEFORE state reconstruction — no next iteration follows.
+        if hook_stopped:
+            set_terminal(
+                holder, natural_termination, Terminal(reason="hook_stopped"),
+            )
+            return
+
+        # Tool-failure-loop guard — mirrors TS query.ts:1638-1666: runs
+        # AFTER the abort and hook_stopped returns, BEFORE max_turns. On
+        # trip, yield the explanation as an API-error assistant message
+        # (TS createAssistantAPIErrorMessage at :1663-1665) and exit with
+        # the dedicated terminal reason. TS also fires a telemetry event
+        # here (tengu_tool_failure_loop_guard_tripped); the port has no
+        # logEvent analogue, so logger.debug carries the diagnostics.
+        guard_decision = update_tool_failure_loop_guard(
+            state=tool_failure_guard_state,
+            tool_use_blocks=tool_use_blocks,
+            tool_results=tool_results,
+        )
+        if guard_decision.tripped:
+            logger.debug(
+                "Tool failure loop guard tripped: kind=%s threshold=%s "
+                "tool_name=%s error_category=%s path=%s",
+                guard_decision.kind,
+                guard_decision.threshold,
+                guard_decision.tool_name,
+                guard_decision.error_category,
+                guard_decision.path,
+            )
+            yield create_assistant_api_error_message(guard_decision.message or "")
+            set_terminal(
+                holder,
+                natural_termination,
+                Terminal(reason="tool_failure_loop"),
+            )
+            return
+
+        advisory_messages = [
+            UserMessage(content=advisory)
+            for advisory in guard_decision.advisories
+        ]
+
+        next_turn_count = turn_count + 1
+
+        if params.max_turns and next_turn_count > params.max_turns:
+            yield _create_max_turns_attachment(params.max_turns, next_turn_count)
+            set_terminal(
+                holder,
+                natural_termination,
+                Terminal(reason="max_turns", turn_count=next_turn_count),
+            )
+            return
+
+        # Chapter-10 / Chunk D / WI-3.3 — pending-messages drain at the
+        # tool-round boundary. Per chapter §"Background: Three Channels":
+        # *"messages arrive between tool rounds, not mid-execution. The
+        # agent finishes its current thought, then receives the new
+        # information."* We drain AFTER tool_results have been appended
+        # but BEFORE the next API call, so the model sees the queued
+        # messages on the next turn alongside the tool results.
+        injected_messages = _drain_pending_user_messages(tool_use_context)
+        for inj in injected_messages:
+            yield inj
+
+        state = QueryState(
+            messages=[
+                *messages,
+                *assistant_messages,
+                *tool_results,
+                *advisory_messages,
+                *injected_messages,
+            ],
+            tool_use_context=tool_use_context,
+            auto_compact_tracking=state.auto_compact_tracking,
+            turn_count=next_turn_count,
+            max_output_tokens_recovery_count=0,
+            has_attempted_reactive_compact=False,
+            max_output_tokens_override=None,
+            stop_hook_active=state.stop_hook_active,
+            # Phase A: reset per-turn counter; carry pending summary forward.
+            continuation_nudge_count=0,
+            pending_tool_use_summary=state.pending_tool_use_summary,
+            transition=Transition(reason="next_turn"),
+        )
+
+
+async def run_query(
+    params: QueryParams,
+) -> tuple[list[Message | StreamEvent], Terminal]:
+    """Ch5/A.4: Convenience helper for callers that want both the
+    yielded messages and the Terminal in one call.
+
+    Drives the canonical :func:`query` async generator, collects all
+    yielded messages into a list, and returns ``(messages, terminal)``.
+    The terminal's reason discriminates why the loop stopped (11
+    distinct reasons, matching TS query/transitions.ts).
+
+    Tests and convenience entry points should use this helper.
+    Streaming consumers (REPL, TUI) should keep using ``async for``
+    with their own ``TerminalHolder``.
+    """
+    holder = TerminalHolder()
+    messages: list[Message | StreamEvent] = []
+    async for msg in query(params, terminal_holder=holder):
+        messages.append(msg)
+    if holder.value is None:
+        # Contract violation — the loop returned without setting
+        # the terminal. Fall back to a model_error so callers don't
+        # see ``None`` and crash.
+        holder.value = Terminal(
+            reason="model_error",
+            error=RuntimeError("query() returned without setting Terminal"),
+        )
+    return messages, holder.value
