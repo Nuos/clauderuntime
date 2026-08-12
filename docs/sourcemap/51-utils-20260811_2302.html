@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>utils 源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-r7-r5-ccr-14-映射-启发式初版" data-nav>5. R7/R5/CCR-14 映射（启发式初版）</a></li>
+<li><a href="#6-文件级映射细分" data-nav>6. 文件级映射细分</a></li>
+<li><a href="#7-未确认项与待核实项" data-nav>7. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>utils 源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">51</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2302</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="utils-源码盘点">utils 源码盘点</h1>
+<blockquote>
+<p>编号: 51</p>
+<p>时间戳: 20260811_2302</p>
+<p>基线: def709361a86</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>类型: package（目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: utils</li>
+<li>类型: package（目录模块）</li>
+<li>Python 文件数: 47</li>
+<li>总行数: 11305</li>
+<li>依赖的 src 内部模块: 无</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">utils/__init__.py</code> — 16 行（类 0，函数 0）</li>
+<li><code class="inline-code">utils/abort_controller.py</code> — 116 行（类 3，函数 2）</li>
+<li><code class="inline-code">utils/advisor.py</code> — 1272 行（类 0，函数 24）</li>
+<li><code class="inline-code">utils/api_preconnect.py</code> — 104 行（类 1，函数 2）</li>
+<li><code class="inline-code">utils/async_bridge.py</code> — 57 行（类 0，函数 1）</li>
+<li><code class="inline-code">utils/clawcodex_dirs.py</code> — 123 行（类 0，函数 5）</li>
+<li><code class="inline-code">utils/combined_abort_signal.py</code> — 139 行（类 1，函数 1）</li>
+<li><code class="inline-code">utils/deep_link.py</code> — 74 行（类 1，函数 3）</li>
+<li><code class="inline-code">utils/effort.py</code> — 99 行（类 1，函数 3）</li>
+<li><code class="inline-code">utils/env.py</code> — 37 行（类 0，函数 1）</li>
+<li><code class="inline-code">utils/export_formats.py</code> — 228 行（类 2，函数 7）</li>
+<li><code class="inline-code">utils/export_renderer.py</code> — 806 行（类 0，函数 40）</li>
+<li><code class="inline-code">utils/fast_mode.py</code> — 99 行（类 1，函数 3）</li>
+<li><code class="inline-code">utils/file_history.py</code> — 196 行（类 3，函数 1）</li>
+<li><code class="inline-code">utils/file_state_cache.py</code> — 109 行（类 1，函数 0）</li>
+<li><code class="inline-code">utils/format.py</code> — 102 行（类 0，函数 3）</li>
+<li><code class="inline-code">utils/frontmatter_validators.py</code> — 173 行（类 0，函数 5）</li>
+<li><code class="inline-code">utils/git.py</code> — 391 行（类 4，函数 14）</li>
+<li><code class="inline-code">utils/graceful_shutdown.py</code> — 143 行（类 0，函数 5）</li>
+<li><code class="inline-code">utils/image_paste.py</code> — 617 行（类 1，函数 25）</li>
+<li><code class="inline-code">utils/image_processor.py</code> — 545 行（类 3，函数 13）</li>
+<li><code class="inline-code">utils/image_validation.py</code> — 155 行（类 1，函数 5）</li>
+<li><code class="inline-code">utils/keychain_stash.py</code> — 57 行（类 0，函数 3）</li>
+<li><code class="inline-code">utils/legacy_migration.py</code> — 372 行（类 1，函数 9）</li>
+<li><code class="inline-code">utils/logo_palettes.py</code> — 125 行（类 1，函数 2）</li>
+<li><code class="inline-code">utils/markdown_config_loader.py</code> — 246 行（类 1，函数 10）</li>
+<li><code class="inline-code">utils/message_mappers.py</code> — 267 行（类 0，函数 10）</li>
+<li><code class="inline-code">utils/message_queue_manager.py</code> — 114 行（类 1，函数 6）</li>
+<li><code class="inline-code">utils/messages.py</code> — 326 行（类 0，函数 18）</li>
+<li><code class="inline-code">utils/pdf_extraction.py</code> — 144 行（类 3，函数 3）</li>
+<li><code class="inline-code">utils/peer_address.py</code> — 61 行（类 1，函数 1）</li>
+<li><code class="inline-code">utils/plans.py</code> — 170 行（类 0，函数 11）</li>
+<li><code class="inline-code">utils/release_notes.py</code> — 133 行（类 0，函数 8）</li>
+<li><code class="inline-code">utils/session_ingress_auth.py</code> — 114 行（类 0，函数 3）</li>
+<li><code class="inline-code">utils/shell_platform.py</code> — 330 行（类 1，函数 11）</li>
+<li><code class="inline-code">utils/signal.py</code> — 94 行（类 1，函数 1）</li>
+<li><code class="inline-code">utils/startup_profiler.py</code> — 185 行（类 0，函数 8）</li>
+<li><code class="inline-code">utils/store.py</code> — 107 行（类 1，函数 1）</li>
+<li><code class="inline-code">utils/stream_watchdog.py</code> — 626 行（类 3，函数 5）</li>
+<li><code class="inline-code">utils/subprocess_env.py</code> — 120 行（类 0，函数 3）</li>
+<li><code class="inline-code">utils/task_flags.py</code> — 49 行（类 0，函数 2）</li>
+<li><code class="inline-code">utils/task_notification.py</code> — 280 行（类 0，函数 6）</li>
+<li><code class="inline-code">utils/teleport/__init__.py</code> — 11 行（类 0，函数 0）</li>
+<li><code class="inline-code">utils/teleport/api.py</code> — 40 行（类 0，函数 1）</li>
+<li><code class="inline-code">utils/theme.py</code> — 223 行（类 1，函数 4）</li>
+<li><code class="inline-code">utils/words.py</code> — 776 行（类 0，函数 3）</li>
+<li><code class="inline-code">utils/worktree_session.py</code> — 734 行（类 4，函数 26）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">utils/__init__.py</code></li>
+<li>文件 <code class="inline-code">utils/abort_controller.py</code></li>
+<li>类 AbortSignal — L9</li>
+<li>类 AbortError — L69</li>
+<li>类 AbortController — L75</li>
+<li>函数 create_abort_controller — L84</li>
+<li>函数 create_child_abort_controller — L88</li>
+<li>文件 <code class="inline-code">utils/advisor.py</code></li>
+<li>函数 _env_truthy — L75</li>
+<li>函数 model_supports_advisor — L79</li>
+<li>函数 is_valid_advisor_model — L94</li>
+<li>函数 is_advisor_enabled — L107</li>
+<li>函数 can_user_configure_advisor — L124</li>
+<li>函数 _block_field — L138</li>
+<li>函数 is_advisor_block — L145</li>
+<li>函数 build_advisor_tool_schema — L161</li>
+<li>函数 _content_is_only_placeholders — L175</li>
+<li>函数 extract_advisor_result_text — L194</li>
+<li>函数 extract_advisor_error_code — L216</li>
+<li>函数 strip_advisor_blocks — L227</li>
+<li>函数 build_client_advisor_tool_schema — L370</li>
+<li>函数 decide_advisor_mode — L389</li>
+<li>函数 format_advisor_status — L472</li>
+<li>函数 _tool_use_to_text — L548</li>
+<li>函数 _tool_result_to_text — L564</li>
+<li>函数 _flatten_content_for_advisor — L591</li>
+<li>函数 _is_advisor_pairing_cruft — L642</li>
+<li>函数 build_advisor_forwarded_messages — L657</li>
+<li>函数 _resolve_advisor_effort — L779</li>
+<li>函数 _advisor_error_is_retryable — L801</li>
+<li>函数 _advisor_sleep — L831</li>
+<li>函数 execute_client_advisor — L845</li>
+<li>文件 <code class="inline-code">utils/api_preconnect.py</code></li>
+<li>类 PreconnectHandle — L38</li>
+<li>函数 should_skip_preconnect — L53</li>
+<li>函数 start_api_preconnect — L73</li>
+<li>文件 <code class="inline-code">utils/async_bridge.py</code></li>
+<li>函数 run_coroutine_blocking — L29</li>
+<li>文件 <code class="inline-code">utils/clawcodex_dirs.py</code></li>
+<li>函数 get_user_config_dir — L58</li>
+<li>函数 get_managed_config_dir — L71</li>
+<li>函数 get_legacy_user_config_dir — L80</li>
+<li>函数 get_sessions_dir — L85</li>
+<li>函数 get_transcripts_dir — L99</li>
+<li>文件 <code class="inline-code">utils/combined_abort_signal.py</code></li>
+<li>类 CombinedAbortSignal — L33</li>
+<li>函数 create_combined_abort_signal — L45</li>
+<li>文件 <code class="inline-code">utils/deep_link.py</code></li>
+<li>类 DeepLink — L18</li>
+<li>函数 parse_deep_link — L41</li>
+<li>函数 create_prompt_link — L64</li>
+<li>函数 create_session_link — L72</li>
+<li>文件 <code class="inline-code">utils/effort.py</code></li>
+<li>类 EffortLevel — L9</li>
+<li>函数 resolve_applied_effort — L42</li>
+<li>函数 get_max_tokens_for_effort — L67</li>
+<li>函数 detect_effort_from_text — L72</li>
+<li>文件 <code class="inline-code">utils/env.py</code></li>
+<li>函数 is_env_truthy — L21</li>
+<li>文件 <code class="inline-code">utils/export_formats.py</code></li>
+<li>类 _Token — L92</li>
+<li>类 ParsedExportArgs — L154</li>
+<li>函数 normalize_export_format — L25</li>
+<li>函数 infer_export_format_from_filename — L40</li>
+<li>函数 extension_for_export_format — L51</li>
+<li>函数 ensure_export_filename_extension — L60</li>
+<li>函数 resolve_export_filepath — L85</li>
+<li>函数 _tokenize_export_args — L97</li>
+<li>函数 parse_export_args — L160</li>
+<li>文件 <code class="inline-code">utils/export_renderer.py</code></li>
+<li>函数 _internal_tag_regex — L88</li>
+<li>函数 _now_iso — L101</li>
+<li>函数 strip_system_reminder_blocks — L107</li>
+<li>函数 strip_top_level_internal_text — L111</li>
+<li>函数 is_internal_text — L118</li>
+<li>函数 looks_like_json — L122</li>
+<li>函数 markdown_fence_for — L129</li>
+<li>函数 safe_json_value — L136</li>
+<li>函数 safe_stringify — L184</li>
+<li>函数 _field — L199</li>
+<li>函数 _is_msg_obj — L205</li>
+<li>函数 _is_obj — L209</li>
+<li>函数 _btype — L214</li>
+<li>函数 _btext — L220</li>
+<li>函数 _bcontent — L226</li>
+<li>函数 _normalize_block — L232</li>
+<li>函数 extract_message_content — L236</li>
+<li>函数 is_text_block — L255</li>
+<li>函数 is_tool_result_block — L259</li>
+<li>函数 is_internal_text_block — L263</li>
+<li>函数 is_tool_result_message_content — L267</li>
+<li>函数 is_synthetic_tool_result_block — L275</li>
+<li>函数 is_synthetic_content — L289</li>
+<li>函数 is_known_message_type — L301</li>
+<li>函数 has_exportable_structured_content — L305</li>
+<li>函数 should_export_structured_message — L329</li>
+<li>函数 message_heading — L352</li>
+<li>函数 to_role — L364</li>
+<li>函数 to_exported_message_type — L368</li>
+<li>函数 to_role_for_content — L378</li>
+<li>函数 render_text_markdown — L389</li>
+<li>函数 render_unknown_content_markdown — L399</li>
+<li>函数 render_content_block_markdown — L410</li>
+<li>函数 render_messages_to_markdown — L479</li>
+<li>函数 serialize_content_block — L535</li>
+<li>函数 serialize_content_blocks — L587</li>
+<li>函数 render_messages_to_json — L607</li>
+<li>函数 _plain_block_lines — L657</li>
+<li>函数 render_messages_to_plain_text — L709</li>
+<li>函数 render_messages_for_export — L768</li>
+<li>文件 <code class="inline-code">utils/fast_mode.py</code></li>
+<li>类 FastModeState — L13</li>
+<li>函数 is_fast_mode_enabled — L34</li>
+<li>函数 _resolve_fast_mode_enabled — L67</li>
+<li>函数 get_fast_mode_model — L97</li>
+<li>文件 <code class="inline-code">utils/file_history.py</code></li>
+<li>类 FileSnapshot — L15</li>
+<li>类 LinesChanged — L23</li>
+<li>类 FileHistory — L32</li>
+<li>函数 _compute_lines_changed — L178</li>
+<li>文件 <code class="inline-code">utils/file_state_cache.py</code></li>
+<li>类 FileStateCache — L14</li>
+<li>文件 <code class="inline-code">utils/format.py</code></li>
+<li>函数 format_duration — L16</li>
+<li>函数 format_number — L81</li>
+<li>函数 format_tokens — L99</li>
+<li>文件 <code class="inline-code">utils/frontmatter_validators.py</code></li>
+<li>函数 parse_effort_value — L23</li>
+<li>函数 parse_positive_int — L55</li>
+<li>函数 parse_permission_mode — L74</li>
+<li>函数 parse_string_list — L95</li>
+<li>函数 parse_hooks — L116</li>
+<li>文件 <code class="inline-code">utils/git.py</code></li>
+<li>类 FileStatus — L49</li>
+<li>类 DiffResult — L72</li>
+<li>类 CommitAttribution — L80</li>
+<li>类 Worktree — L89</li>
+<li>函数 _run_git — L16</li>
+<li>函数 _run_git_ok — L43</li>
+<li>函数 get_repo_root — L97</li>
+<li>函数 get_current_branch — L102</li>
+<li>函数 get_default_branch — L107</li>
+<li>函数 get_file_status — L122</li>
+<li>函数 get_session_diff — L173</li>
+<li>函数 get_diff_against_branch — L224</li>
+<li>函数 create_branch — L257</li>
+<li>函数 get_commit_attribution — L278</li>
+<li>函数 list_worktrees — L310</li>
+<li>函数 create_worktree — L353</li>
+<li>函数 remove_worktree — L372</li>
+<li>函数 get_session_diff_async — L386</li>
+<li>文件 <code class="inline-code">utils/graceful_shutdown.py</code></li>
+<li>函数 register_cleanup — L50</li>
+<li>函数 setup_graceful_shutdown — L61</li>
+<li>函数 _run_all_cleanups — L93</li>
+<li>函数 graceful_shutdown_sync — L118</li>
+<li>函数 reset_for_test_only — L128</li>
+<li>文件 <code class="inline-code">utils/image_paste.py</code></li>
+<li>类 PastedImage — L81</li>
+<li>函数 _screenshot_path — L95</li>
+<li>函数 build_linux_clipboard_check_command — L112</li>
+<li>函数 build_linux_clipboard_save_command — L120</li>
+<li>函数 _run — L130</li>
+<li>函数 has_image_in_clipboard — L150</li>
+<li>函数 _read_clipboard_bytes — L177</li>
+<li>函数 _cleanup — L215</li>
+<li>函数 _escape_powershell_single_quoted — L224</li>
+<li>函数 _sniff_api_media_type — L255</li>
+<li>函数 _as_media_type — L265</li>
+<li>函数 _reencode_png — L291</li>
+<li>函数 _to_pasted_image — L312</li>
+<li>函数 get_image_from_clipboard — L369</li>
+<li>函数 get_image_path_from_clipboard — L377</li>
+<li>函数 _from_file_uri — L395</li>
+<li>函数 _remove_outer_quotes — L427</li>
+<li>函数 _strip_backslash_escapes — L436</li>
+<li>函数 _normalize_dropped — L454</li>
+<li>函数 as_image_file_path — L473</li>
+<li>函数 is_image_file_path — L486</li>
+<li>函数 try_read_image_from_path — L490</li>
+<li>函数 dimensions_to_wire — L537</li>
+<li>函数 looks_like_dropped_path — L559</li>
+<li>函数 resolve_dropped_file — L596</li>
+<li>函数 clipboard_tooling_available — L611</li>
+<li>文件 <code class="inline-code">utils/image_processor.py</code></li>
+<li>类 ImageDimensions — L61</li>
+<li>类 ResizeResult — L70</li>
+<li>类 ImageProcessingError — L77</li>
+<li>函数 detect_image_format_from_buffer — L85</li>
+<li>函数 detect_image_format_from_base64 — L106</li>
+<li>函数 read_file_bytes — L123</li>
+<li>函数 _pil — L141</li>
+<li>函数 _log_image_event — L152</li>
+<li>函数 _pil_format_to_media_type — L165</li>
+<li>函数 _encode_image — L184</li>
+<li>函数 _resize_to_envelope — L221</li>
+<li>函数 maybe_resize_image — L242</li>
+<li>函数 compress_image_to_byte_budget — L357</li>
+<li>函数 compress_image_to_token_budget — L475</li>
+<li>函数 create_image_metadata_text — L496</li>
+<li>函数 estimate_image_tokens_from_base64_length — L543</li>
+<li>文件 <code class="inline-code">utils/image_validation.py</code></li>
+<li>类 ImageSizeError — L17</li>
+<li>函数 _iter_content_blocks — L37</li>
+<li>函数 _get_block_type — L52</li>
+<li>函数 _get_image_source_data — L58</li>
+<li>函数 _iter_image_blocks — L87</li>
+<li>函数 validate_images_for_api — L121</li>
+<li>文件 <code class="inline-code">utils/keychain_stash.py</code></li>
+<li>函数 stash_keychain_credentials — L33</li>
+<li>函数 read_stashed_keychain — L45</li>
+<li>函数 reset_stashed_keychain_for_test_only — L50</li>
+<li>文件 <code class="inline-code">utils/legacy_migration.py</code></li>
+<li>类 MigrationReport — L92</li>
+<li>函数 _dir_size_bytes — L113</li>
+<li>函数 _copy_tree — L140</li>
+<li>函数 _copy_item — L149</li>
+<li>函数 _migrate_skills — L170</li>
+<li>函数 _migrate_project_memories — L206</li>
+<li>函数 _write_marker — L228</li>
+<li>函数 migrate_user_dir_once — L240</li>
+<li>函数 migrate_project_dir — L305</li>
+<li>函数 format_report — L352</li>
+<li>文件 <code class="inline-code">utils/logo_palettes.py</code></li>
+<li>类 LogoPalette — L23</li>
+<li>函数 is_logo_palette_name — L104</li>
+<li>函数 resolve_logo_palette — L109</li>
+<li>文件 <code class="inline-code">utils/markdown_config_loader.py</code></li>
+<li>类 MarkdownFile — L38</li>
+<li>函数 _get_global_config_dir — L46</li>
+<li>函数 _get_managed_file_path — L54</li>
+<li>函数 _find_git_root — L62</li>
+<li>函数 _get_project_subdir_paths — L75</li>
+<li>函数 _list_markdown_files — L104</li>
+<li>函数 _read_and_parse — L121</li>
+<li>函数 _file_identity — L132</li>
+<li>函数 load_markdown_files_for_subdir — L140</li>
+<li>函数 parse_tool_list_from_cli — L182</li>
+<li>函数 parse_slash_command_tools_from_frontmatter — L225</li>
+<li>文件 <code class="inline-code">utils/message_mappers.py</code></li>
+<li>函数 to_sdk_messages — L46</li>
+<li>函数 _map_one — L77</li>
+<li>函数 _assistant_to_sdk — L90</li>
+<li>函数 _user_to_sdk — L114</li>
+<li>函数 _is_user_synthetic — L134</li>
+<li>函数 _system_to_sdk — L153</li>
+<li>函数 _serialize_content — L181</li>
+<li>函数 _build_user_inner — L196</li>
+<li>函数 _build_assistant_inner — L207</li>
+<li>函数 _to_sdk_compact_metadata — L240</li>
+<li>文件 <code class="inline-code">utils/message_queue_manager.py</code></li>
+<li>类 PendingNotification — L31</li>
+<li>函数 enqueue_pending_notification — L44</li>
+<li>函数 drain_pending_notifications — L56</li>
+<li>函数 peek_pending_notifications — L84</li>
+<li>函数 clear_pending_notifications — L90</li>
+<li>函数 _queue_size — L97</li>
+<li>函数 __iter__ — L103</li>
+<li>文件 <code class="inline-code">utils/messages.py</code></li>
+<li>函数 is_synthetic — L42</li>
+<li>函数 is_attachment — L49</li>
+<li>函数 is_compact_boundary — L54</li>
+<li>函数 is_tool_result — L59</li>
+<li>函数 is_thinking_block — L73</li>
+<li>函数 get_content_text — L84</li>
+<li>函数 count_tool_calls — L100</li>
+<li>函数 get_messages_after_compact_boundary — L112</li>
+<li>函数 strip_thinking_blocks — L125</li>
+<li>函数 preserve_thinking_blocks — L130</li>
+<li>函数 normalize_messages_for_api_enhanced — L140</li>
+<li>函数 _ensure_tool_result_pairing — L226</li>
+<li>函数 create_user_tool_result_message — L274</li>
+<li>函数 create_user_command_input_message — L293</li>
+<li>函数 create_assistant_compact_boundary_message — L298</li>
+<li>函数 create_system_local_command_message — L306</li>
+<li>函数 create_system_compact_boundary_message — L311</li>
+<li>函数 create_system_max_turns_message — L319</li>
+<li>文件 <code class="inline-code">utils/pdf_extraction.py</code></li>
+<li>类 PdfExtractionUnavailable — L30</li>
+<li>类 PdfExtractionFailed — L34</li>
+<li>类 PdfPageExtractionResult — L39</li>
+<li>函数 _have_pdftoppm — L47</li>
+<li>函数 _log_pdf_event — L51</li>
+<li>函数 extract_pdf_pages — L64</li>
+<li>文件 <code class="inline-code">utils/peer_address.py</code></li>
+<li>类 ParsedAddress — L28</li>
+<li>函数 parse_address — L41</li>
+<li>文件 <code class="inline-code">utils/plans.py</code></li>
+<li>函数 get_default_plans_directory — L37</li>
+<li>函数 _settings_plans_directory — L44</li>
+<li>函数 get_plans_directory — L59</li>
+<li>函数 _reset_plans_directory_cache_for_tests — L94</li>
+<li>函数 get_plan_slug — L99</li>
+<li>函数 set_plan_slug — L119</li>
+<li>函数 clear_plan_slug — L124</li>
+<li>函数 clear_all_plan_slugs — L129</li>
+<li>函数 get_plan_file_path — L134</li>
+<li>函数 get_plan — L145</li>
+<li>函数 is_session_plan_file — L157</li>
+<li>文件 <code class="inline-code">utils/release_notes.py</code></li>
+<li>函数 normalize_public_version — L26</li>
+<li>函数 parse_changelog — L42</li>
+<li>函数 get_release_notes_for_version — L73</li>
+<li>函数 is_release_section_header — L81</li>
+<li>函数 get_release_section_header_title — L85</li>
+<li>函数 format_release_notes_for_display — L89</li>
+<li>函数 get_release_tag_url — L104</li>
+<li>函数 read_local_changelog — L109</li>
+<li>文件 <code class="inline-code">utils/session_ingress_auth.py</code></li>
+<li>函数 get_session_ingress_auth_token — L58</li>
+<li>函数 get_session_ingress_auth_headers — L72</li>
+<li>函数 update_session_ingress_auth_token — L96</li>
+<li>文件 <code class="inline-code">utils/shell_platform.py</code></li>
+<li>类 BashNotFoundError — L67</li>
+<li>函数 _is_wsl_shim — L71</li>
+<li>函数 _git_bash_candidates — L86</li>
+<li>函数 find_bash — L120</li>
+<li>函数 bash_argv — L160</li>
+<li>函数 bash_env — L173</li>
+<li>函数 pwd_command — L187</li>
+<li>函数 to_shell_path — L196</li>
+<li>函数 popen_tree_kwargs — L209</li>
+<li>函数 kill_process_tree — L225</li>
+<li>函数 _git_candidates — L262</li>
+<li>函数 find_git — L287</li>
+<li>文件 <code class="inline-code">utils/signal.py</code></li>
+<li>类 Signal — L51</li>
+<li>函数 create_signal — L88</li>
+<li>文件 <code class="inline-code">utils/startup_profiler.py</code></li>
+<li>函数 _resolve_output_dir — L61</li>
+<li>函数 _read_env_gate — L74</li>
+<li>函数 is_profiling_enabled — L83</li>
+<li>函数 profile_checkpoint — L92</li>
+<li>函数 profile_report — L105</li>
+<li>函数 get_internal_phase_log — L147</li>
+<li>函数 reset_profiler_for_test_only — L152</li>
+<li>函数 _flush_on_exit — L162</li>
+<li>文件 <code class="inline-code">utils/store.py</code></li>
+<li>类 Store — L43</li>
+<li>函数 create_store — L100</li>
+<li>文件 <code class="inline-code">utils/stream_watchdog.py</code></li>
+<li>类 StreamIdleTimeout — L243</li>
+<li>类 ContentProgressDeadline — L304</li>
+<li>类 StreamWatchdog — L415</li>
+<li>函数 force_close_response — L90</li>
+<li>函数 stream_idle_max_attempts — L162</li>
+<li>函数 stream_idle_timeout_seconds — L183</li>
+<li>函数 stream_first_event_timeout_seconds — L221</li>
+<li>函数 content_progress_timeout_seconds — L273</li>
+<li>文件 <code class="inline-code">utils/subprocess_env.py</code></li>
+<li>函数 register_upstream_proxy_env_fn — L32</li>
+<li>函数 _is_env_truthy — L74</li>
+<li>函数 subprocess_env — L78</li>
+<li>文件 <code class="inline-code">utils/task_flags.py</code></li>
+<li>函数 _env_truthy — L23</li>
+<li>函数 is_todo_v2_enabled — L36</li>
+<li>文件 <code class="inline-code">utils/task_notification.py</code></li>
+<li>函数 _build_summary — L43</li>
+<li>函数 _build_shell_summary — L59</li>
+<li>函数 build_shell_notification_xml — L75</li>
+<li>函数 build_task_notification_xml — L107</li>
+<li>函数 enqueue_agent_notification — L162</li>
+<li>函数 enqueue_shell_notification — L221</li>
+<li>文件 <code class="inline-code">utils/teleport/__init__.py</code></li>
+<li>文件 <code class="inline-code">utils/teleport/api.py</code></li>
+<li>函数 get_oauth_headers — L25</li>
+<li>文件 <code class="inline-code">utils/theme.py</code></li>
+<li>类 Palette — L20</li>
+<li>函数 list_theme_names — L132</li>
+<li>函数 resolve_auto_theme — L138</li>
+<li>函数 get_palette — L193</li>
+<li>函数 textual_css_overrides — L208</li>
+<li>文件 <code class="inline-code">utils/words.py</code></li>
+<li>函数 _pick_random — L761</li>
+<li>函数 generate_word_slug — L766</li>
+<li>函数 generate_short_word_slug — L774</li>
+<li>文件 <code class="inline-code">utils/worktree_session.py</code></li>
+<li>类 WorktreeError — L95</li>
+<li>类 WorktreeSession — L100</li>
+<li>类 WorktreeChanges — L142</li>
+<li>类 _CreateResult — L160</li>
+<li>函数 _git — L167</li>
+<li>函数 validate_worktree_slug — L198</li>
+<li>函数 flatten_slug — L224</li>
+<li>函数 worktree_branch_name — L236</li>
+<li>函数 worktrees_dir — L240</li>
+<li>函数 legacy_worktrees_dir — L244</li>
+<li>函数 worktree_path_for — L248</li>
+<li>函数 legacy_worktree_path_for — L252</li>
+<li>函数 parse_pr_reference — L256</li>
+<li>函数 generate_worktree_slug — L274</li>
+<li>函数 find_canonical_git_root — L285</li>
+<li>函数 is_git_repository — L304</li>
+<li>函数 build_rev_parse_failure_message — L309</li>
+<li>函数 _read_resumable_worktree — L321</li>
+<li>函数 _get_or_create_worktree — L337</li>
+<li>函数 _copy_local_settings — L420</li>
+<li>函数 _configure_hooks_path — L448</li>
+<li>函数 copy_worktree_include_files — L461</li>
+<li>函数 _post_creation_setup — L541</li>
+<li>函数 create_worktree_for_session — L547</li>
+<li>函数 create_session_from_cli_option — L593</li>
+<li>函数 worktree_changes — L609</li>
+<li>函数 cleanup_worktree — L644</li>
+<li>函数 keep_message — L703</li>
+<li>函数 removal_message — L710</li>
+<li>函数 strip_worktree_env — L728</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>utils/__init__.py → import annotations（外部）</li>
+<li>utils/__init__.py → import json（外部）</li>
+<li>utils/__init__.py → import Path（外部）</li>
+<li>utils/abort_controller.py → import annotations（外部）</li>
+<li>utils/abort_controller.py → import asyncio（外部）</li>
+<li>utils/abort_controller.py → import dataclass（外部）</li>
+<li>utils/abort_controller.py → import field（外部）</li>
+<li>utils/abort_controller.py → import Callable（外部）</li>
+<li>utils/advisor.py → import annotations（外部）</li>
+<li>utils/advisor.py → import logging（外部）</li>
+<li>utils/advisor.py → import os（外部）</li>
+<li>utils/advisor.py → import time（外部）</li>
+<li>utils/advisor.py → import Any（外部）</li>
+<li>utils/advisor.py → import Mapping（外部）</li>
+<li>utils/advisor.py → import TYPE_CHECKING（外部）</li>
+<li>utils/api_preconnect.py → import annotations（外部）</li>
+<li>utils/api_preconnect.py → import os（外部）</li>
+<li>utils/api_preconnect.py → import threading（外部）</li>
+<li>utils/async_bridge.py → import annotations（外部）</li>
+<li>utils/async_bridge.py → import asyncio（外部）</li>
+<li>utils/async_bridge.py → import threading（外部）</li>
+<li>utils/async_bridge.py → import Any（外部）</li>
+<li>utils/async_bridge.py → import Coroutine（外部）</li>
+<li>utils/async_bridge.py → import TypeVar（外部）</li>
+<li>utils/clawcodex_dirs.py → import annotations（外部）</li>
+<li>utils/clawcodex_dirs.py → import os（外部）</li>
+<li>utils/clawcodex_dirs.py → import sys（外部）</li>
+<li>utils/clawcodex_dirs.py → import Path（外部）</li>
+<li>utils/combined_abort_signal.py → import annotations（外部）</li>
+<li>utils/combined_abort_signal.py → import asyncio（外部）</li>
+<li>utils/combined_abort_signal.py → import dataclass（外部）</li>
+<li>utils/combined_abort_signal.py → import Callable（外部）</li>
+<li>utils/combined_abort_signal.py → import AbortSignal（外部）</li>
+<li>utils/combined_abort_signal.py → import create_abort_controller（外部）</li>
+<li>utils/deep_link.py → import annotations（外部）</li>
+<li>utils/deep_link.py → import dataclass（外部）</li>
+<li>utils/deep_link.py → import field（外部）</li>
+<li>utils/deep_link.py → import Any（外部）</li>
+<li>utils/deep_link.py → import parse_qs（外部）</li>
+<li>utils/deep_link.py → import quote（外部）</li>
+<li>utils/deep_link.py → import unquote（外部）</li>
+<li>utils/deep_link.py → import urlencode（外部）</li>
+<li>utils/deep_link.py → import urlparse（外部）</li>
+<li>utils/effort.py → import annotations（外部）</li>
+<li>utils/effort.py → import Enum（外部）</li>
+<li>utils/effort.py → import Any（外部）</li>
+<li>utils/env.py → import annotations（外部）</li>
+<li>utils/env.py → import os（外部）</li>
+<li>utils/env.py → import Final（外部）</li>
+<li>utils/export_formats.py → import annotations（外部）</li>
+<li>utils/export_formats.py → import os（外部）</li>
+<li>utils/export_formats.py → import dataclass（外部）</li>
+<li>utils/export_formats.py → import List（外部）</li>
+<li>utils/export_formats.py → import NamedTuple（外部）</li>
+<li>utils/export_formats.py → import Optional（外部）</li>
+<li>utils/export_renderer.py → import annotations（外部）</li>
+<li>utils/export_renderer.py → import json（外部）</li>
+<li>utils/export_renderer.py → import re（外部）</li>
+<li>utils/export_renderer.py → import Mapping（外部）</li>
+<li>utils/export_renderer.py → import is_dataclass（外部）</li>
+<li>utils/export_renderer.py → import datetime（外部）</li>
+<li>utils/export_renderer.py → import timezone（外部）</li>
+<li>utils/export_renderer.py → import Any（外部）</li>
+<li>utils/export_renderer.py → import List（外部）</li>
+<li>utils/export_renderer.py → import Optional（外部）</li>
+<li>utils/export_renderer.py → import TASK_NOTIFICATION_TAG（外部）</li>
+<li>utils/export_renderer.py → import content_block_to_dict（外部）</li>
+<li>utils/export_renderer.py → import INTERRUPT_MESSAGE（外部）</li>
+<li>utils/export_renderer.py → import INTERRUPT_MESSAGE_FOR_TOOL_USE（外部）</li>
+<li>utils/export_renderer.py → import SYNTHETIC_TOOL_RESULT_PLACEHOLDER（外部）</li>
+<li>utils/export_renderer.py → import ExportFormat（外部）</li>
+<li>utils/fast_mode.py → import annotations（外部）</li>
+<li>utils/fast_mode.py → import os（外部）</li>
+<li>utils/fast_mode.py → import dataclass（外部）</li>
+<li>utils/fast_mode.py → import field（外部）</li>
+<li>utils/file_history.py → import annotations（外部）</li>
+<li>utils/file_history.py → import difflib（外部）</li>
+<li>utils/file_history.py → import logging（外部）</li>
+<li>utils/file_history.py → import os（外部）</li>
+<li>utils/file_history.py → import time（外部）</li>
+<li>utils/file_history.py → import dataclass（外部）</li>
+<li>utils/file_history.py → import field（外部）</li>
+<li>utils/file_history.py → import Path（外部）</li>
+<li>utils/file_history.py → import Any（外部）</li>
+<li>utils/file_state_cache.py → import annotations（外部）</li>
+<li>utils/file_state_cache.py → import asyncio（外部）</li>
+<li>utils/file_state_cache.py → import logging（外部）</li>
+<li>utils/file_state_cache.py → import os（外部）</li>
+<li>utils/file_state_cache.py → import OrderedDict（外部）</li>
+<li>utils/file_state_cache.py → import Any（外部）</li>
+<li>utils/format.py → import annotations（外部）</li>
+<li>utils/format.py → import math（外部）</li>
+<li>utils/frontmatter_validators.py → import annotations（外部）</li>
+<li>utils/frontmatter_validators.py → import logging（外部）</li>
+<li>utils/frontmatter_validators.py → import Any（外部）</li>
+<li>utils/frontmatter_validators.py → import EXTERNAL_PERMISSION_MODES（外部）</li>
+<li>utils/frontmatter_validators.py → import ExternalPermissionMode（外部）</li>
+<li>utils/git.py → import annotations（外部）</li>
+<li>utils/git.py → import asyncio（外部）</li>
+<li>utils/git.py → import logging（外部）</li>
+<li>utils/git.py → import os（外部）</li>
+<li>utils/git.py → import subprocess（外部）</li>
+<li>utils/git.py → import dataclass（外部）</li>
+<li>utils/git.py → import field（外部）</li>
+<li>utils/git.py → import Path（外部）</li>
+<li>utils/git.py → import Any（外部）</li>
+<li>utils/git.py → import find_git（外部）</li>
+<li>utils/graceful_shutdown.py → import annotations（外部）</li>
+<li>utils/graceful_shutdown.py → import atexit（外部）</li>
+<li>utils/graceful_shutdown.py → import os（外部）</li>
+<li>utils/graceful_shutdown.py → import signal（外部）</li>
+<li>utils/graceful_shutdown.py → import sys（外部）</li>
+<li>utils/graceful_shutdown.py → import threading（外部）</li>
+<li>utils/graceful_shutdown.py → import Callable（外部）</li>
+<li>utils/image_paste.py → import annotations（外部）</li>
+<li>utils/image_paste.py → import base64（外部）</li>
+<li>utils/image_paste.py → import logging（外部）</li>
+<li>utils/image_paste.py → import os（外部）</li>
+<li>utils/image_paste.py → import re（外部）</li>
+<li>utils/image_paste.py → import shutil（外部）</li>
+<li>utils/image_paste.py → import subprocess（外部）</li>
+<li>utils/image_paste.py → import sys（外部）</li>
+<li>utils/image_paste.py → import tempfile（外部）</li>
+<li>utils/image_paste.py → import dataclass（外部）</li>
+<li>utils/image_paste.py → import Path（外部）</li>
+<li>utils/image_paste.py → import ImageDimensions（外部）</li>
+<li>utils/image_paste.py → import ImageProcessingError（外部）</li>
+<li>utils/image_paste.py → import detect_image_format_from_buffer（外部）</li>
+<li>utils/image_paste.py → import estimate_image_tokens_from_base64_length（外部）</li>
+<li>utils/image_paste.py → import maybe_resize_image（外部）</li>
+<li>utils/image_processor.py → import annotations（外部）</li>
+<li>utils/image_processor.py → import io（外部）</li>
+<li>utils/image_processor.py → import math（外部）</li>
+<li>utils/image_processor.py → import dataclass（外部）</li>
+<li>utils/image_processor.py → import Path（外部）</li>
+<li>utils/image_processor.py → import Any（外部）</li>
+<li>utils/image_validation.py → import annotations（外部）</li>
+<li>utils/image_validation.py → import Any（外部）</li>
+<li>utils/image_validation.py → import API_IMAGE_MAX_BASE64_SIZE（外部）</li>
+<li>utils/keychain_stash.py → import annotations（外部）</li>
+<li>utils/keychain_stash.py → import os（外部）</li>
+<li>utils/legacy_migration.py → import annotations（外部）</li>
+<li>utils/legacy_migration.py → import json（外部）</li>
+<li>utils/legacy_migration.py → import logging（外部）</li>
+<li>utils/legacy_migration.py → import os（外部）</li>
+<li>utils/legacy_migration.py → import shutil（外部）</li>
+<li>utils/legacy_migration.py → import dataclass（外部）</li>
+<li>utils/legacy_migration.py → import field（外部）</li>
+<li>utils/legacy_migration.py → import datetime（外部）</li>
+<li>utils/legacy_migration.py → import timezone（外部）</li>
+<li>utils/legacy_migration.py → import Path（外部）</li>
+<li>utils/legacy_migration.py → import PROJECT_DIR_NAME（外部）</li>
+<li>utils/legacy_migration.py → import LEGACY_PROJECT_DIR_NAME（外部）</li>
+<li>utils/legacy_migration.py → import get_legacy_user_config_dir（外部）</li>
+<li>utils/legacy_migration.py → import get_user_config_dir（外部）</li>
+<li>utils/logo_palettes.py → import annotations（外部）</li>
+<li>utils/logo_palettes.py → import dataclass（外部）</li>
+<li>utils/markdown_config_loader.py → import annotations（外部）</li>
+<li>utils/markdown_config_loader.py → import logging（外部）</li>
+<li>utils/markdown_config_loader.py → import os（外部）</li>
+<li>utils/markdown_config_loader.py → import dataclass（外部）</li>
+<li>utils/markdown_config_loader.py → import Path（外部）</li>
+<li>utils/markdown_config_loader.py → import Any（外部）</li>
+<li>utils/markdown_config_loader.py → import parse_frontmatter（外部）</li>
+<li>utils/message_mappers.py → import annotations（外部）</li>
+<li>utils/message_mappers.py → import Any（外部）</li>
+<li>utils/message_mappers.py → import get_session_id（外部）</li>
+<li>utils/message_mappers.py → import content_block_to_dict（外部）</li>
+<li>utils/message_mappers.py → import AssistantMessage（外部）</li>
+<li>utils/message_mappers.py → import Message（外部）</li>
+<li>utils/message_mappers.py → import SystemMessage（外部）</li>
+<li>utils/message_mappers.py → import UserMessage（外部）</li>
+<li>utils/message_queue_manager.py → import annotations（外部）</li>
+<li>utils/message_queue_manager.py → import threading（外部）</li>
+<li>utils/message_queue_manager.py → import deque（外部）</li>
+<li>utils/message_queue_manager.py → import dataclass（外部）</li>
+<li>utils/message_queue_manager.py → import Iterator（外部）</li>
+<li>utils/message_queue_manager.py → import Literal（外部）</li>
+<li>utils/messages.py → import annotations（外部）</li>
+<li>utils/messages.py → import Any（外部）</li>
+<li>utils/messages.py → import ContentBlock（外部）</li>
+<li>utils/messages.py → import TextBlock（外部）</li>
+<li>utils/messages.py → import ToolUseBlock（外部）</li>
+<li>utils/messages.py → import ToolResultBlock（外部）</li>
+<li>utils/messages.py → import ThinkingBlock（外部）</li>
+<li>utils/messages.py → import RedactedThinkingBlock（外部）</li>
+<li>utils/messages.py → import ImageBlock（外部）</li>
+<li>utils/messages.py → import content_block_to_dict（外部）</li>
+<li>utils/messages.py → import AssistantMessage（外部）</li>
+<li>utils/messages.py → import Message（外部）</li>
+<li>utils/messages.py → import MessageContent（外部）</li>
+<li>utils/messages.py → import MessageLike（外部）</li>
+<li>utils/messages.py → import SystemMessage（外部）</li>
+<li>utils/messages.py → import UserMessage（外部）</li>
+<li>utils/messages.py → import create_assistant_message（外部）</li>
+<li>utils/messages.py → import create_system_message（外部）</li>
+<li>utils/messages.py → import create_user_message（外部）</li>
+<li>utils/messages.py → import _get_field（外部）</li>
+<li>utils/messages.py → import NO_CONTENT_MESSAGE（外部）</li>
+<li>utils/messages.py → import SYNTHETIC_MODEL（外部）</li>
+<li>utils/messages.py → import SYNTHETIC_TOOL_RESULT_PLACEHOLDER（外部）</li>
+<li>utils/pdf_extraction.py → import annotations（外部）</li>
+<li>utils/pdf_extraction.py → import shutil（外部）</li>
+<li>utils/pdf_extraction.py → import subprocess（外部）</li>
+<li>utils/pdf_extraction.py → import tempfile（外部）</li>
+<li>utils/pdf_extraction.py → import dataclass（外部）</li>
+<li>utils/pdf_extraction.py → import Path（外部）</li>
+<li>utils/pdf_extraction.py → import Any（外部）</li>
+<li>utils/peer_address.py → import annotations（外部）</li>
+<li>utils/peer_address.py → import dataclass（外部）</li>
+<li>utils/peer_address.py → import Literal（外部）</li>
+<li>utils/plans.py → import annotations（外部）</li>
+<li>utils/plans.py → import logging（外部）</li>
+<li>utils/plans.py → import os（外部）</li>
+<li>utils/plans.py → import Path（外部）</li>
+<li>utils/plans.py → import get_plan_slug_cache（外部）</li>
+<li>utils/plans.py → import get_session_id（外部）</li>
+<li>utils/plans.py → import generate_word_slug（外部）</li>
+<li>utils/release_notes.py → import annotations（外部）</li>
+<li>utils/release_notes.py → import re（外部）</li>
+<li>utils/release_notes.py → import Path（外部）</li>
+<li>utils/session_ingress_auth.py → import annotations（外部）</li>
+<li>utils/session_ingress_auth.py → import os（外部）</li>
+<li>utils/shell_platform.py → import annotations（外部）</li>
+<li>utils/shell_platform.py → import os（外部）</li>
+<li>utils/shell_platform.py → import shutil（外部）</li>
+<li>utils/shell_platform.py → import subprocess（外部）</li>
+<li>utils/shell_platform.py → import sys（外部）</li>
+<li>utils/shell_platform.py → import Path（外部）</li>
+<li>utils/signal.py → import annotations（外部）</li>
+<li>utils/signal.py → import dataclass（外部）</li>
+<li>utils/signal.py → import field（外部）</li>
+<li>utils/signal.py → import Any（外部）</li>
+<li>utils/signal.py → import Callable（外部）</li>
+<li>utils/startup_profiler.py → import annotations（外部）</li>
+<li>utils/startup_profiler.py → import atexit（外部）</li>
+<li>utils/startup_profiler.py → import os（外部）</li>
+<li>utils/startup_profiler.py → import sys（外部）</li>
+<li>utils/startup_profiler.py → import time（外部）</li>
+<li>utils/startup_profiler.py → import uuid（外部）</li>
+<li>utils/startup_profiler.py → import Path（外部）</li>
+<li>utils/store.py → import annotations（外部）</li>
+<li>utils/store.py → import Callable（外部）</li>
+<li>utils/store.py → import Generic（外部）</li>
+<li>utils/store.py → import TypeVar（外部）</li>
+<li>utils/stream_watchdog.py → import annotations（外部）</li>
+<li>utils/stream_watchdog.py → import logging（外部）</li>
+<li>utils/stream_watchdog.py → import os（外部）</li>
+<li>utils/stream_watchdog.py → import socket（外部）</li>
+<li>utils/stream_watchdog.py → import sys（外部）</li>
+<li>utils/stream_watchdog.py → import threading（外部）</li>
+<li>utils/stream_watchdog.py → import time（外部）</li>
+<li>utils/stream_watchdog.py → import Any（外部）</li>
+<li>utils/stream_watchdog.py → import Callable（外部）</li>
+<li>utils/subprocess_env.py → import annotations（外部）</li>
+<li>utils/subprocess_env.py → import os（外部）</li>
+<li>utils/subprocess_env.py → import Callable（外部）</li>
+<li>utils/task_flags.py → import annotations（外部）</li>
+<li>utils/task_flags.py → import os（外部）</li>
+<li>utils/task_flags.py → import get_is_non_interactive_session（外部）</li>
+<li>utils/task_notification.py → import annotations（外部）</li>
+<li>utils/task_notification.py → import replace（外部）</li>
+<li>utils/task_notification.py → import Any（外部）</li>
+<li>utils/task_notification.py → import Literal（外部）</li>
+<li>utils/task_notification.py → import TYPE_CHECKING（外部）</li>
+<li>utils/task_notification.py → import DURATION_MS_TAG（外部）</li>
+<li>utils/task_notification.py → import OUTPUT_FILE_TAG（外部）</li>
+<li>utils/task_notification.py → import RESULT_TAG（外部）</li>
+<li>utils/task_notification.py → import STATUS_TAG（外部）</li>
+<li>utils/task_notification.py → import SUMMARY_TAG（外部）</li>
+<li>utils/task_notification.py → import TASK_ID_TAG（外部）</li>
+<li>utils/task_notification.py → import TASK_NOTIFICATION_TAG（外部）</li>
+<li>utils/task_notification.py → import TOOL_USE_ID_TAG（外部）</li>
+<li>utils/task_notification.py → import TOOL_USES_TAG（外部）</li>
+<li>utils/task_notification.py → import TOTAL_TOKENS_TAG（外部）</li>
+<li>utils/task_notification.py → import USAGE_TAG（外部）</li>
+<li>utils/task_notification.py → import enqueue_pending_notification（外部）</li>
+<li>utils/teleport/__init__.py → import ANTHROPIC_VERSION（外部）</li>
+<li>utils/teleport/__init__.py → import get_oauth_headers（外部）</li>
+<li>utils/teleport/api.py → import annotations（外部）</li>
+<li>utils/theme.py → import annotations（外部）</li>
+<li>utils/theme.py → import dataclass（外部）</li>
+<li>utils/words.py → import annotations（外部）</li>
+<li>utils/words.py → import secrets（外部）</li>
+<li>utils/worktree_session.py → import annotations（外部）</li>
+<li>utils/worktree_session.py → import logging（外部）</li>
+<li>utils/worktree_session.py → import os（外部）</li>
+<li>utils/worktree_session.py → import random（外部）</li>
+<li>utils/worktree_session.py → import re（外部）</li>
+<li>utils/worktree_session.py → import shutil（外部）</li>
+<li>utils/worktree_session.py → import subprocess（外部）</li>
+<li>utils/worktree_session.py → import time（外部）</li>
+<li>utils/worktree_session.py → import dataclass（外部）</li>
+<li>utils/worktree_session.py → import Path（外部）</li>
+</ol>
+<h2 id="5-r7-r5-ccr-14-映射-启发式初版">5. R7/R5/CCR-14 映射（启发式初版）</h2>
+<ol>
+<li>暂无候选映射 — 状态 UNKNOWN</li>
+</ol>
+<h2 id="6-文件级映射细分">6. 文件级映射细分</h2>
+<ol>
+<li><code class="inline-code">__init__.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">abort_controller.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">advisor.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">api.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">api_preconnect.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">async_bridge.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">clawcodex_dirs.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">combined_abort_signal.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">deep_link.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">effort.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">env.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">export_formats.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">export_renderer.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">fast_mode.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">file_history.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">file_state_cache.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">format.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">frontmatter_validators.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">git.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">graceful_shutdown.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">image_paste.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">image_processor.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">image_validation.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">keychain_stash.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">legacy_migration.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">logo_palettes.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">markdown_config_loader.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">message_mappers.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">message_queue_manager.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">messages.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">pdf_extraction.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">peer_address.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">plans.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">release_notes.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">session_ingress_auth.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">shell_platform.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">signal.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">startup_profiler.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">store.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">stream_watchdog.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">subprocess_env.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">task_flags.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">task_notification.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">theme.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">words.py</code> → UNKNOWN（UNVERIFIED）</li>
+<li><code class="inline-code">worktree_session.py</code> → UNKNOWN（UNVERIFIED）</li>
+</ol>
+<h2 id="7-未确认项与待核实项">7. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ reference 侧对应文件/symbol 映射待核实</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 reference source</li>
+<li>☐ 本模块 R7/R5/CCR 归属的 UNVERIFIED 状态待升级或降级</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-utils-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

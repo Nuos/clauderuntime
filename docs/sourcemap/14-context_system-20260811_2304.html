@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>context_system 源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-r7-r5-ccr-14-映射-启发式初版" data-nav>5. R7/R5/CCR-14 映射（启发式初版）</a></li>
+<li><a href="#6-文件级映射细分" data-nav>6. 文件级映射细分</a></li>
+<li><a href="#7-未确认项与待核实项" data-nav>7. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>context_system 源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">14</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2304</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="context-system-源码盘点">context_system 源码盘点</h1>
+<blockquote>
+<p>编号: 14</p>
+<p>时间戳: 20260811_2304</p>
+<p>基线: def709361a86</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>类型: package（目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: context_system</li>
+<li>类型: package（目录模块）</li>
+<li>Python 文件数: 14</li>
+<li>总行数: 4513</li>
+<li>依赖的 src 内部模块: skills, token_estimation, types</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">context_system/__init__.py</code> — 57 行（类 0，函数 0）</li>
+<li><code class="inline-code">context_system/builder.py</code> — 137 行（类 0，函数 6）</li>
+<li><code class="inline-code">context_system/cache_boundary.py</code> — 23 行（类 0，函数 0）</li>
+<li><code class="inline-code">context_system/clawcodex_md.py</code> — 594 行（类 0，函数 22）</li>
+<li><code class="inline-code">context_system/context_analyzer.py</code> — 390 行（类 2，函数 7）</li>
+<li><code class="inline-code">context_system/date_change.py</code> — 78 行（类 0，函数 2）</li>
+<li><code class="inline-code">context_system/git_context.py</code> — 259 行（类 1，函数 7）</li>
+<li><code class="inline-code">context_system/memory_prefetch.py</code> — 91 行（类 0，函数 2）</li>
+<li><code class="inline-code">context_system/microcompact.py</code> — 469 行（类 1，函数 9）</li>
+<li><code class="inline-code">context_system/models.py</code> — 107 行（类 3，函数 0）</li>
+<li><code class="inline-code">context_system/plan_mode.py</code> — 466 行（类 0，函数 20）</li>
+<li><code class="inline-code">context_system/prompt_assembly.py</code> — 1572 行（类 0，函数 34）</li>
+<li><code class="inline-code">context_system/system_prompt_cache.py</code> — 196 行（类 4，函数 3）</li>
+<li><code class="inline-code">context_system/workspace_snapshot.py</code> — 74 行（类 0，函数 3）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">context_system/__init__.py</code></li>
+<li>文件 <code class="inline-code">context_system/builder.py</code></li>
+<li>函数 build_context_prompt_parts — L16</li>
+<li>函数 build_context_prompt — L60</li>
+<li>函数 _run_async — L75</li>
+<li>函数 _build_workspace_section — L92</li>
+<li>函数 _build_git_section — L114</li>
+<li>函数 _build_clawcodex_md_section — L128</li>
+<li>文件 <code class="inline-code">context_system/cache_boundary.py</code></li>
+<li>文件 <code class="inline-code">context_system/clawcodex_md.py</code></li>
+<li>函数 clear_memory_file_caches — L67</li>
+<li>函数 reset_get_memory_files_cache — L74</li>
+<li>函数 _get_original_cwd — L83</li>
+<li>函数 _is_bare_mode — L88</li>
+<li>函数 _get_additional_directories — L93</li>
+<li>函数 _should_disable_context_mds — L101</li>
+<li>函数 _extract_include_paths — L131</li>
+<li>函数 _resolve_include_path — L168</li>
+<li>函数 _parse_frontmatter_paths — L192</li>
+<li>函数 strip_html_comments — L225</li>
+<li>函数 _parse_memory_file_content — L236</li>
+<li>函数 _safe_read_file — L273</li>
+<li>函数 process_memory_file — L281</li>
+<li>函数 process_md_rules — L330</li>
+<li>函数 _path_in_working_path — L368</li>
+<li>函数 _external_includes_approved — L377</li>
+<li>函数 is_external_memory_file — L397</li>
+<li>函数 get_memory_files — L415</li>
+<li>函数 get_clawcodex_mds — L540</li>
+<li>函数 _get_memory_type_description — L561</li>
+<li>函数 get_large_memory_files — L577</li>
+<li>函数 is_memory_file_path — L582</li>
+<li>文件 <code class="inline-code">context_system/context_analyzer.py</code></li>
+<li>类 ContextCategory — L50</li>
+<li>类 ContextData — L57</li>
+<li>函数 get_context_window_for_model — L73</li>
+<li>函数 count_tool_definition_tokens — L110</li>
+<li>函数 count_system_prompt_tokens — L122</li>
+<li>函数 count_clawcodex_md_tokens — L127</li>
+<li>函数 count_message_breakdown_tokens — L132</li>
+<li>函数 analyze_context — L185</li>
+<li>函数 format_context_as_markdown — L297</li>
+<li>文件 <code class="inline-code">context_system/date_change.py</code></li>
+<li>函数 _current_date_iso — L28</li>
+<li>函数 get_date_change_reminder — L40</li>
+<li>文件 <code class="inline-code">context_system/git_context.py</code></li>
+<li>类 GitContextSnapshot — L29</li>
+<li>函数 _cache_key — L58</li>
+<li>函数 clear_git_caches — L66</li>
+<li>函数 _git_cmd — L76</li>
+<li>函数 _get_default_branch — L97</li>
+<li>函数 get_is_git — L124</li>
+<li>函数 collect_git_context — L142</li>
+<li>函数 format_git_status — L221</li>
+<li>文件 <code class="inline-code">context_system/memory_prefetch.py</code></li>
+<li>函数 _log_deprecation_once — L51</li>
+<li>函数 find_relevant_memories — L62</li>
+<li>文件 <code class="inline-code">context_system/microcompact.py</code></li>
+<li>类 TimeBasedMCConfig — L64</li>
+<li>函数 count_tool_result_tokens — L87</li>
+<li>函数 is_compactable_tool — L114</li>
+<li>函数 strip_images_from_messages — L124</li>
+<li>函数 strip_images_from_typed_messages — L187</li>
+<li>函数 _collect_compactable_ids_typed — L263</li>
+<li>函数 _get_last_assistant_timestamp — L278</li>
+<li>函数 _should_time_based_microcompact — L290</li>
+<li>函数 microcompact_typed_messages — L304</li>
+<li>函数 microcompact_messages — L398</li>
+<li>文件 <code class="inline-code">context_system/models.py</code></li>
+<li>类 MemoryFileInfo — L28</li>
+<li>类 SystemPromptParts — L46</li>
+<li>类 WorkspaceSnapshot — L101</li>
+<li>文件 <code class="inline-code">context_system/plan_mode.py</code></li>
+<li>函数 get_plan_mode_agent_count — L69</li>
+<li>函数 get_plan_mode_explore_agent_count — L82</li>
+<li>函数 _plan_file_info — L110</li>
+<li>函数 build_plan_mode_full_text — L123</li>
+<li>函数 build_plan_mode_sparse_text — L198</li>
+<li>函数 build_plan_mode_reentry_text — L209</li>
+<li>函数 build_plan_mode_subagent_text — L226</li>
+<li>函数 build_plan_mode_exit_text — L246</li>
+<li>函数 wrap_in_system_reminder — L259</li>
+<li>函数 _message_text — L269</li>
+<li>函数 _has_tool_result — L288</li>
+<li>函数 _role — L301</li>
+<li>函数 _is_human_turn — L308</li>
+<li>函数 _is_plan_mode_attachment — L317</li>
+<li>函数 _is_full_plan_mode_attachment — L326</li>
+<li>函数 _is_exit_attachment — L337</li>
+<li>函数 _turns_since_last_attachment — L344</li>
+<li>函数 _attachments_since_last_exit — L358</li>
+<li>函数 build_plan_mode_attachments — L384</li>
+<li>函数 build_plan_mode_exit_attachment — L450</li>
+<li>文件 <code class="inline-code">context_system/prompt_assembly.py</code></li>
+<li>函数 clear_context_caches — L45</li>
+<li>函数 get_user_context — L64</li>
+<li>函数 get_system_context — L118</li>
+<li>函数 fetch_system_prompt_parts — L151</li>
+<li>函数 append_system_context — L194</li>
+<li>函数 append_system_context_blocks — L217</li>
+<li>函数 prepend_user_context — L244</li>
+<li>函数 _get_local_iso_date — L279</li>
+<li>函数 _get_session_start_date_iso — L296</li>
+<li>函数 _should_include_git_instructions — L319</li>
+<li>函数 _build_default_system_prompt_sections — L327</li>
+<li>函数 _compute_env_info — L346</li>
+<li>函数 _clawcodex_data_dir_line — L362</li>
+<li>函数 get_system_prompt_cache — L409</li>
+<li>函数 build_full_system_prompt — L414</li>
+<li>函数 build_full_system_prompt_blocks — L606</li>
+<li>函数 _build_intro_section — L1137</li>
+<li>函数 _build_system_section — L1154</li>
+<li>函数 _build_doing_tasks_section — L1159</li>
+<li>函数 _build_actions_section — L1164</li>
+<li>函数 _build_using_tools_section — L1169</li>
+<li>函数 _build_tone_style_section — L1174</li>
+<li>函数 _build_output_efficiency_section — L1179</li>
+<li>函数 _build_tool_docs_section — L1184</li>
+<li>函数 _build_env_section — L1224</li>
+<li>函数 _build_memory_sections — L1271</li>
+<li>函数 _build_memory_store_section — L1368</li>
+<li>函数 _build_mcp_section — L1412</li>
+<li>函数 _build_mcp_instructions_section — L1435</li>
+<li>函数 _build_agent_section — L1477</li>
+<li>函数 _build_skill_section — L1501</li>
+<li>函数 _build_output_style_section — L1533</li>
+<li>函数 _build_non_interactive_section — L1553</li>
+<li>函数 _build_tool_restrictions_section — L1560</li>
+<li>文件 <code class="inline-code">context_system/system_prompt_cache.py</code></li>
+<li>类 CacheScope — L14</li>
+<li>类 CachedSection — L22</li>
+<li>类 SystemPromptSection — L37</li>
+<li>类 SystemPromptCache — L106</li>
+<li>函数 system_prompt_section — L47</li>
+<li>函数 DANGEROUS_uncachedSystemPromptSection — L70</li>
+<li>函数 clear_system_prompt_sections — L168</li>
+<li>文件 <code class="inline-code">context_system/workspace_snapshot.py</code></li>
+<li>函数 build_workspace_snapshot — L27</li>
+<li>函数 _is_within — L65</li>
+<li>函数 _is_countable — L73</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>context_system/__init__.py → import __future__（外部）</li>
+<li>context_system/__init__.py → import context_system（外部）</li>
+<li>context_system/builder.py → import __future__（外部）</li>
+<li>context_system/builder.py → import asyncio（外部）</li>
+<li>context_system/builder.py → import datetime（外部）</li>
+<li>context_system/builder.py → import pathlib（外部）</li>
+<li>context_system/cache_boundary.py → import __future__（外部）</li>
+<li>context_system/clawcodex_md.py → import __future__（外部）</li>
+<li>context_system/clawcodex_md.py → import logging（外部）</li>
+<li>context_system/clawcodex_md.py → import os（外部）</li>
+<li>context_system/clawcodex_md.py → import re（外部）</li>
+<li>context_system/clawcodex_md.py → import pathlib（外部）</li>
+<li>context_system/clawcodex_md.py → import typing（外部）</li>
+<li>context_system/clawcodex_md.py → import skills（内部）</li>
+<li>context_system/clawcodex_md.py → import context_system（外部）</li>
+<li>context_system/context_analyzer.py → import __future__（外部）</li>
+<li>context_system/context_analyzer.py → import re（外部）</li>
+<li>context_system/context_analyzer.py → import dataclasses（外部）</li>
+<li>context_system/context_analyzer.py → import pathlib（外部）</li>
+<li>context_system/context_analyzer.py → import typing（外部）</li>
+<li>context_system/context_analyzer.py → import token_estimation（内部）</li>
+<li>context_system/date_change.py → import __future__（外部）</li>
+<li>context_system/date_change.py → import logging（外部）</li>
+<li>context_system/date_change.py → import datetime（外部）</li>
+<li>context_system/git_context.py → import __future__（外部）</li>
+<li>context_system/git_context.py → import asyncio（外部）</li>
+<li>context_system/git_context.py → import logging（外部）</li>
+<li>context_system/git_context.py → import os（外部）</li>
+<li>context_system/git_context.py → import subprocess（外部）</li>
+<li>context_system/git_context.py → import dataclasses（外部）</li>
+<li>context_system/git_context.py → import pathlib（外部）</li>
+<li>context_system/git_context.py → import typing（外部）</li>
+<li>context_system/git_context.py → import context_system（外部）</li>
+<li>context_system/memory_prefetch.py → import __future__（外部）</li>
+<li>context_system/memory_prefetch.py → import logging（外部）</li>
+<li>context_system/memory_prefetch.py → import collections（外部）</li>
+<li>context_system/memory_prefetch.py → import typing（外部）</li>
+<li>context_system/memory_prefetch.py → import src（外部）</li>
+<li>context_system/microcompact.py → import __future__（外部）</li>
+<li>context_system/microcompact.py → import time（外部）</li>
+<li>context_system/microcompact.py → import datetime（外部）</li>
+<li>context_system/microcompact.py → import typing（外部）</li>
+<li>context_system/microcompact.py → import token_estimation（内部）</li>
+<li>context_system/microcompact.py → import types（内部）</li>
+<li>context_system/models.py → import __future__（外部）</li>
+<li>context_system/models.py → import dataclasses（外部）</li>
+<li>context_system/models.py → import pathlib（外部）</li>
+<li>context_system/models.py → import typing（外部）</li>
+<li>context_system/plan_mode.py → import __future__（外部）</li>
+<li>context_system/plan_mode.py → import logging（外部）</li>
+<li>context_system/plan_mode.py → import os（外部）</li>
+<li>context_system/plan_mode.py → import typing（外部）</li>
+<li>context_system/plan_mode.py → import src（外部）</li>
+<li>context_system/prompt_assembly.py → import __future__（外部）</li>
+<li>context_system/prompt_assembly.py → import functools（外部）</li>
+<li>context_system/prompt_assembly.py → import os（外部）</li>
+<li>context_system/prompt_assembly.py → import sys（外部）</li>
+<li>context_system/prompt_assembly.py → import datetime（外部）</li>
+<li>context_system/prompt_assembly.py → import typing（外部）</li>
+<li>context_system/prompt_assembly.py → import types（内部）</li>
+<li>context_system/prompt_assembly.py → import context_system（外部）</li>
+<li>context_system/system_prompt_cache.py → import __future__（外部）</li>
+<li>context_system/system_prompt_cache.py → import time（外部）</li>
+<li>context_system/system_prompt_cache.py → import dataclasses（外部）</li>
+<li>context_system/system_prompt_cache.py → import enum（外部）</li>
+<li>context_system/system_prompt_cache.py → import typing（外部）</li>
+<li>context_system/workspace_snapshot.py → import __future__（外部）</li>
+<li>context_system/workspace_snapshot.py → import pathlib（外部）</li>
+<li>context_system/workspace_snapshot.py → import context_system（外部）</li>
+</ol>
+<h2 id="5-r7-r5-ccr-14-映射-启发式初版">5. R7/R5/CCR-14 映射（启发式初版）</h2>
+<ol>
+<li>CCR-03 Context Shaping Pipeline — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-04 Context Assembly / Injection — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-文件级映射细分">6. 文件级映射细分</h2>
+<ol>
+<li><code class="inline-code">__init__.py</code> → CCR-03, CCR-04（UNVERIFIED）</li>
+<li><code class="inline-code">builder.py</code> → CCR-03, CCR-04（UNVERIFIED）</li>
+<li><code class="inline-code">cache_boundary.py</code> → CCR-03, CCR-04（UNVERIFIED）</li>
+<li><code class="inline-code">clawcodex_md.py</code> → CCR-03, CCR-04（UNVERIFIED）</li>
+<li><code class="inline-code">context_analyzer.py</code> → CCR-03, CCR-04（UNVERIFIED）</li>
+<li><code class="inline-code">date_change.py</code> → CCR-03, CCR-04（UNVERIFIED）</li>
+<li><code class="inline-code">git_context.py</code> → CCR-03, CCR-04（UNVERIFIED）</li>
+<li><code class="inline-code">memory_prefetch.py</code> → CCR-03, CCR-04（UNVERIFIED）</li>
+<li><code class="inline-code">microcompact.py</code> → CCR-03, CCR-04（UNVERIFIED）</li>
+<li><code class="inline-code">models.py</code> → CCR-03, CCR-04（UNVERIFIED）</li>
+<li><code class="inline-code">plan_mode.py</code> → CCR-03, CCR-04（UNVERIFIED）</li>
+<li><code class="inline-code">prompt_assembly.py</code> → CCR-03, CCR-04（UNVERIFIED）</li>
+<li><code class="inline-code">system_prompt_cache.py</code> → CCR-03, CCR-04（UNVERIFIED）</li>
+<li><code class="inline-code">workspace_snapshot.py</code> → CCR-03, CCR-04（UNVERIFIED）</li>
+</ol>
+<h2 id="7-未确认项与待核实项">7. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ reference 侧对应文件/symbol 映射待核实</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 reference source</li>
+<li>☐ 本模块 R7/R5/CCR 归属的 UNVERIFIED 状态待升级或降级</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-context-system-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>top-level-files（reference）源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-python-侧候选映射-启发式初版" data-nav>5. Python 侧候选映射（启发式初版）</a></li>
+<li><a href="#6-未确认项与待核实项" data-nav>6. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>top-level-files（reference）源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">31</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2337</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">来源</span><span class="meta-value">restored-src/src/top-level-files</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">group（reference 顶层单文件组）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="top-level-files-reference-源码盘点">top-level-files（reference）源码盘点</h1>
+<blockquote>
+<p>编号: 31</p>
+<p>时间戳: 20260811_2337</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>来源: restored-src/src/top-level-files</p>
+<p>类型: group（reference 顶层单文件组）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: top-level-files</li>
+<li>类型: group（reference 顶层单文件组）</li>
+<li>TS/JS 文件数: 17</li>
+<li>总行数: 7285</li>
+<li>依赖的 reference 内部模块: Task, Tool, assistant, bootstrap, commands, components, constants, context, coordinator, cost-tracker, entrypoints, hooks, ink, keybindings, memdir, plugins, query, screens, services, skills, state, tasks, tools, types, utils</li>
+<li>Python 侧候选映射: core-single-files, entrypoints（UNVERIFIED）</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">QueryEngine.ts</code> — 1295 行（类 1，函数 0）</li>
+<li><code class="inline-code">Task.ts</code> — 125 行（类 0，函数 4）</li>
+<li><code class="inline-code">Tool.ts</code> — 792 行（类 0，函数 5）</li>
+<li><code class="inline-code">commands.ts</code> — 754 行（类 0，函数 18）</li>
+<li><code class="inline-code">context.ts</code> — 189 行（类 0，函数 5）</li>
+<li><code class="inline-code">cost-tracker.ts</code> — 323 行（类 0，函数 9）</li>
+<li><code class="inline-code">costHook.ts</code> — 22 行（类 0，函数 1）</li>
+<li><code class="inline-code">dialogLaunchers.tsx</code> — 132 行（类 0，函数 7）</li>
+<li><code class="inline-code">history.ts</code> — 464 行（类 0，函数 14）</li>
+<li><code class="inline-code">ink.ts</code> — 85 行（类 0，函数 3）</li>
+<li><code class="inline-code">interactiveHelpers.tsx</code> — 365 行（类 0，函数 8）</li>
+<li><code class="inline-code">projectOnboardingState.ts</code> — 83 行（类 0，函数 5）</li>
+<li><code class="inline-code">query.ts</code> — 1729 行（类 0，函数 1）</li>
+<li><code class="inline-code">replLauncher.tsx</code> — 22 行（类 0，函数 1）</li>
+<li><code class="inline-code">setup.ts</code> — 477 行（类 0，函数 1）</li>
+<li><code class="inline-code">tasks.ts</code> — 39 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools.ts</code> — 389 行（类 0，函数 8）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">QueryEngine.ts</code></li>
+<li>类 QueryEngine — L184</li>
+<li>文件 <code class="inline-code">Task.ts</code></li>
+<li>函数 isTerminalTaskStatus — L27</li>
+<li>函数 getTaskIdPrefix — L90</li>
+<li>函数 generateTaskId — L97</li>
+<li>函数 createTaskStateBase — L107</li>
+<li>文件 <code class="inline-code">Tool.ts</code></li>
+<li>函数 filterToolProgressMessages — L311</li>
+<li>函数 toolMatchesName — L348</li>
+<li>函数 findToolByName — L358</li>
+<li>函数 buildTool — L782</li>
+<li>函数 getEmptyToolPermissionContext — L139</li>
+<li>文件 <code class="inline-code">commands.ts</code></li>
+<li>函数 getSkills — L352</li>
+<li>函数 meetsAvailabilityRequirement — L417</li>
+<li>函数 getCommands — L476</li>
+<li>函数 clearCommandMemoizationCaches — L523</li>
+<li>函数 clearCommandsCache — L533</li>
+<li>函数 getMcpSkillCommands — L547</li>
+<li>函数 isBridgeSafeCommand — L672</li>
+<li>函数 filterCommandsForRemoteMode — L684</li>
+<li>函数 findCommand — L687</li>
+<li>函数 hasCommand — L699</li>
+<li>函数 getCommand — L703</li>
+<li>函数 formatDescriptionWithSource — L728</li>
+<li>函数 INTERNAL_ONLY_COMMANDS — L225</li>
+<li>函数 builtInCommandNames — L347</li>
+<li>函数 getSkillToolCommands — L563</li>
+<li>函数 getSlashCommandToolSkills — L586</li>
+<li>函数 REMOTE_SAFE_COMMANDS — L619</li>
+<li>函数 BRIDGE_SAFE_COMMANDS — L651</li>
+<li>文件 <code class="inline-code">context.ts</code></li>
+<li>函数 getSystemPromptInjection — L24</li>
+<li>函数 setSystemPromptInjection — L28</li>
+<li>函数 getGitStatus — L35</li>
+<li>函数 getSystemContext — L116</li>
+<li>函数 getUserContext — L155</li>
+<li>文件 <code class="inline-code">cost-tracker.ts</code></li>
+<li>函数 getStoredSessionCosts — L87</li>
+<li>函数 restoreCostStateForSession — L130</li>
+<li>函数 saveCurrentSessionCosts — L143</li>
+<li>函数 formatCost — L176</li>
+<li>函数 formatModelUsage — L180</li>
+<li>函数 formatTotalCost — L227</li>
+<li>函数 round — L245</li>
+<li>函数 addToTotalModelUsage — L249</li>
+<li>函数 addToTotalSessionCost — L277</li>
+<li>文件 <code class="inline-code">costHook.ts</code></li>
+<li>函数 useCostSummary — L5</li>
+<li>文件 <code class="inline-code">dialogLaunchers.tsx</code></li>
+<li>函数 launchSnapshotUpdateDialog — L29</li>
+<li>函数 launchInvalidSettingsDialog — L44</li>
+<li>函数 launchAssistantSessionChooser — L58</li>
+<li>函数 launchAssistantInstallWizard — L73</li>
+<li>函数 launchTeleportResumeWrapper — L91</li>
+<li>函数 launchTeleportRepoMismatchDialog — L102</li>
+<li>函数 launchResumeChooser — L117</li>
+<li>文件 <code class="inline-code">history.ts</code></li>
+<li>函数 getPastedTextRefNumLines — L47</li>
+<li>函数 formatPastedTextRef — L50</li>
+<li>函数 formatImageRef — L57</li>
+<li>函数 parseReferences — L61</li>
+<li>函数 expandPastedTextRefs — L81</li>
+<li>函数 deserializeLogEntry — L101</li>
+<li>函数 resolveStoredPastedContent — L230</li>
+<li>函数 logEntryToHistoryEntry — L265</li>
+<li>函数 immediateFlushHistory — L292</li>
+<li>函数 flushPromptHistory — L328</li>
+<li>函数 addToPromptHistory — L354</li>
+<li>函数 addToHistory — L410</li>
+<li>函数 clearPendingHistoryEntries — L435</li>
+<li>函数 removeLastFromHistory — L453</li>
+<li>文件 <code class="inline-code">ink.ts</code></li>
+<li>函数 withTheme — L14</li>
+<li>函数 render — L17</li>
+<li>函数 createRoot — L24</li>
+<li>文件 <code class="inline-code">interactiveHelpers.tsx</code></li>
+<li>函数 completeOnboarding — L32</li>
+<li>函数 showDialog — L39</li>
+<li>函数 exitWithError — L52</li>
+<li>函数 exitWithMessage — L65</li>
+<li>函数 showSetupDialog — L86</li>
+<li>函数 renderAndRun — L98</li>
+<li>函数 showSetupScreens — L104</li>
+<li>函数 getRenderContext — L299</li>
+<li>文件 <code class="inline-code">projectOnboardingState.ts</code></li>
+<li>函数 getSteps — L18</li>
+<li>函数 isProjectOnboardingComplete — L42</li>
+<li>函数 maybeMarkProjectOnboardingComplete — L48</li>
+<li>函数 incrementProjectOnboardingSeenCount — L77</li>
+<li>函数 shouldShowProjectOnboarding — L62</li>
+<li>文件 <code class="inline-code">query.ts</code></li>
+<li>函数 isWithheldMaxOutputTokens — L175</li>
+<li>文件 <code class="inline-code">replLauncher.tsx</code></li>
+<li>函数 launchRepl — L12</li>
+<li>文件 <code class="inline-code">setup.ts</code></li>
+<li>函数 setup — L55</li>
+<li>文件 <code class="inline-code">tasks.ts</code></li>
+<li>函数 getAllTasks — L22</li>
+<li>函数 getTaskByType — L37</li>
+<li>文件 <code class="inline-code">tools.ts</code></li>
+<li>函数 parseToolPreset — L164</li>
+<li>函数 getToolsForDefaultPreset — L179</li>
+<li>函数 getAllBaseTools — L193</li>
+<li>函数 filterToolsByDenyRules — L262</li>
+<li>函数 assembleToolPool — L345</li>
+<li>函数 getMergedTools — L383</li>
+<li>函数 TOOL_PRESETS — L161</li>
+<li>函数 getTools — L270</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>QueryEngine.ts → import bootstrap（内部）</li>
+<li>QueryEngine.ts → import entrypoints（内部）</li>
+<li>QueryEngine.ts → import services（内部）</li>
+<li>QueryEngine.ts → import commands（内部）</li>
+<li>QueryEngine.ts → import constants（内部）</li>
+<li>QueryEngine.ts → import cost-tracker（内部）</li>
+<li>QueryEngine.ts → import hooks（内部）</li>
+<li>QueryEngine.ts → import memdir（内部）</li>
+<li>QueryEngine.ts → import query（内部）</li>
+<li>QueryEngine.ts → import state（内部）</li>
+<li>QueryEngine.ts → import Tool（内部）</li>
+<li>QueryEngine.ts → import tools（内部）</li>
+<li>QueryEngine.ts → import types（内部）</li>
+<li>QueryEngine.ts → import utils（内部）</li>
+<li>QueryEngine.ts → import components（内部）</li>
+<li>QueryEngine.ts → import coordinator（内部）</li>
+<li>Task.ts → import state（内部）</li>
+<li>Task.ts → import types（内部）</li>
+<li>Task.ts → import utils（内部）</li>
+<li>Tool.ts → import commands（内部）</li>
+<li>Tool.ts → import hooks（内部）</li>
+<li>Tool.ts → import utils（内部）</li>
+<li>Tool.ts → import context（内部）</li>
+<li>Tool.ts → import services（内部）</li>
+<li>Tool.ts → import tools（内部）</li>
+<li>Tool.ts → import types（内部）</li>
+<li>Tool.ts → import components（内部）</li>
+<li>Tool.ts → import constants（内部）</li>
+<li>Tool.ts → import entrypoints（内部）</li>
+<li>Tool.ts → import state（内部）</li>
+<li>commands.ts → import commands（内部）</li>
+<li>commands.ts → import utils（内部）</li>
+<li>commands.ts → import skills（内部）</li>
+<li>commands.ts → import plugins（内部）</li>
+<li>commands.ts → import types（内部）</li>
+<li>commands.ts → import services（内部）</li>
+<li>commands.ts → import tools（内部）</li>
+<li>context.ts → import bootstrap（内部）</li>
+<li>context.ts → import constants（内部）</li>
+<li>context.ts → import utils（内部）</li>
+<li>cost-tracker.ts → import bootstrap（内部）</li>
+<li>cost-tracker.ts → import entrypoints（内部）</li>
+<li>cost-tracker.ts → import services（内部）</li>
+<li>cost-tracker.ts → import utils（内部）</li>
+<li>costHook.ts → import cost-tracker（内部）</li>
+<li>costHook.ts → import utils（内部）</li>
+<li>dialogLaunchers.tsx → import assistant（内部）</li>
+<li>dialogLaunchers.tsx → import context（内部）</li>
+<li>dialogLaunchers.tsx → import ink（内部）</li>
+<li>dialogLaunchers.tsx → import interactiveHelpers（外部）</li>
+<li>dialogLaunchers.tsx → import keybindings（内部）</li>
+<li>dialogLaunchers.tsx → import state（内部）</li>
+<li>dialogLaunchers.tsx → import tools（内部）</li>
+<li>dialogLaunchers.tsx → import utils（内部）</li>
+<li>history.ts → import bootstrap（内部）</li>
+<li>history.ts → import utils（内部）</li>
+<li>ink.ts → import components（内部）</li>
+<li>ink.ts → import ink（内部）</li>
+<li>interactiveHelpers.tsx → import services（内部）</li>
+<li>interactiveHelpers.tsx → import utils（内部）</li>
+<li>interactiveHelpers.tsx → import bootstrap（内部）</li>
+<li>interactiveHelpers.tsx → import commands（内部）</li>
+<li>interactiveHelpers.tsx → import context（内部）</li>
+<li>interactiveHelpers.tsx → import entrypoints（内部）</li>
+<li>interactiveHelpers.tsx → import ink（内部）</li>
+<li>interactiveHelpers.tsx → import keybindings（内部）</li>
+<li>interactiveHelpers.tsx → import main（外部）</li>
+<li>interactiveHelpers.tsx → import state（内部）</li>
+<li>projectOnboardingState.ts → import utils（内部）</li>
+<li>query.ts → import hooks（内部）</li>
+<li>query.ts → import services（内部）</li>
+<li>query.ts → import utils（内部）</li>
+<li>query.ts → import Tool（内部）</li>
+<li>query.ts → import types（内部）</li>
+<li>query.ts → import tools（内部）</li>
+<li>query.ts → import constants（内部）</li>
+<li>query.ts → import query（内部）</li>
+<li>query.ts → import bootstrap（内部）</li>
+<li>query.ts → import jobs（外部）</li>
+<li>replLauncher.tsx → import context（内部）</li>
+<li>replLauncher.tsx → import ink（内部）</li>
+<li>replLauncher.tsx → import screens（内部）</li>
+<li>replLauncher.tsx → import state（内部）</li>
+<li>replLauncher.tsx → import utils（内部）</li>
+<li>setup.ts → import services（内部）</li>
+<li>setup.ts → import utils（内部）</li>
+<li>setup.ts → import bootstrap（内部）</li>
+<li>setup.ts → import commands（内部）</li>
+<li>setup.ts → import types（内部）</li>
+<li>tasks.ts → import Task（内部）</li>
+<li>tasks.ts → import tasks（内部）</li>
+<li>tools.ts → import Tool（内部）</li>
+<li>tools.ts → import tools（内部）</li>
+<li>tools.ts → import utils（内部）</li>
+<li>tools.ts → import coordinator（内部）</li>
+</ol>
+<h2 id="5-python-侧候选映射-启发式初版">5. Python 侧候选映射（启发式初版）</h2>
+<ol>
+<li>→ python <code class="inline-code">core-single-files</code> — 候选（启发式），状态 UNVERIFIED</li>
+<li>→ python <code class="inline-code">entrypoints</code> — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-未确认项与待核实项">6. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ python 候选映射待逐符号对照核实（symbol 级 map 未生成）</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 python 实现</li>
+<li>☐ 顶层符号提取为启发式正则，需人工抽样验证召回率</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-top-level-files-referenc';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

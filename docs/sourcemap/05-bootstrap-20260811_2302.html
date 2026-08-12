@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bootstrap 源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-r7-r5-ccr-14-映射-启发式初版" data-nav>5. R7/R5/CCR-14 映射（启发式初版）</a></li>
+<li><a href="#6-文件级映射细分" data-nav>6. 文件级映射细分</a></li>
+<li><a href="#7-未确认项与待核实项" data-nav>7. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>bootstrap 源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">05</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2302</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="bootstrap-源码盘点">bootstrap 源码盘点</h1>
+<blockquote>
+<p>编号: 05</p>
+<p>时间戳: 20260811_2302</p>
+<p>基线: def709361a86</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>类型: package（目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: bootstrap</li>
+<li>类型: package（目录模块）</li>
+<li>Python 文件数: 2</li>
+<li>总行数: 1310</li>
+<li>依赖的 src 内部模块: 无</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">bootstrap/__init__.py</code> — 16 行（类 0，函数 0）</li>
+<li><code class="inline-code">bootstrap/state.py</code> — 1294 行（类 4，函数 108）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">bootstrap/__init__.py</code></li>
+<li>文件 <code class="inline-code">bootstrap/state.py</code></li>
+<li>类 ModelUsage — L63</li>
+<li>类 InvokedSkillInfo — L80</li>
+<li>类 _BootstrapState — L128</li>
+<li>类 SdkContext — L276</li>
+<li>函数 _resolve_real_cwd — L100</li>
+<li>函数 _new_session_id — L118</li>
+<li>函数 cost_state_lock — L245</li>
+<li>函数 _get_sdk_context — L312</li>
+<li>函数 run_with_sdk_context — L318</li>
+<li>函数 get_session_id — L366</li>
+<li>函数 regenerate_session_id — L376</li>
+<li>函数 switch_session — L405</li>
+<li>函数 get_parent_session_id — L426</li>
+<li>函数 get_session_project_dir — L431</li>
+<li>函数 get_original_cwd — L436</li>
+<li>函数 set_original_cwd — L443</li>
+<li>函数 get_project_root — L452</li>
+<li>函数 set_project_root — L462</li>
+<li>函数 get_cwd_state — L468</li>
+<li>函数 set_cwd_state — L475</li>
+<li>函数 get_is_interactive — L489</li>
+<li>函数 set_is_interactive — L493</li>
+<li>函数 get_is_non_interactive_session — L497</li>
+<li>函数 get_client_type — L501</li>
+<li>函数 set_client_type — L505</li>
+<li>函数 get_session_trust_accepted — L509</li>
+<li>函数 set_session_trust_accepted — L513</li>
+<li>函数 is_session_persistence_disabled — L517</li>
+<li>函数 set_session_persistence_disabled — L521</li>
+<li>函数 get_is_remote_mode — L525</li>
+<li>函数 set_is_remote_mode — L529</li>
+<li>函数 has_exited_plan_mode_in_session — L533</li>
+<li>函数 set_has_exited_plan_mode — L537</li>
+<li>函数 needs_plan_mode_exit_attachment — L541</li>
+<li>函数 set_needs_plan_mode_exit_attachment — L545</li>
+<li>函数 handle_plan_mode_transition — L549</li>
+<li>函数 get_plan_slug_cache — L562</li>
+<li>函数 prefer_third_party_authentication — L567</li>
+<li>函数 get_total_cost_usd — L582</li>
+<li>函数 add_to_total_cost_state — L586</li>
+<li>函数 get_total_api_duration — L597</li>
+<li>函数 get_total_api_duration_without_retries — L601</li>
+<li>函数 add_to_total_duration_state — L605</li>
+<li>函数 get_total_tool_duration — L611</li>
+<li>函数 add_to_tool_duration — L615</li>
+<li>函数 get_total_lines_added — L629</li>
+<li>函数 get_total_lines_removed — L633</li>
+<li>函数 add_to_total_lines_changed — L637</li>
+<li>函数 has_unknown_model_cost — L643</li>
+<li>函数 set_has_unknown_model_cost — L647</li>
+<li>函数 get_model_usage — L651</li>
+<li>函数 get_usage_for_model — L657</li>
+<li>函数 get_total_input_tokens — L665</li>
+<li>函数 get_total_output_tokens — L674</li>
+<li>函数 get_total_cache_read_input_tokens — L680</li>
+<li>函数 get_total_cache_creation_input_tokens — L689</li>
+<li>函数 get_total_web_search_requests — L698</li>
+<li>函数 get_start_time — L704</li>
+<li>函数 get_total_duration — L708</li>
+<li>函数 get_last_interaction_time — L719</li>
+<li>函数 update_last_interaction_time — L723</li>
+<li>函数 reset_cost_state — L727</li>
+<li>函数 set_cost_state_for_restore — L741</li>
+<li>函数 get_cached_clawcodex_md_content — L775</li>
+<li>函数 set_cached_clawcodex_md_content — L779</li>
+<li>函数 get_system_prompt_section_cache — L783</li>
+<li>函数 set_system_prompt_section_cache_entry — L787</li>
+<li>函数 clear_system_prompt_section_state — L791</li>
+<li>函数 mark_post_compaction — L795</li>
+<li>函数 consume_post_compaction — L801</li>
+<li>函数 get_additional_directories_for_clawcodex_md — L809</li>
+<li>函数 set_additional_directories_for_clawcodex_md — L813</li>
+<li>函数 get_main_loop_model_override — L822</li>
+<li>函数 set_main_loop_model_override — L826</li>
+<li>函数 get_initial_main_loop_model — L830</li>
+<li>函数 set_initial_main_loop_model — L834</li>
+<li>函数 get_prompt_id — L843</li>
+<li>函数 set_prompt_id — L847</li>
+<li>函数 get_last_main_request_id — L851</li>
+<li>函数 set_last_main_request_id — L855</li>
+<li>函数 get_last_api_completion_timestamp — L859</li>
+<li>函数 set_last_api_completion_timestamp — L863</li>
+<li>函数 get_last_emitted_date — L867</li>
+<li>函数 set_last_emitted_date — L871</li>
+<li>函数 get_turn_hook_duration_ms — L880</li>
+<li>函数 add_to_turn_hook_duration — L884</li>
+<li>函数 reset_turn_hook_duration — L891</li>
+<li>函数 get_turn_hook_count — L896</li>
+<li>函数 get_turn_tool_duration_ms — L900</li>
+<li>函数 reset_turn_tool_duration — L904</li>
+<li>函数 get_turn_tool_count — L912</li>
+<li>函数 get_turn_classifier_duration_ms — L916</li>
+<li>函数 add_to_turn_classifier_duration — L920</li>
+<li>函数 reset_turn_classifier_duration — L927</li>
+<li>函数 get_turn_classifier_count — L932</li>
+<li>函数 get_turn_output_tokens — L945</li>
+<li>函数 get_current_turn_token_budget — L954</li>
+<li>函数 snapshot_output_tokens_for_turn — L961</li>
+<li>函数 get_budget_continuation_count — L976</li>
+<li>函数 increment_budget_continuation_count — L980</li>
+<li>函数 get_allowed_setting_sources — L992</li>
+<li>函数 set_allowed_setting_sources — L1001</li>
+<li>函数 add_invoked_skill — L1015</li>
+<li>函数 get_invoked_skills — L1039</li>
+<li>函数 get_invoked_skills_for_agent — L1048</li>
+<li>函数 clear_invoked_skills — L1065</li>
+<li>函数 clear_invoked_skills_for_agent — L1087</li>
+<li>函数 add_slow_operation — L1108</li>
+<li>函数 get_slow_operations — L1113</li>
+<li>函数 is_repl_bridge_active — L1127</li>
+<li>函数 get_repl_bridge_handle — L1132</li>
+<li>函数 reset_state_for_tests — L1142</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>bootstrap/__init__.py → import annotations（外部）</li>
+<li>bootstrap/__init__.py → import json（外部）</li>
+<li>bootstrap/__init__.py → import Path（外部）</li>
+<li>bootstrap/state.py → import annotations（外部）</li>
+<li>bootstrap/state.py → import contextlib（外部）</li>
+<li>bootstrap/state.py → import contextvars（外部）</li>
+<li>bootstrap/state.py → import os（外部）</li>
+<li>bootstrap/state.py → import time（外部）</li>
+<li>bootstrap/state.py → import unicodedata（外部）</li>
+<li>bootstrap/state.py → import uuid（外部）</li>
+<li>bootstrap/state.py → import dataclass（外部）</li>
+<li>bootstrap/state.py → import field（外部）</li>
+<li>bootstrap/state.py → import Any（外部）</li>
+<li>bootstrap/state.py → import Iterator（外部）</li>
+<li>bootstrap/state.py → import NewType（外部）</li>
+<li>bootstrap/state.py → import Signal（外部）</li>
+<li>bootstrap/state.py → import create_signal（外部）</li>
+<li>bootstrap/state.py → import threading（外部）</li>
+</ol>
+<h2 id="5-r7-r5-ccr-14-映射-启发式初版">5. R7/R5/CCR-14 映射（启发式初版）</h2>
+<ol>
+<li>R7-02 Interfaces — 候选（启发式），状态 UNVERIFIED</li>
+<li>R5-01 Surface Layer — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-14 Runtime Config / Feature Gate Control Plane — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-文件级映射细分">6. 文件级映射细分</h2>
+<ol>
+<li><code class="inline-code">__init__.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">state.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+</ol>
+<h2 id="7-未确认项与待核实项">7. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ reference 侧对应文件/symbol 映射待核实</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 reference source</li>
+<li>☐ 本模块 R7/R5/CCR 归属的 UNVERIFIED 状态待升级或降级</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-bootstrap-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

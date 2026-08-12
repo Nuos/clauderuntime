@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClaudeRuntime 源码盘点索引（Sourcemap Index）</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-7-5-14-状态总览" data-nav>1. 7×5×14 状态总览</a></li>
+<li><a href="#2-模块索引" data-nav>2. 模块索引</a></li>
+<li><a href="#3-统计" data-nav>3. 统计</a></li>
+<li><a href="#4-未确认项" data-nav>4. 未确认项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>ClaudeRuntime 源码盘点索引（Sourcemap Index）</h1>
+    <div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2304</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86900920bf1d6b75134fdc9bc59def</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244e6770e1e421767ff0987a1d95549</span></div><div class="meta-item"><span class="meta-label">论文</span><span class="meta-value">arXiv:2604.14228v2</span></div><div class="meta-item"><span class="meta-label">生成器</span><span class="meta-value">scripts/sourcemap_generator.py</span></div>
+    <h1 id="clauderuntime-源码盘点索引-sourcemap-index">ClaudeRuntime 源码盘点索引（Sourcemap Index）</h1>
+<blockquote>
+<p>时间戳: 20260811_2304</p>
+<p>基线: def709361a86900920bf1d6b75134fdc9bc59def</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244e6770e1e421767ff0987a1d95549</p>
+<p>论文: arXiv:2604.14228v2</p>
+<p>生成器: scripts/sourcemap_generator.py</p>
+</blockquote>
+<h2 id="1-7-5-14-状态总览">1. 7×5×14 状态总览</h2>
+<ol>
+<li>Reference-7: 0/7 COMPLETE — Wave 0 盘点中，全部 UNVERIFIED/UNKNOWN</li>
+<li>Reference-5: 0/5 COMPLETE — Wave 0 盘点中，全部 UNVERIFIED/UNKNOWN</li>
+<li>CCR-14: 0/14 COMPLETE — Wave 0 盘点中，全部 UNVERIFIED/UNKNOWN</li>
+<li>完成状态词: EXACT / SEMANTIC_EQUIVALENT / PYTHON_ADAPTATION_VERIFIED</li>
+<li>未完成状态词: PARTIAL / UNKNOWN / MISSING</li>
+</ol>
+<h2 id="2-模块索引">2. 模块索引</h2>
+<ol>
+<li>01 agent — 18 文件 3879 行 — <a href="01-agent-20260811_2304.html" target="_blank" rel="noopener">01-agent-20260811_2304.html</a></li>
+<li>02 assistant — 3 文件 289 行 — <a href="02-assistant-20260811_2304.html" target="_blank" rel="noopener">02-assistant-20260811_2304.html</a></li>
+<li>03 auth — 8 文件 1422 行 — <a href="03-auth-20260811_2304.html" target="_blank" rel="noopener">03-auth-20260811_2304.html</a></li>
+<li>04 background — 2 文件 121 行 — <a href="04-background-20260811_2304.html" target="_blank" rel="noopener">04-background-20260811_2304.html</a></li>
+<li>05 bootstrap — 2 文件 1310 行 — <a href="05-bootstrap-20260811_2304.html" target="_blank" rel="noopener">05-bootstrap-20260811_2304.html</a></li>
+<li>06 bridge — 37 文件 11760 行 — <a href="06-bridge-20260811_2304.html" target="_blank" rel="noopener">06-bridge-20260811_2304.html</a></li>
+<li>07 buddy — 9 文件 1510 行 — <a href="07-buddy-20260811_2304.html" target="_blank" rel="noopener">07-buddy-20260811_2304.html</a></li>
+<li>08 cli_backup — 1 文件 16 行 — <a href="08-cli_backup-20260811_2304.html" target="_blank" rel="noopener">08-cli_backup-20260811_2304.html</a></li>
+<li>09 cli_core — 4 文件 351 行 — <a href="09-cli_core-20260811_2304.html" target="_blank" rel="noopener">09-cli_core-20260811_2304.html</a></li>
+<li>10 command_system — 38 文件 8250 行 — <a href="10-command_system-20260811_2304.html" target="_blank" rel="noopener">10-command_system-20260811_2304.html</a></li>
+<li>11 compact_service — 2 文件 335 行 — <a href="11-compact_service-20260811_2304.html" target="_blank" rel="noopener">11-compact_service-20260811_2304.html</a></li>
+<li>12 components — 1 文件 23 行 — <a href="12-components-20260811_2304.html" target="_blank" rel="noopener">12-components-20260811_2304.html</a></li>
+<li>13 constants — 3 文件 195 行 — <a href="13-constants-20260811_2304.html" target="_blank" rel="noopener">13-constants-20260811_2304.html</a></li>
+<li>14 context_system — 14 文件 4513 行 — <a href="14-context_system-20260811_2304.html" target="_blank" rel="noopener">14-context_system-20260811_2304.html</a></li>
+<li>15 coordinator — 4 文件 794 行 — <a href="15-coordinator-20260811_2304.html" target="_blank" rel="noopener">15-coordinator-20260811_2304.html</a></li>
+<li>16 core-single-files — 13 文件 3343 行 — <a href="16-core-single-files-20260811_2304.html" target="_blank" rel="noopener">16-core-single-files-20260811_2304.html</a></li>
+<li>17 eco — 6 文件 1002 行 — <a href="17-eco-20260811_2304.html" target="_blank" rel="noopener">17-eco-20260811_2304.html</a></li>
+<li>18 entrypoints — 12 文件 3360 行 — <a href="18-entrypoints-20260811_2304.html" target="_blank" rel="noopener">18-entrypoints-20260811_2304.html</a></li>
+<li>19 execution — 4 文件 635 行 — <a href="19-execution-20260811_2304.html" target="_blank" rel="noopener">19-execution-20260811_2304.html</a></li>
+<li>20 goals — 3 文件 1317 行 — <a href="20-goals-20260811_2304.html" target="_blank" rel="noopener">20-goals-20260811_2304.html</a></li>
+<li>21 hooks — 14 文件 3350 行 — <a href="21-hooks-20260811_2304.html" target="_blank" rel="noopener">21-hooks-20260811_2304.html</a></li>
+<li>22 keybindings — 1 文件 29 行 — <a href="22-keybindings-20260811_2304.html" target="_blank" rel="noopener">22-keybindings-20260811_2304.html</a></li>
+<li>23 knowledge — 3 文件 172 行 — <a href="23-knowledge-20260811_2304.html" target="_blank" rel="noopener">23-knowledge-20260811_2304.html</a></li>
+<li>24 memdir — 10 文件 2203 行 — <a href="24-memdir-20260811_2304.html" target="_blank" rel="noopener">24-memdir-20260811_2304.html</a></li>
+<li>25 memory — 8 文件 2020 行 — <a href="25-memory-20260811_2304.html" target="_blank" rel="noopener">25-memory-20260811_2304.html</a></li>
+<li>26 migrations — 1 文件 16 行 — <a href="26-migrations-20260811_2304.html" target="_blank" rel="noopener">26-migrations-20260811_2304.html</a></li>
+<li>27 models — 9 文件 1316 行 — <a href="27-models-20260811_2304.html" target="_blank" rel="noopener">27-models-20260811_2304.html</a></li>
+<li>28 moreright — 1 文件 16 行 — <a href="28-moreright-20260811_2304.html" target="_blank" rel="noopener">28-moreright-20260811_2304.html</a></li>
+<li>29 native_ts — 1 文件 16 行 — <a href="29-native_ts-20260811_2304.html" target="_blank" rel="noopener">29-native_ts-20260811_2304.html</a></li>
+<li>30 outputStyles — 3 文件 238 行 — <a href="30-outputStyles-20260811_2304.html" target="_blank" rel="noopener">30-outputStyles-20260811_2304.html</a></li>
+<li>31 permissions — 31 文件 11719 行 — <a href="31-permissions-20260811_2304.html" target="_blank" rel="noopener">31-permissions-20260811_2304.html</a></li>
+<li>32 plan — 2 文件 39 行 — <a href="32-plan-20260811_2304.html" target="_blank" rel="noopener">32-plan-20260811_2304.html</a></li>
+<li>33 plugins — 11 文件 1145 行 — <a href="33-plugins-20260811_2304.html" target="_blank" rel="noopener">33-plugins-20260811_2304.html</a></li>
+<li>34 providers — 20 文件 8711 行 — <a href="34-providers-20260811_2304.html" target="_blank" rel="noopener">34-providers-20260811_2304.html</a></li>
+<li>35 query — 16 文件 5837 行 — <a href="35-query-20260811_2304.html" target="_blank" rel="noopener">35-query-20260811_2304.html</a></li>
+<li>36 reference_data — 1 文件 1 行 — <a href="36-reference_data-20260811_2304.html" target="_blank" rel="noopener">36-reference_data-20260811_2304.html</a></li>
+<li>37 remote — 4 文件 908 行 — <a href="37-remote-20260811_2304.html" target="_blank" rel="noopener">37-remote-20260811_2304.html</a></li>
+<li>38 scheduled_tasks — 3 文件 648 行 — <a href="38-scheduled_tasks-20260811_2304.html" target="_blank" rel="noopener">38-scheduled_tasks-20260811_2304.html</a></li>
+<li>39 schemas — 1 文件 16 行 — <a href="39-schemas-20260811_2304.html" target="_blank" rel="noopener">39-schemas-20260811_2304.html</a></li>
+<li>40 screens — 1 文件 22 行 — <a href="40-screens-20260811_2304.html" target="_blank" rel="noopener">40-screens-20260811_2304.html</a></li>
+<li>41 server — 22 文件 11906 行 — <a href="41-server-20260811_2304.html" target="_blank" rel="noopener">41-server-20260811_2304.html</a></li>
+<li>42 services — 108 文件 21733 行 — <a href="42-services-20260811_2304.html" target="_blank" rel="noopener">42-services-20260811_2304.html</a></li>
+<li>43 settings — 8 文件 957 行 — <a href="43-settings-20260811_2304.html" target="_blank" rel="noopener">43-settings-20260811_2304.html</a></li>
+<li>44 skills — 17 文件 3219 行 — <a href="44-skills-20260811_2304.html" target="_blank" rel="noopener">44-skills-20260811_2304.html</a></li>
+<li>45 state — 4 文件 1009 行 — <a href="45-state-20260811_2304.html" target="_blank" rel="noopener">45-state-20260811_2304.html</a></li>
+<li>46 tasks — 9 文件 2070 行 — <a href="46-tasks-20260811_2304.html" target="_blank" rel="noopener">46-tasks-20260811_2304.html</a></li>
+<li>47 tool_system — 63 文件 15772 行 — <a href="47-tool_system-20260811_2304.html" target="_blank" rel="noopener">47-tool_system-20260811_2304.html</a></li>
+<li>48 transports — 9 文件 3146 行 — <a href="48-transports-20260811_2304.html" target="_blank" rel="noopener">48-transports-20260811_2304.html</a></li>
+<li>49 types — 4 文件 1321 行 — <a href="49-types-20260811_2304.html" target="_blank" rel="noopener">49-types-20260811_2304.html</a></li>
+<li>50 upstreamproxy — 6 文件 1065 行 — <a href="50-upstreamproxy-20260811_2304.html" target="_blank" rel="noopener">50-upstreamproxy-20260811_2304.html</a></li>
+<li>51 utils — 47 文件 11305 行 — <a href="51-utils-20260811_2304.html" target="_blank" rel="noopener">51-utils-20260811_2304.html</a></li>
+<li>52 vim — 1 文件 24 行 — <a href="52-vim-20260811_2304.html" target="_blank" rel="noopener">52-vim-20260811_2304.html</a></li>
+<li>53 voice — 1 文件 16 行 — <a href="53-voice-20260811_2304.html" target="_blank" rel="noopener">53-voice-20260811_2304.html</a></li>
+<li>54 wiki — 4 文件 368 行 — <a href="54-wiki-20260811_2304.html" target="_blank" rel="noopener">54-wiki-20260811_2304.html</a></li>
+<li>55 workflow — 20 文件 2302 行 — <a href="55-workflow-20260811_2304.html" target="_blank" rel="noopener">55-workflow-20260811_2304.html</a></li>
+</ol>
+<h2 id="3-统计">3. 统计</h2>
+<ol>
+<li>模块总数: 55</li>
+<li>Python 文件总数: 648</li>
+<li>源码总行数: 159060</li>
+<li>命名规则: NN-模块名-YYYYMMDD_HHMM.html（编号按字母序固定，时间戳标识盘点快照）</li>
+</ol>
+<h2 id="4-未确认项">4. 未确认项</h2>
+<ol>
+<li>☐ 全部模块的 R7/R5/CCR 映射均为启发式初版，状态 UNVERIFIED</li>
+<li>☐ reference 侧（restored-src）模块级 source map 尚未生成</li>
+<li>☐ 旧 AUX lifecycle obligations → R7/R5/CCR 映射尚未登记</li>
+<li>☐ 模块一句话职责全部 UNKNOWN，待人工核实</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-clauderuntime-源码盘点索引-sou';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

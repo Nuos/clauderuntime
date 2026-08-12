@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hooks（reference）源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-python-侧候选映射-启发式初版" data-nav>5. Python 侧候选映射（启发式初版）</a></li>
+<li><a href="#6-未确认项与待核实项" data-nav>6. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>hooks（reference）源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">12</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2337</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">来源</span><span class="meta-value">restored-src/src/hooks</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（reference 目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="hooks-reference-源码盘点">hooks（reference）源码盘点</h1>
+<blockquote>
+<p>编号: 12</p>
+<p>时间戳: 20260811_2337</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>来源: restored-src/src/hooks</p>
+<p>类型: package（reference 目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: hooks</li>
+<li>类型: package（reference 目录模块）</li>
+<li>TS/JS 文件数: 104</li>
+<li>总行数: 19204</li>
+<li>依赖的 reference 内部模块: Task, Tool, assistant, bootstrap, bridge, commands, components, constants, context, entrypoints, history, ink, keybindings, native-ts, remote, screens, server, services, state, tasks, tools, types, utils, vim, voice</li>
+<li>Python 侧候选映射: hooks（UNVERIFIED）</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">hooks/fileSuggestions.ts</code> — 811 行（类 0，函数 23）</li>
+<li><code class="inline-code">hooks/notifs/useAutoModeUnavailableNotification.ts</code> — 56 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/notifs/useCanSwitchToExistingSubscription.tsx</code> — 59 行（类 0，函数 4）</li>
+<li><code class="inline-code">hooks/notifs/useDeprecationWarningNotification.tsx</code> — 43 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/notifs/useFastModeNotification.tsx</code> — 161 行（类 0，函数 5）</li>
+<li><code class="inline-code">hooks/notifs/useIDEStatusIndicator.tsx</code> — 185 行（类 0，函数 3）</li>
+<li><code class="inline-code">hooks/notifs/useInstallMessages.tsx</code> — 25 行（类 0，函数 3）</li>
+<li><code class="inline-code">hooks/notifs/useLspInitializationNotification.tsx</code> — 142 行（类 0，函数 3）</li>
+<li><code class="inline-code">hooks/notifs/useMcpConnectivityStatus.tsx</code> — 87 行（类 0，函数 5）</li>
+<li><code class="inline-code">hooks/notifs/useModelMigrationNotifications.tsx</code> — 51 行（类 0，函数 3）</li>
+<li><code class="inline-code">hooks/notifs/useNpmDeprecationNotification.tsx</code> — 24 行（类 0，函数 2）</li>
+<li><code class="inline-code">hooks/notifs/usePluginAutoupdateNotification.tsx</code> — 82 行（类 0，函数 2）</li>
+<li><code class="inline-code">hooks/notifs/usePluginInstallationStatus.tsx</code> — 127 行（类 0，函数 4）</li>
+<li><code class="inline-code">hooks/notifs/useRateLimitWarningNotification.tsx</code> — 113 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/notifs/useSettingsErrors.tsx</code> — 68 行（类 0，函数 2）</li>
+<li><code class="inline-code">hooks/notifs/useStartupNotification.ts</code> — 41 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/notifs/useTeammateShutdownNotification.ts</code> — 78 行（类 0，函数 6）</li>
+<li><code class="inline-code">hooks/renderPlaceholder.ts</code> — 51 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/toolPermission/PermissionContext.ts</code> — 388 行（类 0，函数 3）</li>
+<li><code class="inline-code">hooks/toolPermission/handlers/coordinatorHandler.ts</code> — 65 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/toolPermission/handlers/interactiveHandler.ts</code> — 536 行（类 0，函数 2）</li>
+<li><code class="inline-code">hooks/toolPermission/handlers/swarmWorkerHandler.ts</code> — 159 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/toolPermission/permissionLogging.ts</code> — 238 行（类 0，函数 7）</li>
+<li><code class="inline-code">hooks/unifiedSuggestions.ts</code> — 202 行（类 0，函数 4）</li>
+<li><code class="inline-code">hooks/useAfterFirstRender.ts</code> — 17 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useApiKeyVerification.ts</code> — 84 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useArrowKeyHistory.tsx</code> — 228 行（类 0，函数 2）</li>
+<li><code class="inline-code">hooks/useAssistantHistory.ts</code> — 250 行（类 0，函数 3）</li>
+<li><code class="inline-code">hooks/useAwaySummary.ts</code> — 125 行（类 0，函数 7）</li>
+<li><code class="inline-code">hooks/useBackgroundTaskNavigation.ts</code> — 251 行（类 0，函数 2）</li>
+<li><code class="inline-code">hooks/useBlink.ts</code> — 34 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useCanUseTool.tsx</code> — 203 行（类 0，函数 3）</li>
+<li><code class="inline-code">hooks/useCancelRequest.ts</code> — 276 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useChromeExtensionNotification.tsx</code> — 49 行（类 0，函数 3）</li>
+<li><code class="inline-code">hooks/useClaudeCodeHintRecommendation.tsx</code> — 128 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useClipboardImageHint.ts</code> — 77 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useCommandKeybindings.tsx</code> — 107 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useCommandQueue.ts</code> — 15 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useCopyOnSelect.ts</code> — 98 行（类 0，函数 2）</li>
+<li><code class="inline-code">hooks/useDeferredHookMessages.ts</code> — 46 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useDiffData.ts</code> — 110 行（类 0，函数 2）</li>
+<li><code class="inline-code">hooks/useDiffInIDE.ts</code> — 379 行（类 0，函数 9）</li>
+<li><code class="inline-code">hooks/useDirectConnect.ts</code> — 229 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useDoublePress.ts</code> — 62 行（类 0，函数 2）</li>
+<li><code class="inline-code">hooks/useDynamicConfig.ts</code> — 22 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useElapsedTime.ts</code> — 37 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useExitOnCtrlCD.ts</code> — 95 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useExitOnCtrlCDWithKeybindings.ts</code> — 24 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useFileHistorySnapshotInit.ts</code> — 25 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useGlobalKeybindings.tsx</code> — 248 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useHistorySearch.ts</code> — 303 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useIDEIntegration.tsx</code> — 69 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useIdeAtMentioned.ts</code> — 76 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useIdeConnectionStatus.ts</code> — 33 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useIdeLogging.ts</code> — 41 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useIdeSelection.ts</code> — 150 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useInboxPoller.ts</code> — 969 行（类 0，函数 2）</li>
+<li><code class="inline-code">hooks/useInputBuffer.ts</code> — 132 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useIssueFlagBanner.ts</code> — 133 行（类 0，函数 3）</li>
+<li><code class="inline-code">hooks/useLogMessages.ts</code> — 119 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useLspPluginRecommendation.tsx</code> — 193 行（类 0，函数 3）</li>
+<li><code class="inline-code">hooks/useMailboxBridge.ts</code> — 21 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useMainLoopModel.ts</code> — 34 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useManagePlugins.ts</code> — 304 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useMemoryUsage.ts</code> — 39 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useMergedClients.ts</code> — 23 行（类 0，函数 2）</li>
+<li><code class="inline-code">hooks/useMergedCommands.ts</code> — 15 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useMergedTools.ts</code> — 44 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useMinDisplayTime.ts</code> — 35 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useNotifyAfterTimeout.ts</code> — 65 行（类 0，函数 5）</li>
+<li><code class="inline-code">hooks/useOfficialMarketplaceNotification.tsx</code> — 47 行（类 0，函数 2）</li>
+<li><code class="inline-code">hooks/usePasteHandler.ts</code> — 285 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/usePluginRecommendationBase.tsx</code> — 104 行（类 0，函数 2）</li>
+<li><code class="inline-code">hooks/usePrStatus.ts</code> — 106 行（类 0，函数 2）</li>
+<li><code class="inline-code">hooks/usePromptSuggestion.ts</code> — 177 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/usePromptsFromClaudeInChrome.tsx</code> — 70 行（类 0，函数 3）</li>
+<li><code class="inline-code">hooks/useQueueProcessor.ts</code> — 68 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useRemoteSession.ts</code> — 605 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useReplBridge.tsx</code> — 722 行（类 0，函数 6）</li>
+<li><code class="inline-code">hooks/useSSHSession.ts</code> — 241 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useScheduledTasks.ts</code> — 139 行（类 0，函数 2）</li>
+<li><code class="inline-code">hooks/useSearchInput.ts</code> — 364 行（类 0，函数 3）</li>
+<li><code class="inline-code">hooks/useSessionBackgrounding.ts</code> — 158 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useSettings.ts</code> — 17 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useSettingsChange.ts</code> — 25 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useSkillImprovementSurvey.ts</code> — 105 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useSkillsChange.ts</code> — 62 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useSwarmInitialization.ts</code> — 81 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useSwarmPermissionPoller.ts</code> — 330 行（类 0，函数 11）</li>
+<li><code class="inline-code">hooks/useTaskListWatcher.ts</code> — 221 行（类 0，函数 3）</li>
+<li><code class="inline-code">hooks/useTasksV2.ts</code> — 250 行（类 1，函数 3）</li>
+<li><code class="inline-code">hooks/useTeammateViewAutoExit.ts</code> — 63 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useTeleportResume.tsx</code> — 84 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useTerminalSize.ts</code> — 15 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useTextInput.ts</code> — 529 行（类 0，函数 15）</li>
+<li><code class="inline-code">hooks/useTimeout.ts</code> — 14 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useTurnDiffs.ts</code> — 213 行（类 0，函数 6）</li>
+<li><code class="inline-code">hooks/useTypeahead.tsx</code> — 1384 行（类 0，函数 14）</li>
+<li><code class="inline-code">hooks/useUpdateNotification.ts</code> — 34 行（类 0，函数 3）</li>
+<li><code class="inline-code">hooks/useVimInput.ts</code> — 316 行（类 0，函数 4）</li>
+<li><code class="inline-code">hooks/useVirtualScroll.ts</code> — 721 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useVoice.ts</code> — 1144 行（类 0，函数 8）</li>
+<li><code class="inline-code">hooks/useVoiceEnabled.ts</code> — 25 行（类 0，函数 1）</li>
+<li><code class="inline-code">hooks/useVoiceIntegration.tsx</code> — 676 行（类 0，函数 4）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">hooks/fileSuggestions.ts</code></li>
+<li>函数 getFileIndex — L35</li>
+<li>函数 clearFileSuggestionCaches — L84</li>
+<li>函数 pathListSignature — L111</li>
+<li>函数 getGitIndexMtime — L138</li>
+<li>函数 normalizeGitPaths — L152</li>
+<li>函数 mergeUntrackedIntoNormalizedCache — L169</li>
+<li>函数 loadRipgrepIgnorePatterns — L202</li>
+<li>函数 getFilesUsingGit — L248</li>
+<li>函数 getDirectoryNames — L393</li>
+<li>函数 getDirectoryNamesAsync — L403</li>
+<li>函数 collectDirectoryNames — L419</li>
+<li>函数 getClaudeConfigFiles — L445</li>
+<li>函数 getProjectFiles — L459</li>
+<li>函数 getPathsForSuggestions — L523</li>
+<li>函数 findCommonPrefix — L575</li>
+<li>函数 findLongestCommonPrefix — L587</li>
+<li>函数 createFileSuggestionItem — L603</li>
+<li>函数 findMatchingFiles — L618</li>
+<li>函数 startBackgroundCacheRefresh — L636</li>
+<li>函数 getTopLevelPaths — L692</li>
+<li>函数 generateFileSuggestions — L715</li>
+<li>函数 applyFileSuggestion — L789</li>
+<li>函数 onIndexBuildComplete — L47</li>
+<li>文件 <code class="inline-code">hooks/notifs/useAutoModeUnavailableNotification.ts</code></li>
+<li>函数 useAutoModeUnavailableNotification — L19</li>
+<li>文件 <code class="inline-code">hooks/notifs/useCanSwitchToExistingSubscription.tsx</code></li>
+<li>函数 useCanSwitchToExistingSubscription — L13</li>
+<li>函数 _temp2 — L21</li>
+<li>函数 _temp — L37</li>
+<li>函数 getExistingClaudeSubscription — L43</li>
+<li>文件 <code class="inline-code">hooks/notifs/useDeprecationWarningNotification.tsx</code></li>
+<li>函数 useDeprecationWarningNotification — L6</li>
+<li>文件 <code class="inline-code">hooks/notifs/useFastModeNotification.tsx</code></li>
+<li>函数 useFastModeNotification — L12</li>
+<li>函数 _temp3 — L139</li>
+<li>函数 _temp2 — L145</li>
+<li>函数 _temp — L151</li>
+<li>函数 getCooldownMessage — L154</li>
+<li>文件 <code class="inline-code">hooks/notifs/useIDEStatusIndicator.tsx</code></li>
+<li>函数 useIDEStatusIndicator — L17</li>
+<li>函数 _temp2 — L166</li>
+<li>函数 _temp — L180</li>
+<li>文件 <code class="inline-code">hooks/notifs/useInstallMessages.tsx</code></li>
+<li>函数 useInstallMessages — L3</li>
+<li>函数 _temp2 — L6</li>
+<li>函数 _temp — L10</li>
+<li>文件 <code class="inline-code">hooks/notifs/useLspInitializationNotification.tsx</code></li>
+<li>函数 useLspInitializationNotification — L22</li>
+<li>函数 _temp2 — L134</li>
+<li>函数 _temp — L140</li>
+<li>文件 <code class="inline-code">hooks/notifs/useMcpConnectivityStatus.tsx</code></li>
+<li>函数 useMcpConnectivityStatus — L13</li>
+<li>函数 _temp4 — L76</li>
+<li>函数 _temp3 — L79</li>
+<li>函数 _temp2 — L82</li>
+<li>函数 _temp — L85</li>
+<li>文件 <code class="inline-code">hooks/notifs/useModelMigrationNotifications.tsx</code></li>
+<li>函数 useModelMigrationNotifications — L35</li>
+<li>函数 _temp — L38</li>
+<li>函数 recent — L49</li>
+<li>文件 <code class="inline-code">hooks/notifs/useNpmDeprecationNotification.tsx</code></li>
+<li>函数 useNpmDeprecationNotification — L6</li>
+<li>函数 _temp — L9</li>
+<li>文件 <code class="inline-code">hooks/notifs/usePluginAutoupdateNotification.tsx</code></li>
+<li>函数 usePluginAutoupdateNotification — L14</li>
+<li>函数 _temp — L79</li>
+<li>文件 <code class="inline-code">hooks/notifs/usePluginInstallationStatus.tsx</code></li>
+<li>函数 usePluginInstallationStatus — L10</li>
+<li>函数 _temp3 — L119</li>
+<li>函数 _temp2 — L122</li>
+<li>函数 _temp — L125</li>
+<li>文件 <code class="inline-code">hooks/notifs/useRateLimitWarningNotification.tsx</code></li>
+<li>函数 useRateLimitWarningNotification — L11</li>
+<li>文件 <code class="inline-code">hooks/notifs/useSettingsErrors.tsx</code></li>
+<li>函数 useSettingsErrors — L9</li>
+<li>函数 _temp — L63</li>
+<li>文件 <code class="inline-code">hooks/notifs/useStartupNotification.ts</code></li>
+<li>函数 useStartupNotification — L19</li>
+<li>文件 <code class="inline-code">hooks/notifs/useTeammateShutdownNotification.ts</code></li>
+<li>函数 parseCount — L9</li>
+<li>函数 foldSpawn — L17</li>
+<li>函数 makeSpawnNotif — L21</li>
+<li>函数 foldShutdown — L31</li>
+<li>函数 makeShutdownNotif — L38</li>
+<li>函数 useTeammateLifecycleNotification — L54</li>
+<li>文件 <code class="inline-code">hooks/renderPlaceholder.ts</code></li>
+<li>函数 renderPlaceholder — L12</li>
+<li>文件 <code class="inline-code">hooks/toolPermission/PermissionContext.ts</code></li>
+<li>函数 createResolveOnce — L74</li>
+<li>函数 createPermissionContext — L95</li>
+<li>函数 createPermissionQueueOps — L357</li>
+<li>文件 <code class="inline-code">hooks/toolPermission/handlers/coordinatorHandler.ts</code></li>
+<li>函数 handleCoordinatorPermission — L26</li>
+<li>文件 <code class="inline-code">hooks/toolPermission/handlers/interactiveHandler.ts</code></li>
+<li>函数 handleInteractivePermission — L57</li>
+<li>函数 clearClassifierIndicator — L85</li>
+<li>文件 <code class="inline-code">hooks/toolPermission/handlers/swarmWorkerHandler.ts</code></li>
+<li>函数 handleSwarmWorkerPermission — L40</li>
+<li>文件 <code class="inline-code">hooks/toolPermission/permissionLogging.ts</code></li>
+<li>函数 isCodeEditingTool — L34</li>
+<li>函数 buildCodeEditToolAttributes — L41</li>
+<li>函数 sourceToString — L68</li>
+<li>函数 baseMetadata — L90</li>
+<li>函数 logApprovalEvent — L107</li>
+<li>函数 logRejectionEvent — L152</li>
+<li>函数 logPermissionDecision — L181</li>
+<li>文件 <code class="inline-code">hooks/unifiedSuggestions.ts</code></li>
+<li>函数 createSuggestionFromSource — L46</li>
+<li>函数 truncateDescription — L72</li>
+<li>函数 generateAgentSuggestions — L76</li>
+<li>函数 generateUnifiedSuggestions — L110</li>
+<li>文件 <code class="inline-code">hooks/useAfterFirstRender.ts</code></li>
+<li>函数 useAfterFirstRender — L3</li>
+<li>文件 <code class="inline-code">hooks/useApiKeyVerification.ts</code></li>
+<li>函数 useApiKeyVerification — L23</li>
+<li>文件 <code class="inline-code">hooks/useArrowKeyHistory.tsx</code></li>
+<li>函数 loadHistoryEntries — L20</li>
+<li>函数 useArrowKeyHistory — L63</li>
+<li>文件 <code class="inline-code">hooks/useAssistantHistory.ts</code></li>
+<li>函数 pageToMessages — L50</li>
+<li>函数 useAssistantHistory — L72</li>
+<li>函数 mkSentinel — L100</li>
+<li>文件 <code class="inline-code">hooks/useAwaySummary.ts</code></li>
+<li>函数 hasSummarySinceLastUserTurn — L15</li>
+<li>函数 useAwaySummary — L32</li>
+<li>函数 clearTimer — L56</li>
+<li>函数 abortInFlight — L63</li>
+<li>函数 generate — L68</li>
+<li>函数 onBlurTimerFire — L82</li>
+<li>函数 onFocusChange — L91</li>
+<li>文件 <code class="inline-code">hooks/useBackgroundTaskNavigation.ts</code></li>
+<li>函数 stepTeammateSelection — L26</li>
+<li>函数 useBackgroundTaskNavigation — L67</li>
+<li>文件 <code class="inline-code">hooks/useBlink.ts</code></li>
+<li>函数 useBlink — L22</li>
+<li>文件 <code class="inline-code">hooks/useCanUseTool.tsx</code></li>
+<li>函数 useCanUseTool — L28</li>
+<li>函数 _temp2 — L192</li>
+<li>函数 _temp — L197</li>
+<li>文件 <code class="inline-code">hooks/useCancelRequest.ts</code></li>
+<li>函数 CancelRequestHandler — L63</li>
+<li>文件 <code class="inline-code">hooks/useChromeExtensionNotification.tsx</code></li>
+<li>函数 getChromeFlag — L7</li>
+<li>函数 useChromeExtensionNotification — L16</li>
+<li>函数 _temp — L19</li>
+<li>文件 <code class="inline-code">hooks/useClaudeCodeHintRecommendation.tsx</code></li>
+<li>函数 useClaudeCodeHintRecommendation — L24</li>
+<li>文件 <code class="inline-code">hooks/useClipboardImageHint.ts</code></li>
+<li>函数 useClipboardImageHint — L19</li>
+<li>文件 <code class="inline-code">hooks/useCommandKeybindings.tsx</code></li>
+<li>函数 CommandKeybindingHandlers — L37</li>
+<li>文件 <code class="inline-code">hooks/useCommandQueue.ts</code></li>
+<li>函数 useCommandQueue — L13</li>
+<li>文件 <code class="inline-code">hooks/useCopyOnSelect.ts</code></li>
+<li>函数 useCopyOnSelect — L26</li>
+<li>函数 useSelectionBgColor — L93</li>
+<li>文件 <code class="inline-code">hooks/useDeferredHookMessages.ts</code></li>
+<li>函数 useDeferredHookMessages — L12</li>
+<li>文件 <code class="inline-code">hooks/useDiffData.ts</code></li>
+<li>函数 useDiffData — L34</li>
+<li>函数 loadDiffData — L44</li>
+<li>文件 <code class="inline-code">hooks/useDiffInIDE.ts</code></li>
+<li>函数 useDiffInIDE — L45</li>
+<li>函数 showDiff — L76</li>
+<li>函数 computeEditsFromContents — L170</li>
+<li>函数 showDiffInIDE — L216</li>
+<li>函数 cleanup — L233</li>
+<li>函数 closeTabInIDE — L328</li>
+<li>函数 isClosedMessage — L345</li>
+<li>函数 isRejectedMessage — L357</li>
+<li>函数 isSaveMessage — L369</li>
+<li>文件 <code class="inline-code">hooks/useDirectConnect.ts</code></li>
+<li>函数 useDirectConnect — L38</li>
+<li>文件 <code class="inline-code">hooks/useDoublePress.ts</code></li>
+<li>函数 useDoublePress — L7</li>
+<li>函数 DOUBLE_PRESS_TIMEOUT_MS — L5</li>
+<li>文件 <code class="inline-code">hooks/useDynamicConfig.ts</code></li>
+<li>函数 useDynamicConfig — L8</li>
+<li>文件 <code class="inline-code">hooks/useElapsedTime.ts</code></li>
+<li>函数 useElapsedTime — L17</li>
+<li>文件 <code class="inline-code">hooks/useExitOnCtrlCD.ts</code></li>
+<li>函数 useExitOnCtrlCD — L45</li>
+<li>文件 <code class="inline-code">hooks/useExitOnCtrlCDWithKeybindings.ts</code></li>
+<li>函数 useExitOnCtrlCDWithKeybindings — L18</li>
+<li>文件 <code class="inline-code">hooks/useFileHistorySnapshotInit.ts</code></li>
+<li>函数 useFileHistorySnapshotInit — L8</li>
+<li>文件 <code class="inline-code">hooks/useGlobalKeybindings.tsx</code></li>
+<li>函数 GlobalKeybindingHandlers — L36</li>
+<li>文件 <code class="inline-code">hooks/useHistorySearch.ts</code></li>
+<li>函数 useHistorySearch — L14</li>
+<li>文件 <code class="inline-code">hooks/useIDEIntegration.tsx</code></li>
+<li>函数 useIDEIntegration — L15</li>
+<li>文件 <code class="inline-code">hooks/useIdeAtMentioned.ts</code></li>
+<li>函数 useIdeAtMentioned — L33</li>
+<li>文件 <code class="inline-code">hooks/useIdeConnectionStatus.ts</code></li>
+<li>函数 useIdeConnectionStatus — L10</li>
+<li>文件 <code class="inline-code">hooks/useIdeLogging.ts</code></li>
+<li>函数 useIdeLogging — L17</li>
+<li>文件 <code class="inline-code">hooks/useIdeSelection.ts</code></li>
+<li>函数 useIdeSelection — L59</li>
+<li>文件 <code class="inline-code">hooks/useInboxPoller.ts</code></li>
+<li>函数 getAgentNameToPoll — L81</li>
+<li>函数 useInboxPoller — L126</li>
+<li>文件 <code class="inline-code">hooks/useInputBuffer.ts</code></li>
+<li>函数 useInputBuffer — L26</li>
+<li>文件 <code class="inline-code">hooks/useIssueFlagBanner.ts</code></li>
+<li>函数 isSessionContainerCompatible — L44</li>
+<li>函数 hasFrictionSignal — L73</li>
+<li>函数 useIssueFlagBanner — L91</li>
+<li>文件 <code class="inline-code">hooks/useLogMessages.ts</code></li>
+<li>函数 useLogMessages — L19</li>
+<li>文件 <code class="inline-code">hooks/useLspPluginRecommendation.tsx</code></li>
+<li>函数 useLspPluginRecommendation — L41</li>
+<li>函数 _temp2 — L182</li>
+<li>函数 _temp — L191</li>
+<li>文件 <code class="inline-code">hooks/useMailboxBridge.ts</code></li>
+<li>函数 useMailboxBridge — L8</li>
+<li>文件 <code class="inline-code">hooks/useMainLoopModel.ts</code></li>
+<li>函数 useMainLoopModel — L13</li>
+<li>文件 <code class="inline-code">hooks/useManagePlugins.ts</code></li>
+<li>函数 useManagePlugins — L37</li>
+<li>文件 <code class="inline-code">hooks/useMemoryUsage.ts</code></li>
+<li>函数 useMemoryUsage — L18</li>
+<li>文件 <code class="inline-code">hooks/useMergedClients.ts</code></li>
+<li>函数 mergeClients — L4</li>
+<li>函数 useMergedClients — L14</li>
+<li>文件 <code class="inline-code">hooks/useMergedCommands.ts</code></li>
+<li>函数 useMergedCommands — L4</li>
+<li>文件 <code class="inline-code">hooks/useMergedTools.ts</code></li>
+<li>函数 useMergedTools — L20</li>
+<li>文件 <code class="inline-code">hooks/useMinDisplayTime.ts</code></li>
+<li>函数 useMinDisplayTime — L10</li>
+<li>文件 <code class="inline-code">hooks/useNotifyAfterTimeout.ts</code></li>
+<li>函数 getTimeSinceLastInteraction — L10</li>
+<li>函数 hasRecentInteraction — L14</li>
+<li>函数 shouldNotify — L18</li>
+<li>函数 useNotifyAfterTimeout — L38</li>
+<li>函数 DEFAULT_INTERACTION_THRESHOLD_MS — L9</li>
+<li>文件 <code class="inline-code">hooks/useOfficialMarketplaceNotification.tsx</code></li>
+<li>函数 useOfficialMarketplaceNotification — L12</li>
+<li>函数 _temp — L15</li>
+<li>文件 <code class="inline-code">hooks/usePasteHandler.ts</code></li>
+<li>函数 usePasteHandler — L29</li>
+<li>文件 <code class="inline-code">hooks/usePluginRecommendationBase.tsx</code></li>
+<li>函数 usePluginRecommendationBase — L24</li>
+<li>函数 installPluginAndNotify — L80</li>
+<li>文件 <code class="inline-code">hooks/usePrStatus.ts</code></li>
+<li>函数 usePrStatus — L35</li>
+<li>函数 poll — L48</li>
+<li>文件 <code class="inline-code">hooks/usePromptSuggestion.ts</code></li>
+<li>函数 usePromptSuggestion — L14</li>
+<li>文件 <code class="inline-code">hooks/usePromptsFromClaudeInChrome.tsx</code></li>
+<li>函数 usePromptsFromClaudeInChrome — L31</li>
+<li>函数 _temp — L67</li>
+<li>函数 findChromeClient — L68</li>
+<li>文件 <code class="inline-code">hooks/useQueueProcessor.ts</code></li>
+<li>函数 useQueueProcessor — L28</li>
+<li>文件 <code class="inline-code">hooks/useRemoteSession.ts</code></li>
+<li>函数 useRemoteSession — L76</li>
+<li>文件 <code class="inline-code">hooks/useReplBridge.tsx</code></li>
+<li>函数 useReplBridge — L53</li>
+<li>函数 notifyBridgeFailed — L102</li>
+<li>函数 handleInboundMessage — L180</li>
+<li>函数 handleStateChange — L224</li>
+<li>函数 handlePermissionResponse — L372</li>
+<li>函数 BRIDGE_FAILURE_DISMISS_MS — L29</li>
+<li>文件 <code class="inline-code">hooks/useSSHSession.ts</code></li>
+<li>函数 useSSHSession — L47</li>
+<li>文件 <code class="inline-code">hooks/useScheduledTasks.ts</code></li>
+<li>函数 useScheduledTasks — L40</li>
+<li>函数 formatCronFireTime — L128</li>
+<li>文件 <code class="inline-code">hooks/useSearchInput.ts</code></li>
+<li>函数 isKillKey — L41</li>
+<li>函数 isYankKey — L51</li>
+<li>函数 useSearchInput — L83</li>
+<li>文件 <code class="inline-code">hooks/useSessionBackgrounding.ts</code></li>
+<li>函数 useSessionBackgrounding — L26</li>
+<li>文件 <code class="inline-code">hooks/useSettings.ts</code></li>
+<li>函数 useSettings — L15</li>
+<li>文件 <code class="inline-code">hooks/useSettingsChange.ts</code></li>
+<li>函数 useSettingsChange — L6</li>
+<li>文件 <code class="inline-code">hooks/useSkillImprovementSurvey.ts</code></li>
+<li>函数 useSkillImprovementSurvey — L20</li>
+<li>文件 <code class="inline-code">hooks/useSkillsChange.ts</code></li>
+<li>函数 useSkillsChange — L24</li>
+<li>文件 <code class="inline-code">hooks/useSwarmInitialization.ts</code></li>
+<li>函数 useSwarmInitialization — L30</li>
+<li>文件 <code class="inline-code">hooks/useSwarmPermissionPoller.ts</code></li>
+<li>函数 parsePermissionUpdates — L35</li>
+<li>函数 registerPermissionCallback — L82</li>
+<li>函数 unregisterPermissionCallback — L94</li>
+<li>函数 hasPermissionCallback — L104</li>
+<li>函数 clearAllPendingCallbacks — L113</li>
+<li>函数 processMailboxPermissionResponse — L124</li>
+<li>函数 registerSandboxPermissionCallback — L179</li>
+<li>函数 hasSandboxPermissionCallback — L191</li>
+<li>函数 processSandboxPermissionResponse — L201</li>
+<li>函数 processResponse — L231</li>
+<li>函数 useSwarmPermissionPoller — L268</li>
+<li>文件 <code class="inline-code">hooks/useTaskListWatcher.ts</code></li>
+<li>函数 useTaskListWatcher — L34</li>
+<li>函数 findAvailableTask — L197</li>
+<li>函数 formatTaskAsPrompt — L213</li>
+<li>文件 <code class="inline-code">hooks/useTasksV2.ts</code></li>
+<li>类 TasksV2Store — L29</li>
+<li>函数 getStore — L202</li>
+<li>函数 useTasksV2 — L218</li>
+<li>函数 useTasksV2WithCollapseEffect — L236</li>
+<li>文件 <code class="inline-code">hooks/useTeammateViewAutoExit.ts</code></li>
+<li>函数 useTeammateViewAutoExit — L11</li>
+<li>文件 <code class="inline-code">hooks/useTeleportResume.tsx</code></li>
+<li>函数 useTeleportResume — L15</li>
+<li>文件 <code class="inline-code">hooks/useTerminalSize.ts</code></li>
+<li>函数 useTerminalSize — L6</li>
+<li>文件 <code class="inline-code">hooks/useTextInput.ts</code></li>
+<li>函数 mapInput — L31</li>
+<li>函数 useTextInput — L72</li>
+<li>函数 handleCtrlD — L169</li>
+<li>函数 killToLineEnd — L179</li>
+<li>函数 killToLineStart — L185</li>
+<li>函数 killWordBefore — L191</li>
+<li>函数 yank — L197</li>
+<li>函数 handleYankPop — L208</li>
+<li>函数 handleEnter — L246</li>
+<li>函数 upOrHistoryUp — L268</li>
+<li>函数 downOrHistoryDown — L293</li>
+<li>函数 mapKey — L317</li>
+<li>函数 isKillKey — L416</li>
+<li>函数 isYankKey — L427</li>
+<li>函数 onInput — L430</li>
+<li>文件 <code class="inline-code">hooks/useTimeout.ts</code></li>
+<li>函数 useTimeout — L2</li>
+<li>文件 <code class="inline-code">hooks/useTurnDiffs.ts</code></li>
+<li>函数 isFileEditResult — L35</li>
+<li>函数 isFileWriteOutput — L48</li>
+<li>函数 countHunkLines — L54</li>
+<li>函数 getUserPromptPreview — L69</li>
+<li>函数 computeTurnStats — L78</li>
+<li>函数 useTurnDiffs — L100</li>
+<li>文件 <code class="inline-code">hooks/useTypeahead.tsx</code></li>
+<li>函数 isPathMetadata — L45</li>
+<li>函数 getPreservedSelection — L52</li>
+<li>函数 buildResumeInputFromSuggestion — L75</li>
+<li>函数 extractSearchToken — L123</li>
+<li>函数 formatReplacementValue — L148</li>
+<li>函数 applyShellSuggestion — L178</li>
+<li>函数 applyTriggerSuggestion — L197</li>
+<li>函数 generateBashSuggestions — L211</li>
+<li>函数 applyDirectorySuggestion — L237</li>
+<li>函数 extractCompletionToken — L261</li>
+<li>函数 extractCommandNameAndArgs — L326</li>
+<li>函数 hasCommandWithArguments — L343</li>
+<li>函数 useTypeahead — L353</li>
+<li>函数 acceptSuggestionText — L1280</li>
+<li>文件 <code class="inline-code">hooks/useUpdateNotification.ts</code></li>
+<li>函数 getSemverPart — L3</li>
+<li>函数 shouldShowUpdateNotification — L7</li>
+<li>函数 useUpdateNotification — L15</li>
+<li>文件 <code class="inline-code">hooks/useVimInput.ts</code></li>
+<li>函数 useVimInput — L33</li>
+<li>函数 createOperatorContext — L81</li>
+<li>函数 replayLastChange — L108</li>
+<li>函数 handleVimInput — L174</li>
+<li>文件 <code class="inline-code">hooks/useVirtualScroll.ts</code></li>
+<li>函数 useVirtualScroll — L142</li>
+<li>文件 <code class="inline-code">hooks/useVoice.ts</code></li>
+<li>函数 normalizeLanguageForSTT — L121</li>
+<li>函数 computeLevel — L185</li>
+<li>函数 useVoice — L198</li>
+<li>函数 updateState — L274</li>
+<li>函数 finishRecording — L321</li>
+<li>函数 armFocusSilenceTimer — L542</li>
+<li>函数 startRecordingSession — L633</li>
+<li>函数 FIRST_PRESS_FALLBACK_MS — L172</li>
+<li>文件 <code class="inline-code">hooks/useVoiceEnabled.ts</code></li>
+<li>函数 useVoiceEnabled — L19</li>
+<li>文件 <code class="inline-code">hooks/useVoiceIntegration.tsx</code></li>
+<li>函数 matchesKeyboardEvent — L61</li>
+<li>函数 useVoiceIntegration — L118</li>
+<li>函数 useVoiceKeybindingHandler — L373</li>
+<li>函数 VoiceKeybindingHandler — L673</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>hooks/fileSuggestions.ts → import utils（内部）</li>
+<li>hooks/fileSuggestions.ts → import components（内部）</li>
+<li>hooks/fileSuggestions.ts → import native-ts（内部）</li>
+<li>hooks/fileSuggestions.ts → import services（内部）</li>
+<li>hooks/fileSuggestions.ts → import types（内部）</li>
+<li>hooks/notifs/useAutoModeUnavailableNotification.ts → import context（内部）</li>
+<li>hooks/notifs/useAutoModeUnavailableNotification.ts → import bootstrap（内部）</li>
+<li>hooks/notifs/useAutoModeUnavailableNotification.ts → import state（内部）</li>
+<li>hooks/notifs/useAutoModeUnavailableNotification.ts → import utils（内部）</li>
+<li>hooks/notifs/useCanSwitchToExistingSubscription.tsx → import services（内部）</li>
+<li>hooks/notifs/useCanSwitchToExistingSubscription.tsx → import utils（内部）</li>
+<li>hooks/notifs/useCanSwitchToExistingSubscription.tsx → import ink（内部）</li>
+<li>hooks/notifs/useCanSwitchToExistingSubscription.tsx → import hooks（外部）</li>
+<li>hooks/notifs/useDeprecationWarningNotification.tsx → import context（内部）</li>
+<li>hooks/notifs/useDeprecationWarningNotification.tsx → import utils（内部）</li>
+<li>hooks/notifs/useDeprecationWarningNotification.tsx → import bootstrap（内部）</li>
+<li>hooks/notifs/useFastModeNotification.tsx → import context（内部）</li>
+<li>hooks/notifs/useFastModeNotification.tsx → import state（内部）</li>
+<li>hooks/notifs/useFastModeNotification.tsx → import utils（内部）</li>
+<li>hooks/notifs/useFastModeNotification.tsx → import bootstrap（内部）</li>
+<li>hooks/notifs/useIDEStatusIndicator.tsx → import context（内部）</li>
+<li>hooks/notifs/useIDEStatusIndicator.tsx → import ink（内部）</li>
+<li>hooks/notifs/useIDEStatusIndicator.tsx → import services（内部）</li>
+<li>hooks/notifs/useIDEStatusIndicator.tsx → import utils（内部）</li>
+<li>hooks/notifs/useIDEStatusIndicator.tsx → import bootstrap（内部）</li>
+<li>hooks/notifs/useIDEStatusIndicator.tsx → import hooks（外部）</li>
+<li>hooks/notifs/useInstallMessages.tsx → import utils（内部）</li>
+<li>hooks/notifs/useInstallMessages.tsx → import hooks（外部）</li>
+<li>hooks/notifs/useLspInitializationNotification.tsx → import bootstrap（内部）</li>
+<li>hooks/notifs/useLspInitializationNotification.tsx → import context（内部）</li>
+<li>hooks/notifs/useLspInitializationNotification.tsx → import ink（内部）</li>
+<li>hooks/notifs/useLspInitializationNotification.tsx → import services（内部）</li>
+<li>hooks/notifs/useLspInitializationNotification.tsx → import state（内部）</li>
+<li>hooks/notifs/useLspInitializationNotification.tsx → import utils（内部）</li>
+<li>hooks/notifs/useMcpConnectivityStatus.tsx → import context（内部）</li>
+<li>hooks/notifs/useMcpConnectivityStatus.tsx → import bootstrap（内部）</li>
+<li>hooks/notifs/useMcpConnectivityStatus.tsx → import ink（内部）</li>
+<li>hooks/notifs/useMcpConnectivityStatus.tsx → import services（内部）</li>
+<li>hooks/notifs/useModelMigrationNotifications.tsx → import context（内部）</li>
+<li>hooks/notifs/useModelMigrationNotifications.tsx → import utils（内部）</li>
+<li>hooks/notifs/useModelMigrationNotifications.tsx → import hooks（外部）</li>
+<li>hooks/notifs/useNpmDeprecationNotification.tsx → import utils（内部）</li>
+<li>hooks/notifs/useNpmDeprecationNotification.tsx → import hooks（外部）</li>
+<li>hooks/notifs/usePluginAutoupdateNotification.tsx → import bootstrap（内部）</li>
+<li>hooks/notifs/usePluginAutoupdateNotification.tsx → import context（内部）</li>
+<li>hooks/notifs/usePluginAutoupdateNotification.tsx → import ink（内部）</li>
+<li>hooks/notifs/usePluginAutoupdateNotification.tsx → import utils（内部）</li>
+<li>hooks/notifs/usePluginInstallationStatus.tsx → import bootstrap（内部）</li>
+<li>hooks/notifs/usePluginInstallationStatus.tsx → import context（内部）</li>
+<li>hooks/notifs/usePluginInstallationStatus.tsx → import ink（内部）</li>
+<li>hooks/notifs/usePluginInstallationStatus.tsx → import state（内部）</li>
+<li>hooks/notifs/usePluginInstallationStatus.tsx → import utils（内部）</li>
+<li>hooks/notifs/useRateLimitWarningNotification.tsx → import context（内部）</li>
+<li>hooks/notifs/useRateLimitWarningNotification.tsx → import ink（内部）</li>
+<li>hooks/notifs/useRateLimitWarningNotification.tsx → import services（内部）</li>
+<li>hooks/notifs/useRateLimitWarningNotification.tsx → import utils（内部）</li>
+<li>hooks/notifs/useRateLimitWarningNotification.tsx → import bootstrap（内部）</li>
+<li>hooks/notifs/useSettingsErrors.tsx → import context（内部）</li>
+<li>hooks/notifs/useSettingsErrors.tsx → import bootstrap（内部）</li>
+<li>hooks/notifs/useSettingsErrors.tsx → import utils（内部）</li>
+<li>hooks/notifs/useSettingsErrors.tsx → import hooks（外部）</li>
+<li>hooks/notifs/useStartupNotification.ts → import bootstrap（内部）</li>
+<li>hooks/notifs/useStartupNotification.ts → import context（内部）</li>
+<li>hooks/notifs/useStartupNotification.ts → import utils（内部）</li>
+<li>hooks/notifs/useTeammateShutdownNotification.ts → import bootstrap（内部）</li>
+<li>hooks/notifs/useTeammateShutdownNotification.ts → import context（内部）</li>
+<li>hooks/notifs/useTeammateShutdownNotification.ts → import state（内部）</li>
+<li>hooks/notifs/useTeammateShutdownNotification.ts → import tasks（内部）</li>
+<li>hooks/toolPermission/PermissionContext.ts → import services（内部）</li>
+<li>hooks/toolPermission/PermissionContext.ts → import components（内部）</li>
+<li>hooks/toolPermission/PermissionContext.ts → import Tool（内部）</li>
+<li>hooks/toolPermission/PermissionContext.ts → import tools（内部）</li>
+<li>hooks/toolPermission/PermissionContext.ts → import types（内部）</li>
+<li>hooks/toolPermission/PermissionContext.ts → import utils（内部）</li>
+<li>hooks/toolPermission/PermissionContext.ts → import hooks（外部）</li>
+<li>hooks/toolPermission/handlers/coordinatorHandler.ts → import types（内部）</li>
+<li>hooks/toolPermission/handlers/coordinatorHandler.ts → import utils（内部）</li>
+<li>hooks/toolPermission/handlers/coordinatorHandler.ts → import hooks（外部）</li>
+<li>hooks/toolPermission/handlers/interactiveHandler.ts → import utils（内部）</li>
+<li>hooks/toolPermission/handlers/interactiveHandler.ts → import bootstrap（内部）</li>
+<li>hooks/toolPermission/handlers/interactiveHandler.ts → import bridge（内部）</li>
+<li>hooks/toolPermission/handlers/interactiveHandler.ts → import ink（内部）</li>
+<li>hooks/toolPermission/handlers/interactiveHandler.ts → import services（内部）</li>
+<li>hooks/toolPermission/handlers/interactiveHandler.ts → import tools（内部）</li>
+<li>hooks/toolPermission/handlers/interactiveHandler.ts → import hooks（外部）</li>
+<li>hooks/toolPermission/handlers/swarmWorkerHandler.ts → import types（内部）</li>
+<li>hooks/toolPermission/handlers/swarmWorkerHandler.ts → import utils（内部）</li>
+<li>hooks/toolPermission/handlers/swarmWorkerHandler.ts → import hooks（外部）</li>
+<li>hooks/toolPermission/permissionLogging.ts → import services（内部）</li>
+<li>hooks/toolPermission/permissionLogging.ts → import bootstrap（内部）</li>
+<li>hooks/toolPermission/permissionLogging.ts → import Tool（内部）</li>
+<li>hooks/toolPermission/permissionLogging.ts → import utils（内部）</li>
+<li>hooks/toolPermission/permissionLogging.ts → import hooks（外部）</li>
+<li>hooks/unifiedSuggestions.ts → import components（内部）</li>
+<li>hooks/unifiedSuggestions.ts → import hooks（外部）</li>
+<li>hooks/unifiedSuggestions.ts → import services（内部）</li>
+<li>hooks/unifiedSuggestions.ts → import tools（内部）</li>
+<li>hooks/unifiedSuggestions.ts → import utils（内部）</li>
+<li>hooks/useAfterFirstRender.ts → import utils（内部）</li>
+<li>hooks/useApiKeyVerification.ts → import bootstrap（内部）</li>
+<li>hooks/useApiKeyVerification.ts → import services（内部）</li>
+<li>hooks/useApiKeyVerification.ts → import utils（内部）</li>
+<li>hooks/useArrowKeyHistory.tsx → import components（内部）</li>
+<li>hooks/useArrowKeyHistory.tsx → import context（内部）</li>
+<li>hooks/useArrowKeyHistory.tsx → import history（内部）</li>
+<li>hooks/useArrowKeyHistory.tsx → import ink（内部）</li>
+<li>hooks/useArrowKeyHistory.tsx → import types（内部）</li>
+<li>hooks/useArrowKeyHistory.tsx → import utils（内部）</li>
+<li>hooks/useAssistantHistory.ts → import assistant（内部）</li>
+<li>hooks/useAssistantHistory.ts → import ink（内部）</li>
+<li>hooks/useAssistantHistory.ts → import remote（内部）</li>
+<li>hooks/useAssistantHistory.ts → import types（内部）</li>
+<li>hooks/useAssistantHistory.ts → import utils（内部）</li>
+<li>hooks/useAwaySummary.ts → import ink（内部）</li>
+<li>hooks/useAwaySummary.ts → import services（内部）</li>
+<li>hooks/useAwaySummary.ts → import types（内部）</li>
+<li>hooks/useAwaySummary.ts → import utils（内部）</li>
+<li>hooks/useBackgroundTaskNavigation.ts → import ink（内部）</li>
+<li>hooks/useBackgroundTaskNavigation.ts → import state（内部）</li>
+<li>hooks/useBackgroundTaskNavigation.ts → import tasks（内部）</li>
+<li>hooks/useBlink.ts → import ink（内部）</li>
+<li>hooks/useCanUseTool.tsx → import services（内部）</li>
+<li>hooks/useCanUseTool.tsx → import components（内部）</li>
+<li>hooks/useCanUseTool.tsx → import ink（内部）</li>
+<li>hooks/useCanUseTool.tsx → import Tool（内部）</li>
+<li>hooks/useCanUseTool.tsx → import tools（内部）</li>
+<li>hooks/useCanUseTool.tsx → import types（内部）</li>
+<li>hooks/useCanUseTool.tsx → import utils（内部）</li>
+<li>hooks/useCanUseTool.tsx → import hooks（外部）</li>
+<li>hooks/useCancelRequest.ts → import services（内部）</li>
+<li>hooks/useCancelRequest.ts → import state（内部）</li>
+<li>hooks/useCancelRequest.ts → import components（内部）</li>
+<li>hooks/useCancelRequest.ts → import context（内部）</li>
+<li>hooks/useCancelRequest.ts → import hooks（外部）</li>
+<li>hooks/useCancelRequest.ts → import keybindings（内部）</li>
+<li>hooks/useCancelRequest.ts → import screens（内部）</li>
+<li>hooks/useCancelRequest.ts → import tasks（内部）</li>
+<li>hooks/useCancelRequest.ts → import types（内部）</li>
+<li>hooks/useCancelRequest.ts → import utils（内部）</li>
+<li>hooks/useChromeExtensionNotification.tsx → import ink（内部）</li>
+<li>hooks/useChromeExtensionNotification.tsx → import utils（内部）</li>
+<li>hooks/useChromeExtensionNotification.tsx → import hooks（外部）</li>
+<li>hooks/useClaudeCodeHintRecommendation.tsx → import context（内部）</li>
+<li>hooks/useClaudeCodeHintRecommendation.tsx → import services（内部）</li>
+<li>hooks/useClaudeCodeHintRecommendation.tsx → import utils（内部）</li>
+<li>hooks/useClaudeCodeHintRecommendation.tsx → import hooks（外部）</li>
+<li>hooks/useClipboardImageHint.ts → import context（内部）</li>
+<li>hooks/useClipboardImageHint.ts → import keybindings（内部）</li>
+<li>hooks/useClipboardImageHint.ts → import utils（内部）</li>
+<li>hooks/useCommandKeybindings.tsx → import context（内部）</li>
+<li>hooks/useCommandKeybindings.tsx → import keybindings（内部）</li>
+<li>hooks/useCommandKeybindings.tsx → import utils（内部）</li>
+<li>hooks/useCommandQueue.ts → import types（内部）</li>
+<li>hooks/useCommandQueue.ts → import utils（内部）</li>
+<li>hooks/useCopyOnSelect.ts → import components（内部）</li>
+<li>hooks/useCopyOnSelect.ts → import ink（内部）</li>
+<li>hooks/useCopyOnSelect.ts → import utils（内部）</li>
+<li>hooks/useDeferredHookMessages.ts → import types（内部）</li>
+<li>hooks/useDiffData.ts → import utils（内部）</li>
+<li>hooks/useDiffInIDE.ts → import services（内部）</li>
+<li>hooks/useDiffInIDE.ts → import utils（内部）</li>
+<li>hooks/useDiffInIDE.ts → import components（内部）</li>
+<li>hooks/useDiffInIDE.ts → import Tool（内部）</li>
+<li>hooks/useDiffInIDE.ts → import tools（内部）</li>
+<li>hooks/useDirectConnect.ts → import components（内部）</li>
+<li>hooks/useDirectConnect.ts → import remote（内部）</li>
+<li>hooks/useDirectConnect.ts → import server（内部）</li>
+<li>hooks/useDirectConnect.ts → import Tool（内部）</li>
+<li>hooks/useDirectConnect.ts → import types（内部）</li>
+<li>hooks/useDirectConnect.ts → import utils（内部）</li>
+<li>hooks/useDynamicConfig.ts → import services（内部）</li>
+<li>hooks/useElapsedTime.ts → import utils（内部）</li>
+<li>hooks/useExitOnCtrlCD.ts → import ink（内部）</li>
+<li>hooks/useExitOnCtrlCD.ts → import keybindings（内部）</li>
+<li>hooks/useExitOnCtrlCD.ts → import hooks（外部）</li>
+<li>hooks/useExitOnCtrlCDWithKeybindings.ts → import keybindings（内部）</li>
+<li>hooks/useExitOnCtrlCDWithKeybindings.ts → import hooks（外部）</li>
+<li>hooks/useFileHistorySnapshotInit.ts → import utils（内部）</li>
+<li>hooks/useGlobalKeybindings.tsx → import ink（内部）</li>
+<li>hooks/useGlobalKeybindings.tsx → import keybindings（内部）</li>
+<li>hooks/useGlobalKeybindings.tsx → import screens（内部）</li>
+<li>hooks/useGlobalKeybindings.tsx → import services（内部）</li>
+<li>hooks/useGlobalKeybindings.tsx → import state（内部）</li>
+<li>hooks/useGlobalKeybindings.tsx → import utils（内部）</li>
+<li>hooks/useGlobalKeybindings.tsx → import tasks（内部）</li>
+<li>hooks/useGlobalKeybindings.tsx → import tools（内部）</li>
+<li>hooks/useHistorySearch.ts → import components（内部）</li>
+<li>hooks/useHistorySearch.ts → import history（内部）</li>
+<li>hooks/useHistorySearch.ts → import ink（内部）</li>
+<li>hooks/useHistorySearch.ts → import keybindings（内部）</li>
+<li>hooks/useHistorySearch.ts → import types（内部）</li>
+<li>hooks/useHistorySearch.ts → import utils（内部）</li>
+<li>hooks/useIDEIntegration.tsx → import services（内部）</li>
+<li>hooks/useIDEIntegration.tsx → import utils（内部）</li>
+<li>hooks/useIdeAtMentioned.ts → import utils（内部）</li>
+<li>hooks/useIdeAtMentioned.ts → import services（内部）</li>
+<li>hooks/useIdeConnectionStatus.ts → import services（内部）</li>
+<li>hooks/useIdeLogging.ts → import services（内部）</li>
+<li>hooks/useIdeLogging.ts → import utils（内部）</li>
+<li>hooks/useIdeSelection.ts → import utils（内部）</li>
+<li>hooks/useIdeSelection.ts → import services（内部）</li>
+<li>hooks/useInboxPoller.ts → import components（内部）</li>
+<li>hooks/useInboxPoller.ts → import constants（内部）</li>
+<li>hooks/useInboxPoller.ts → import ink（内部）</li>
+<li>hooks/useInboxPoller.ts → import services（内部）</li>
+<li>hooks/useInboxPoller.ts → import state（内部）</li>
+<li>hooks/useInboxPoller.ts → import Tool（内部）</li>
+<li>hooks/useInboxPoller.ts → import tasks（内部）</li>
+<li>hooks/useInboxPoller.ts → import tools（内部）</li>
+<li>hooks/useInboxPoller.ts → import types（内部）</li>
+<li>hooks/useInboxPoller.ts → import utils（内部）</li>
+<li>hooks/useInboxPoller.ts → import hooks（外部）</li>
+<li>hooks/useInputBuffer.ts → import utils（内部）</li>
+<li>hooks/useIssueFlagBanner.ts → import tools（内部）</li>
+<li>hooks/useIssueFlagBanner.ts → import types（内部）</li>
+<li>hooks/useIssueFlagBanner.ts → import utils（内部）</li>
+<li>hooks/useLogMessages.ts → import state（内部）</li>
+<li>hooks/useLogMessages.ts → import types（内部）</li>
+<li>hooks/useLogMessages.ts → import utils（内部）</li>
+<li>hooks/useLspPluginRecommendation.tsx → import bootstrap（内部）</li>
+<li>hooks/useLspPluginRecommendation.tsx → import context（内部）</li>
+<li>hooks/useLspPluginRecommendation.tsx → import state（内部）</li>
+<li>hooks/useLspPluginRecommendation.tsx → import utils（内部）</li>
+<li>hooks/useLspPluginRecommendation.tsx → import hooks（外部）</li>
+<li>hooks/useMailboxBridge.ts → import context（内部）</li>
+<li>hooks/useMainLoopModel.ts → import services（内部）</li>
+<li>hooks/useMainLoopModel.ts → import state（内部）</li>
+<li>hooks/useMainLoopModel.ts → import utils（内部）</li>
+<li>hooks/useManagePlugins.ts → import commands（内部）</li>
+<li>hooks/useManagePlugins.ts → import context（内部）</li>
+<li>hooks/useManagePlugins.ts → import services（内部）</li>
+<li>hooks/useManagePlugins.ts → import state（内部）</li>
+<li>hooks/useManagePlugins.ts → import tools（内部）</li>
+<li>hooks/useManagePlugins.ts → import utils（内部）</li>
+<li>hooks/useMergedClients.ts → import services（内部）</li>
+<li>hooks/useMergedCommands.ts → import commands（内部）</li>
+<li>hooks/useMergedTools.ts → import Tool（内部）</li>
+<li>hooks/useMergedTools.ts → import tools（内部）</li>
+<li>hooks/useMergedTools.ts → import state（内部）</li>
+<li>hooks/useMergedTools.ts → import utils（内部）</li>
+<li>hooks/useNotifyAfterTimeout.ts → import bootstrap（内部）</li>
+<li>hooks/useNotifyAfterTimeout.ts → import ink（内部）</li>
+<li>hooks/useNotifyAfterTimeout.ts → import services（内部）</li>
+<li>hooks/useOfficialMarketplaceNotification.tsx → import context（内部）</li>
+<li>hooks/useOfficialMarketplaceNotification.tsx → import ink（内部）</li>
+<li>hooks/useOfficialMarketplaceNotification.tsx → import utils（内部）</li>
+<li>hooks/useOfficialMarketplaceNotification.tsx → import hooks（外部）</li>
+<li>hooks/usePasteHandler.ts → import utils（内部）</li>
+<li>hooks/usePasteHandler.ts → import ink（内部）</li>
+<li>hooks/usePluginRecommendationBase.tsx → import bootstrap（内部）</li>
+<li>hooks/usePluginRecommendationBase.tsx → import context（内部）</li>
+<li>hooks/usePluginRecommendationBase.tsx → import ink（内部）</li>
+<li>hooks/usePluginRecommendationBase.tsx → import utils（内部）</li>
+<li>hooks/usePrStatus.ts → import bootstrap（内部）</li>
+<li>hooks/usePrStatus.ts → import utils（内部）</li>
+<li>hooks/usePromptSuggestion.ts → import ink（内部）</li>
+<li>hooks/usePromptSuggestion.ts → import services（内部）</li>
+<li>hooks/usePromptSuggestion.ts → import state（内部）</li>
+<li>hooks/usePromptsFromClaudeInChrome.tsx → import utils（内部）</li>
+<li>hooks/usePromptsFromClaudeInChrome.tsx → import services（内部）</li>
+<li>hooks/usePromptsFromClaudeInChrome.tsx → import types（内部）</li>
+<li>hooks/useQueueProcessor.ts → import types（内部）</li>
+<li>hooks/useQueueProcessor.ts → import utils（内部）</li>
+<li>hooks/useRemoteSession.ts → import bridge（内部）</li>
+<li>hooks/useRemoteSession.ts → import components（内部）</li>
+<li>hooks/useRemoteSession.ts → import remote（内部）</li>
+<li>hooks/useRemoteSession.ts → import state（内部）</li>
+<li>hooks/useRemoteSession.ts → import Tool（内部）</li>
+<li>hooks/useRemoteSession.ts → import types（内部）</li>
+<li>hooks/useRemoteSession.ts → import utils（内部）</li>
+<li>hooks/useReplBridge.tsx → import bootstrap（内部）</li>
+<li>hooks/useReplBridge.tsx → import bridge（内部）</li>
+<li>hooks/useReplBridge.tsx → import commands（内部）</li>
+<li>hooks/useReplBridge.tsx → import constants（内部）</li>
+<li>hooks/useReplBridge.tsx → import context（内部）</li>
+<li>hooks/useReplBridge.tsx → import entrypoints（内部）</li>
+<li>hooks/useReplBridge.tsx → import ink（内部）</li>
+<li>hooks/useReplBridge.tsx → import services（内部）</li>
+<li>hooks/useReplBridge.tsx → import state（内部）</li>
+<li>hooks/useReplBridge.tsx → import types（内部）</li>
+<li>hooks/useReplBridge.tsx → import utils（内部）</li>
+<li>hooks/useSSHSession.ts → import components（内部）</li>
+<li>hooks/useSSHSession.ts → import remote（内部）</li>
+<li>hooks/useSSHSession.ts → import ssh（外部）</li>
+<li>hooks/useSSHSession.ts → import Tool（内部）</li>
+<li>hooks/useSSHSession.ts → import types（内部）</li>
+<li>hooks/useSSHSession.ts → import utils（内部）</li>
+<li>hooks/useScheduledTasks.ts → import state（内部）</li>
+<li>hooks/useScheduledTasks.ts → import Task（内部）</li>
+<li>hooks/useScheduledTasks.ts → import tasks（内部）</li>
+<li>hooks/useScheduledTasks.ts → import tools（内部）</li>
+<li>hooks/useScheduledTasks.ts → import types（内部）</li>
+<li>hooks/useScheduledTasks.ts → import utils（内部）</li>
+<li>hooks/useSearchInput.ts → import ink（内部）</li>
+<li>hooks/useSearchInput.ts → import utils（内部）</li>
+<li>hooks/useSearchInput.ts → import hooks（外部）</li>
+<li>hooks/useSessionBackgrounding.ts → import state（内部）</li>
+<li>hooks/useSessionBackgrounding.ts → import types（内部）</li>
+<li>hooks/useSettings.ts → import state（内部）</li>
+<li>hooks/useSettingsChange.ts → import utils（内部）</li>
+<li>hooks/useSkillImprovementSurvey.ts → import components（内部）</li>
+<li>hooks/useSkillImprovementSurvey.ts → import services（内部）</li>
+<li>hooks/useSkillImprovementSurvey.ts → import state（内部）</li>
+<li>hooks/useSkillImprovementSurvey.ts → import types（内部）</li>
+<li>hooks/useSkillImprovementSurvey.ts → import utils（内部）</li>
+<li>hooks/useSkillsChange.ts → import commands（内部）</li>
+<li>hooks/useSkillsChange.ts → import services（内部）</li>
+<li>hooks/useSkillsChange.ts → import utils（内部）</li>
+<li>hooks/useSwarmInitialization.ts → import bootstrap（内部）</li>
+<li>hooks/useSwarmInitialization.ts → import state（内部）</li>
+<li>hooks/useSwarmInitialization.ts → import types（内部）</li>
+<li>hooks/useSwarmInitialization.ts → import utils（内部）</li>
+<li>hooks/useSwarmPermissionPoller.ts → import utils（内部）</li>
+<li>hooks/useTaskListWatcher.ts → import utils（内部）</li>
+<li>hooks/useTasksV2.ts → import state（内部）</li>
+<li>hooks/useTasksV2.ts → import utils（内部）</li>
+<li>hooks/useTeammateViewAutoExit.ts → import state（内部）</li>
+<li>hooks/useTeammateViewAutoExit.ts → import tasks（内部）</li>
+<li>hooks/useTeleportResume.tsx → import bootstrap（内部）</li>
+<li>hooks/useTeleportResume.tsx → import services（内部）</li>
+<li>hooks/useTeleportResume.tsx → import utils（内部）</li>
+<li>hooks/useTerminalSize.ts → import ink（内部）</li>
+<li>hooks/useTextInput.ts → import components（内部）</li>
+<li>hooks/useTextInput.ts → import context（内部）</li>
+<li>hooks/useTextInput.ts → import commands（内部）</li>
+<li>hooks/useTextInput.ts → import history（内部）</li>
+<li>hooks/useTextInput.ts → import ink（内部）</li>
+<li>hooks/useTextInput.ts → import types（内部）</li>
+<li>hooks/useTextInput.ts → import utils（内部）</li>
+<li>hooks/useTextInput.ts → import hooks（外部）</li>
+<li>hooks/useTurnDiffs.ts → import tools（内部）</li>
+<li>hooks/useTurnDiffs.ts → import types（内部）</li>
+<li>hooks/useTypeahead.tsx → import context（内部）</li>
+<li>hooks/useTypeahead.tsx → import ink（内部）</li>
+<li>hooks/useTypeahead.tsx → import services（内部）</li>
+<li>hooks/useTypeahead.tsx → import commands（内部）</li>
+<li>hooks/useTypeahead.tsx → import components（内部）</li>
+<li>hooks/useTypeahead.tsx → import keybindings（内部）</li>
+<li>hooks/useTypeahead.tsx → import state（内部）</li>
+<li>hooks/useTypeahead.tsx → import tools（内部）</li>
+<li>hooks/useTypeahead.tsx → import types（内部）</li>
+<li>hooks/useTypeahead.tsx → import utils（内部）</li>
+<li>hooks/useTypeahead.tsx → import hooks（外部）</li>
+<li>hooks/useVimInput.ts → import ink（内部）</li>
+<li>hooks/useVimInput.ts → import types（内部）</li>
+<li>hooks/useVimInput.ts → import utils（内部）</li>
+<li>hooks/useVimInput.ts → import vim（内部）</li>
+<li>hooks/useVimInput.ts → import hooks（外部）</li>
+<li>hooks/useVirtualScroll.ts → import ink（内部）</li>
+<li>hooks/useVoice.ts → import context（内部）</li>
+<li>hooks/useVoice.ts → import ink（内部）</li>
+<li>hooks/useVoice.ts → import services（内部）</li>
+<li>hooks/useVoice.ts → import utils（内部）</li>
+<li>hooks/useVoiceEnabled.ts → import state（内部）</li>
+<li>hooks/useVoiceEnabled.ts → import voice（内部）</li>
+<li>hooks/useVoiceIntegration.tsx → import context（内部）</li>
+<li>hooks/useVoiceIntegration.tsx → import ink（内部）</li>
+<li>hooks/useVoiceIntegration.tsx → import keybindings（内部）</li>
+<li>hooks/useVoiceIntegration.tsx → import utils（内部）</li>
+<li>hooks/useVoiceIntegration.tsx → import hooks（外部）</li>
+</ol>
+<h2 id="5-python-侧候选映射-启发式初版">5. Python 侧候选映射（启发式初版）</h2>
+<ol>
+<li>→ python <code class="inline-code">hooks</code> — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-未确认项与待核实项">6. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ python 候选映射待逐符号对照核实（symbol 级 map 未生成）</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 python 实现</li>
+<li>☐ 顶层符号提取为启发式正则，需人工抽样验证召回率</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-hooks-reference-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

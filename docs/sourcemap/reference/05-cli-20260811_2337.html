@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>cli（reference）源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-python-侧候选映射-启发式初版" data-nav>5. Python 侧候选映射（启发式初版）</a></li>
+<li><a href="#6-未确认项与待核实项" data-nav>6. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>cli（reference）源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">05</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2337</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">来源</span><span class="meta-value">restored-src/src/cli</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（reference 目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="cli-reference-源码盘点">cli（reference）源码盘点</h1>
+<blockquote>
+<p>编号: 05</p>
+<p>时间戳: 20260811_2337</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>来源: restored-src/src/cli</p>
+<p>类型: package（reference 目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: cli</li>
+<li>类型: package（reference 目录模块）</li>
+<li>TS/JS 文件数: 19</li>
+<li>总行数: 12353</li>
+<li>依赖的 reference 内部模块: QueryEngine, Tool, bootstrap, bridge, commands, components, constants, coordinator, entrypoints, hooks, ink, keybindings, memdir, services, state, tasks, tools, types, utils</li>
+<li>Python 侧候选映射: cli_core, entrypoints, core-single-files（UNVERIFIED）</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">cli/exit.ts</code> — 31 行（类 0，函数 2）</li>
+<li><code class="inline-code">cli/handlers/agents.ts</code> — 70 行（类 0，函数 2）</li>
+<li><code class="inline-code">cli/handlers/auth.ts</code> — 330 行（类 0，函数 4）</li>
+<li><code class="inline-code">cli/handlers/autoMode.ts</code> — 170 行（类 0，函数 5）</li>
+<li><code class="inline-code">cli/handlers/mcp.tsx</code> — 361 行（类 0，函数 8）</li>
+<li><code class="inline-code">cli/handlers/plugins.ts</code> — 878 行（类 0，函数 13）</li>
+<li><code class="inline-code">cli/handlers/util.tsx</code> — 109 行（类 0，函数 4）</li>
+<li><code class="inline-code">cli/ndjsonSafeStringify.ts</code> — 32 行（类 0，函数 2）</li>
+<li><code class="inline-code">cli/print.ts</code> — 5594 行（类 0，函数 30）</li>
+<li><code class="inline-code">cli/remoteIO.ts</code> — 255 行（类 1，函数 0）</li>
+<li><code class="inline-code">cli/structuredIO.ts</code> — 859 行（类 1，函数 5）</li>
+<li><code class="inline-code">cli/transports/HybridTransport.ts</code> — 282 行（类 1，函数 1）</li>
+<li><code class="inline-code">cli/transports/SSETransport.ts</code> — 711 行（类 1，函数 3）</li>
+<li><code class="inline-code">cli/transports/SerialBatchEventUploader.ts</code> — 275 行（类 2，函数 0）</li>
+<li><code class="inline-code">cli/transports/WebSocketTransport.ts</code> — 800 行（类 1，函数 0）</li>
+<li><code class="inline-code">cli/transports/WorkerStateUploader.ts</code> — 131 行（类 1，函数 1）</li>
+<li><code class="inline-code">cli/transports/ccrClient.ts</code> — 998 行（类 2，函数 5）</li>
+<li><code class="inline-code">cli/transports/transportUtils.ts</code> — 45 行（类 0，函数 1）</li>
+<li><code class="inline-code">cli/update.ts</code> — 422 行（类 0，函数 1）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">cli/exit.ts</code></li>
+<li>函数 cliError — L19</li>
+<li>函数 cliOk — L27</li>
+<li>文件 <code class="inline-code">cli/handlers/agents.ts</code></li>
+<li>函数 formatAgent — L19</li>
+<li>函数 agentsHandler — L31</li>
+<li>文件 <code class="inline-code">cli/handlers/auth.ts</code></li>
+<li>函数 installOAuthTokens — L50</li>
+<li>函数 authLogin — L111</li>
+<li>函数 authStatus — L231</li>
+<li>函数 authLogout — L320</li>
+<li>文件 <code class="inline-code">cli/handlers/autoMode.ts</code></li>
+<li>函数 writeRules — L19</li>
+<li>函数 autoModeDefaultsHandler — L23</li>
+<li>函数 autoModeConfigHandler — L35</li>
+<li>函数 autoModeCritiqueHandler — L72</li>
+<li>函数 formatRulesForCritique — L150</li>
+<li>文件 <code class="inline-code">cli/handlers/mcp.tsx</code></li>
+<li>函数 checkMcpServerHealth — L26</li>
+<li>函数 mcpServeHandler — L42</li>
+<li>函数 mcpRemoveHandler — L74</li>
+<li>函数 mcpListHandler — L144</li>
+<li>函数 mcpGetHandler — L193</li>
+<li>函数 mcpAddJsonHandler — L286</li>
+<li>函数 mcpAddFromDesktopHandler — L317</li>
+<li>函数 mcpResetChoicesHandler — L352</li>
+<li>文件 <code class="inline-code">cli/handlers/plugins.ts</code></li>
+<li>函数 handleMarketplaceError — L68</li>
+<li>函数 printValidationResult — L72</li>
+<li>函数 pluginValidateHandler — L101</li>
+<li>函数 pluginListHandler — L157</li>
+<li>函数 marketplaceAddHandler — L447</li>
+<li>函数 marketplaceListHandler — L527</li>
+<li>函数 marketplaceRemoveHandler — L595</li>
+<li>函数 marketplaceUpdateHandler — L616</li>
+<li>函数 pluginInstallHandler — L668</li>
+<li>函数 pluginUninstallHandler — L704</li>
+<li>函数 pluginEnableHandler — L740</li>
+<li>函数 pluginDisableHandler — L782</li>
+<li>函数 pluginUpdateHandler — L846</li>
+<li>文件 <code class="inline-code">cli/handlers/util.tsx</code></li>
+<li>函数 setupTokenHandler — L20</li>
+<li>函数 DoctorWithPlugins — L56</li>
+<li>函数 doctorHandler — L72</li>
+<li>函数 installHandler — L90</li>
+<li>文件 <code class="inline-code">cli/ndjsonSafeStringify.ts</code></li>
+<li>函数 escapeJsLineTerminators — L17</li>
+<li>函数 ndjsonSafeStringify — L30</li>
+<li>文件 <code class="inline-code">cli/print.ts</code></li>
+<li>函数 trackReceivedMessageUuid — L397</li>
+<li>函数 toBlocks — L418</li>
+<li>函数 joinPromptValues — L428</li>
+<li>函数 canBatchWith — L443</li>
+<li>函数 runHeadless — L454</li>
+<li>函数 runHeadlessStreaming — L975</li>
+<li>函数 injectModelSwitchBreadcrumbs — L1221</li>
+<li>函数 registerElicitationHandlers — L1263</li>
+<li>函数 updateSdkMcp — L1388</li>
+<li>函数 forwardMessagesToBridge — L1517</li>
+<li>函数 applyMcpServerChanges — L1547</li>
+<li>函数 buildMcpServerStatuses — L1612</li>
+<li>函数 installPluginsAndApplyMcpInBackground — L1704</li>
+<li>函数 refreshPluginState — L1760</li>
+<li>函数 applyPluginMcpDiff — L1792</li>
+<li>函数 createCanUseToolWithPermissionPrompt — L4149</li>
+<li>函数 getCanUseToolFn — L4267</li>
+<li>函数 handleInitializeRequest — L4335</li>
+<li>函数 handleRewindFiles — L4519</li>
+<li>函数 handleSetPermissionMode — L4567</li>
+<li>函数 handleChannelEnable — L4662</li>
+<li>函数 reregisterChannelHandlerAfterReconnect — L4786</li>
+<li>函数 emitLoadError — L4841</li>
+<li>函数 removeInterruptedMessage — L4875</li>
+<li>函数 loadInitialMessages — L4892</li>
+<li>函数 getStructuredIO — L5198</li>
+<li>函数 handleOrphanedPermissionResponse — L5241</li>
+<li>函数 toScopedConfig — L5316</li>
+<li>函数 handleMcpSetServers — L5353</li>
+<li>函数 reconcileMcpServers — L5450</li>
+<li>文件 <code class="inline-code">cli/remoteIO.ts</code></li>
+<li>类 RemoteIO — L35</li>
+<li>文件 <code class="inline-code">cli/structuredIO.ts</code></li>
+<li>类 StructuredIO — L134</li>
+<li>函数 serializeDecisionReason — L63</li>
+<li>函数 buildRequiresActionDetails — L92</li>
+<li>函数 exitWithMessage — L775</li>
+<li>函数 executePermissionRequestHooksForSDK — L787</li>
+<li>函数 SANDBOX_NETWORK_ACCESS_TOOL_NAME — L62</li>
+<li>文件 <code class="inline-code">cli/transports/HybridTransport.ts</code></li>
+<li>类 HybridTransport — L54</li>
+<li>函数 convertWsUrlToPostUrl — L269</li>
+<li>文件 <code class="inline-code">cli/transports/SSETransport.ts</code></li>
+<li>类 SSETransport — L162</li>
+<li>函数 alwaysValidStatus — L38</li>
+<li>函数 parseSSEFrames — L58</li>
+<li>函数 convertSSEUrlToPostUrl — L704</li>
+<li>文件 <code class="inline-code">cli/transports/SerialBatchEventUploader.ts</code></li>
+<li>类 RetryableError — L26</li>
+<li>类 SerialBatchEventUploader — L63</li>
+<li>文件 <code class="inline-code">cli/transports/WebSocketTransport.ts</code></li>
+<li>类 WebSocketTransport — L73</li>
+<li>文件 <code class="inline-code">cli/transports/WorkerStateUploader.ts</code></li>
+<li>类 WorkerStateUploader — L28</li>
+<li>函数 coalescePatches — L106</li>
+<li>文件 <code class="inline-code">cli/transports/ccrClient.ts</code></li>
+<li>类 CCRInitError — L55</li>
+<li>类 CCRClient — L262</li>
+<li>函数 alwaysValidStatus — L45</li>
+<li>函数 createStreamAccumulator — L115</li>
+<li>函数 scopeKey — L119</li>
+<li>函数 accumulateStreamEvents — L141</li>
+<li>函数 clearStreamAccumulatorForMessage — L210</li>
+<li>文件 <code class="inline-code">cli/transports/transportUtils.ts</code></li>
+<li>函数 getTransportForUrl — L16</li>
+<li>文件 <code class="inline-code">cli/update.ts</code></li>
+<li>函数 update — L29</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>cli/handlers/agents.ts → import tools（内部）</li>
+<li>cli/handlers/agents.ts → import utils（内部）</li>
+<li>cli/handlers/auth.ts → import commands（内部）</li>
+<li>cli/handlers/auth.ts → import services（内部）</li>
+<li>cli/handlers/auth.ts → import utils（内部）</li>
+<li>cli/handlers/autoMode.ts → import utils（内部）</li>
+<li>cli/handlers/mcp.tsx → import components（内部）</li>
+<li>cli/handlers/mcp.tsx → import ink（内部）</li>
+<li>cli/handlers/mcp.tsx → import keybindings（内部）</li>
+<li>cli/handlers/mcp.tsx → import services（内部）</li>
+<li>cli/handlers/mcp.tsx → import state（内部）</li>
+<li>cli/handlers/mcp.tsx → import utils（内部）</li>
+<li>cli/handlers/mcp.tsx → import cli（外部）</li>
+<li>cli/handlers/plugins.ts → import bootstrap（内部）</li>
+<li>cli/handlers/plugins.ts → import services（内部）</li>
+<li>cli/handlers/plugins.ts → import types（内部）</li>
+<li>cli/handlers/plugins.ts → import utils（内部）</li>
+<li>cli/handlers/plugins.ts → import cli（外部）</li>
+<li>cli/handlers/util.tsx → import components（内部）</li>
+<li>cli/handlers/util.tsx → import hooks（内部）</li>
+<li>cli/handlers/util.tsx → import ink（内部）</li>
+<li>cli/handlers/util.tsx → import keybindings（内部）</li>
+<li>cli/handlers/util.tsx → import services（内部）</li>
+<li>cli/handlers/util.tsx → import state（内部）</li>
+<li>cli/handlers/util.tsx → import utils（内部）</li>
+<li>cli/ndjsonSafeStringify.ts → import utils（内部）</li>
+<li>cli/print.ts → import services（内部）</li>
+<li>cli/print.ts → import cli（外部）</li>
+<li>cli/print.ts → import commands（内部）</li>
+<li>cli/print.ts → import utils（内部）</li>
+<li>cli/print.ts → import Tool（内部）</li>
+<li>cli/print.ts → import tools（内部）</li>
+<li>cli/print.ts → import types（内部）</li>
+<li>cli/print.ts → import state（内部）</li>
+<li>cli/print.ts → import QueryEngine（内部）</li>
+<li>cli/print.ts → import entrypoints（内部）</li>
+<li>cli/print.ts → import bridge（内部）</li>
+<li>cli/print.ts → import constants（内部）</li>
+<li>cli/print.ts → import hooks（内部）</li>
+<li>cli/print.ts → import bootstrap（内部）</li>
+<li>cli/print.ts → import tasks（内部）</li>
+<li>cli/print.ts → import memdir（内部）</li>
+<li>cli/print.ts → import coordinator（内部）</li>
+<li>cli/print.ts → import proactive（外部）</li>
+<li>cli/remoteIO.ts → import entrypoints（内部）</li>
+<li>cli/remoteIO.ts → import bootstrap（内部）</li>
+<li>cli/remoteIO.ts → import bridge（内部）</li>
+<li>cli/remoteIO.ts → import utils（内部）</li>
+<li>cli/remoteIO.ts → import cli（外部）</li>
+<li>cli/structuredIO.ts → import entrypoints（内部）</li>
+<li>cli/structuredIO.ts → import hooks（内部）</li>
+<li>cli/structuredIO.ts → import Tool（内部）</li>
+<li>cli/structuredIO.ts → import types（内部）</li>
+<li>cli/structuredIO.ts → import utils（内部）</li>
+<li>cli/structuredIO.ts → import cli（外部）</li>
+<li>cli/transports/HybridTransport.ts → import entrypoints（内部）</li>
+<li>cli/transports/HybridTransport.ts → import utils（内部）</li>
+<li>cli/transports/HybridTransport.ts → import cli（外部）</li>
+<li>cli/transports/SSETransport.ts → import entrypoints（内部）</li>
+<li>cli/transports/SSETransport.ts → import utils（内部）</li>
+<li>cli/transports/SSETransport.ts → import cli（外部）</li>
+<li>cli/transports/SerialBatchEventUploader.ts → import utils（内部）</li>
+<li>cli/transports/WebSocketTransport.ts → import entrypoints（内部）</li>
+<li>cli/transports/WebSocketTransport.ts → import services（内部）</li>
+<li>cli/transports/WebSocketTransport.ts → import utils（内部）</li>
+<li>cli/transports/WebSocketTransport.ts → import cli（外部）</li>
+<li>cli/transports/WorkerStateUploader.ts → import utils（内部）</li>
+<li>cli/transports/ccrClient.ts → import entrypoints（内部）</li>
+<li>cli/transports/ccrClient.ts → import bridge（内部）</li>
+<li>cli/transports/ccrClient.ts → import utils（内部）</li>
+<li>cli/transports/ccrClient.ts → import cli（外部）</li>
+<li>cli/transports/transportUtils.ts → import utils（内部）</li>
+<li>cli/transports/transportUtils.ts → import cli（外部）</li>
+<li>cli/update.ts → import services（内部）</li>
+<li>cli/update.ts → import utils（内部）</li>
+</ol>
+<h2 id="5-python-侧候选映射-启发式初版">5. Python 侧候选映射（启发式初版）</h2>
+<ol>
+<li>→ python <code class="inline-code">cli_core</code> — 候选（启发式），状态 UNVERIFIED</li>
+<li>→ python <code class="inline-code">entrypoints</code> — 候选（启发式），状态 UNVERIFIED</li>
+<li>→ python <code class="inline-code">core-single-files</code> — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-未确认项与待核实项">6. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ python 候选映射待逐符号对照核实（symbol 级 map 未生成）</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 python 实现</li>
+<li>☐ 顶层符号提取为启发式正则，需人工抽样验证召回率</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-cli-reference-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

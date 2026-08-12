@@ -1,0 +1,1930 @@
+{
+  "schema_version": "B3-file-level-match",
+  "timestamp": "20260811_2345",
+  "baseline": "def709361a86900920bf1d6b75134fdc9bc59def",
+  "reference": "a8a678cb6244e6770e1e421767ff0987a1d95549",
+  "total_matches": 803,
+  "one_to_one": [
+    {
+      "ref": "utils/abortController.ts",
+      "py": "utils/abort_controller.py",
+      "name": "abort_controller"
+    },
+    {
+      "ref": "utils/model/agent.ts",
+      "py": "tool_system/tools/agent.py",
+      "name": "agent"
+    },
+    {
+      "ref": "tools/AgentTool/agentToolUtils.ts",
+      "py": "agent/agent_tool_utils.py",
+      "name": "agent_tool_utils"
+    },
+    {
+      "ref": "utils/model/aliases.ts",
+      "py": "models/aliases.py",
+      "name": "aliases"
+    },
+    {
+      "ref": "commands/remote-setup/api.ts",
+      "py": "utils/teleport/api.py",
+      "name": "api"
+    },
+    {
+      "ref": "utils/api.ts",
+      "py": "utils/teleport/api.py",
+      "name": "api"
+    },
+    {
+      "ref": "utils/teleport/api.ts",
+      "py": "utils/teleport/api.py",
+      "name": "api"
+    },
+    {
+      "ref": "utils/apiPreconnect.ts",
+      "py": "utils/api_preconnect.py",
+      "name": "api_preconnect"
+    },
+    {
+      "ref": "state/AppState.tsx",
+      "py": "state/app_state.py",
+      "name": "app_state"
+    },
+    {
+      "ref": "utils/aws.ts",
+      "py": "auth/aws.py",
+      "name": "aws"
+    },
+    {
+      "ref": "tools/BashTool/bashSecurity.ts",
+      "py": "permissions/bash_security.py",
+      "name": "bash_security"
+    },
+    {
+      "ref": "tools/BashTool/BashTool.tsx",
+      "py": "tool_system/tools/bash/bash_tool.py",
+      "name": "bash_tool"
+    },
+    {
+      "ref": "skills/bundled/batch.ts",
+      "py": "skills/bundled/batch.py",
+      "name": "batch"
+    },
+    {
+      "ref": "utils/model/bedrock.ts",
+      "py": "models/bedrock.py",
+      "name": "bedrock"
+    },
+    {
+      "ref": "bridge/bridgeApi.ts",
+      "py": "bridge/bridge_api.py",
+      "name": "bridge_api"
+    },
+    {
+      "ref": "bridge/bridgeConfig.ts",
+      "py": "bridge/bridge_config.py",
+      "name": "bridge_config"
+    },
+    {
+      "ref": "bridge/bridgeEnabled.ts",
+      "py": "bridge/bridge_enabled.py",
+      "name": "bridge_enabled"
+    },
+    {
+      "ref": "bridge/bridgeMain.ts",
+      "py": "bridge/bridge_main.py",
+      "name": "bridge_main"
+    },
+    {
+      "ref": "bridge/bridgePermissionCallbacks.ts",
+      "py": "bridge/bridge_permission_callbacks.py",
+      "name": "bridge_permission_callbacks"
+    },
+    {
+      "ref": "bridge/bridgePointer.ts",
+      "py": "bridge/bridge_pointer.py",
+      "name": "bridge_pointer"
+    },
+    {
+      "ref": "bridge/bridgeStatusUtil.ts",
+      "py": "bridge/bridge_status_util.py",
+      "name": "bridge_status_util"
+    },
+    {
+      "ref": "commands/brief.ts",
+      "py": "tool_system/tools/brief.py",
+      "name": "brief"
+    },
+    {
+      "ref": "plugins/builtinPlugins.ts",
+      "py": "plugins/builtin_plugins.py",
+      "name": "builtin_plugins"
+    },
+    {
+      "ref": "skills/bundledSkills.ts",
+      "py": "skills/bundled_skills.py",
+      "name": "bundled_skills"
+    },
+    {
+      "ref": "bridge/capacityWake.ts",
+      "py": "bridge/capacity_wake.py",
+      "name": "capacity_wake"
+    },
+    {
+      "ref": "cli/transports/ccrClient.ts",
+      "py": "transports/ccr_client.py",
+      "name": "ccr_client"
+    },
+    {
+      "ref": "utils/settings/changeDetector.ts",
+      "py": "settings/change_detector.py",
+      "name": "change_detector"
+    },
+    {
+      "ref": "services/mcp/channelPermissions.ts",
+      "py": "services/mcp/channel_permissions.py",
+      "name": "channel_permissions"
+    },
+    {
+      "ref": "services/api/claude.ts",
+      "py": "services/api/claude.py",
+      "name": "claude"
+    },
+    {
+      "ref": "services/mcp/claudeai.ts",
+      "py": "services/mcp/claudeai.py",
+      "name": "claudeai"
+    },
+    {
+      "ref": "entrypoints/cli.tsx",
+      "py": "cli.py",
+      "name": "cli"
+    },
+    {
+      "ref": "bridge/codeSessionApi.ts",
+      "py": "bridge/code_session_api.py",
+      "name": "code_session_api"
+    },
+    {
+      "ref": "utils/combinedAbortSignal.ts",
+      "py": "utils/combined_abort_signal.py",
+      "name": "combined_abort_signal"
+    },
+    {
+      "ref": "types/command.ts",
+      "py": "goals/command.py",
+      "name": "command"
+    },
+    {
+      "ref": "tools/BashTool/commandSemantics.ts",
+      "py": "tool_system/tools/bash/command_semantics.py",
+      "name": "command_semantics"
+    },
+    {
+      "ref": "tools/PowerShellTool/commandSemantics.ts",
+      "py": "tool_system/tools/bash/command_semantics.py",
+      "name": "command_semantics"
+    },
+    {
+      "ref": "commands.ts",
+      "py": "permissions/bash_parser/commands.py",
+      "name": "commands"
+    },
+    {
+      "ref": "components/HelpV2/Commands.tsx",
+      "py": "permissions/bash_parser/commands.py",
+      "name": "commands"
+    },
+    {
+      "ref": "utils/bash/commands.ts",
+      "py": "permissions/bash_parser/commands.py",
+      "name": "commands"
+    },
+    {
+      "ref": "commands/compact/compact.ts",
+      "py": "services/compact/compact.py",
+      "name": "compact"
+    },
+    {
+      "ref": "services/compact/compact.ts",
+      "py": "services/compact/compact.py",
+      "name": "compact"
+    },
+    {
+      "ref": "buddy/companion.ts",
+      "py": "buddy/companion.py",
+      "name": "companion"
+    },
+    {
+      "ref": "utils/model/configs.ts",
+      "py": "models/configs.py",
+      "name": "configs"
+    },
+    {
+      "ref": "commands/clear/conversation.ts",
+      "py": "agent/conversation.py",
+      "name": "conversation"
+    },
+    {
+      "ref": "utils/cron.ts",
+      "py": "tool_system/tools/cron.py",
+      "name": "cron"
+    },
+    {
+      "ref": "skills/bundled/debug.ts",
+      "py": "skills/bundled/debug.py",
+      "name": "debug"
+    },
+    {
+      "ref": "utils/debug.ts",
+      "py": "skills/bundled/debug.py",
+      "name": "debug"
+    },
+    {
+      "ref": "bridge/debugUtils.ts",
+      "py": "bridge/debug_utils.py",
+      "name": "debug_utils"
+    },
+    {
+      "ref": "query/deps.ts",
+      "py": "query/deps.py",
+      "name": "deps"
+    },
+    {
+      "ref": "utils/swarm/backends/detection.ts",
+      "py": "services/voice/detection.py",
+      "name": "detection"
+    },
+    {
+      "ref": "server/directConnectManager.ts",
+      "py": "server/direct_connect_manager.py",
+      "name": "direct_connect_manager"
+    },
+    {
+      "ref": "commands/effort/effort.tsx",
+      "py": "utils/effort.py",
+      "name": "effort"
+    },
+    {
+      "ref": "utils/effort.ts",
+      "py": "utils/effort.py",
+      "name": "effort"
+    },
+    {
+      "ref": "utils/env.ts",
+      "py": "utils/env.py",
+      "name": "env"
+    },
+    {
+      "ref": "services/mcp/envExpansion.ts",
+      "py": "services/mcp/env_expansion.py",
+      "name": "env_expansion"
+    },
+    {
+      "ref": "bridge/envLessBridgeConfig.ts",
+      "py": "bridge/env_less_bridge_config.py",
+      "name": "env_less_bridge_config"
+    },
+    {
+      "ref": "utils/telemetry/events.ts",
+      "py": "services/analytics/events.py",
+      "name": "events"
+    },
+    {
+      "ref": "utils/hooks/execAgentHook.ts",
+      "py": "hooks/exec_agent_hook.py",
+      "name": "exec_agent_hook"
+    },
+    {
+      "ref": "utils/hooks/execHttpHook.ts",
+      "py": "hooks/exec_http_hook.py",
+      "name": "exec_http_hook"
+    },
+    {
+      "ref": "utils/hooks/execPromptHook.ts",
+      "py": "hooks/exec_prompt_hook.py",
+      "name": "exec_prompt_hook"
+    },
+    {
+      "ref": "cli/exit.ts",
+      "py": "cli_core/exit.py",
+      "name": "exit"
+    },
+    {
+      "ref": "commands/exit/exit.tsx",
+      "py": "cli_core/exit.py",
+      "name": "exit"
+    },
+    {
+      "ref": "utils/exportRenderer.tsx",
+      "py": "utils/export_renderer.py",
+      "name": "export_renderer"
+    },
+    {
+      "ref": "utils/fastMode.ts",
+      "py": "utils/fast_mode.py",
+      "name": "fast_mode"
+    },
+    {
+      "ref": "utils/fileHistory.ts",
+      "py": "utils/file_history.py",
+      "name": "file_history"
+    },
+    {
+      "ref": "utils/fileStateCache.ts",
+      "py": "utils/file_state_cache.py",
+      "name": "file_state_cache"
+    },
+    {
+      "ref": "utils/permissions/filesystem.ts",
+      "py": "permissions/filesystem.py",
+      "name": "filesystem"
+    },
+    {
+      "ref": "memdir/findRelevantMemories.ts",
+      "py": "memdir/find_relevant_memories.py",
+      "name": "find_relevant_memories"
+    },
+    {
+      "ref": "bridge/flushGate.ts",
+      "py": "bridge/flush_gate.py",
+      "name": "flush_gate"
+    },
+    {
+      "ref": "tools/AgentTool/forkSubagent.ts",
+      "py": "agent/fork_subagent.py",
+      "name": "fork_subagent"
+    },
+    {
+      "ref": "utils/format.ts",
+      "py": "utils/format.py",
+      "name": "format"
+    },
+    {
+      "ref": "utils/git.ts",
+      "py": "utils/git.py",
+      "name": "git"
+    },
+    {
+      "ref": "utils/glob.ts",
+      "py": "tool_system/tools/glob.py",
+      "name": "glob"
+    },
+    {
+      "ref": "utils/gracefulShutdown.ts",
+      "py": "utils/graceful_shutdown.py",
+      "name": "graceful_shutdown"
+    },
+    {
+      "ref": "services/compact/grouping.ts",
+      "py": "services/compact/grouping.py",
+      "name": "grouping"
+    },
+    {
+      "ref": "utils/dxt/helpers.ts",
+      "py": "services/swarm/helpers.py",
+      "name": "helpers"
+    },
+    {
+      "ref": "history.ts",
+      "py": "history.py",
+      "name": "history"
+    },
+    {
+      "ref": "cli/transports/HybridTransport.ts",
+      "py": "transports/hybrid_transport.py",
+      "name": "hybrid_transport"
+    },
+    {
+      "ref": "utils/imagePaste.ts",
+      "py": "utils/image_paste.py",
+      "name": "image_paste"
+    },
+    {
+      "ref": "tools/FileReadTool/imageProcessor.ts",
+      "py": "utils/image_processor.py",
+      "name": "image_processor"
+    },
+    {
+      "ref": "utils/imageValidation.ts",
+      "py": "utils/image_validation.py",
+      "name": "image_validation"
+    },
+    {
+      "ref": "services/mcp/InProcessTransport.ts",
+      "py": "services/mcp/in_process_transport.py",
+      "name": "in_process_transport"
+    },
+    {
+      "ref": "bridge/inboundAttachments.ts",
+      "py": "bridge/inbound_attachments.py",
+      "name": "inbound_attachments"
+    },
+    {
+      "ref": "bridge/inboundMessages.ts",
+      "py": "bridge/inbound_messages.py",
+      "name": "inbound_messages"
+    },
+    {
+      "ref": "commands/init.ts",
+      "py": "init.py",
+      "name": "init"
+    },
+    {
+      "ref": "entrypoints/init.ts",
+      "py": "init.py",
+      "name": "init"
+    },
+    {
+      "ref": "bridge/initReplBridge.ts",
+      "py": "bridge/init_repl_bridge.py",
+      "name": "init_repl_bridge"
+    },
+    {
+      "ref": "bridge/jwtUtils.ts",
+      "py": "bridge/jwt_utils.py",
+      "name": "jwt_utils"
+    },
+    {
+      "ref": "utils/swarm/leaderPermissionBridge.ts",
+      "py": "services/swarm/leader_permission_bridge.py",
+      "name": "leader_permission_bridge"
+    },
+    {
+      "ref": "tools/AgentTool/loadAgentsDir.ts",
+      "py": "agent/load_agents_dir.py",
+      "name": "load_agents_dir"
+    },
+    {
+      "ref": "utils/plugins/loadPluginAgents.ts",
+      "py": "agent/load_plugin_agents.py",
+      "name": "load_plugin_agents"
+    },
+    {
+      "ref": "utils/lockfile.ts",
+      "py": "server/lockfile.py",
+      "name": "lockfile"
+    },
+    {
+      "ref": "services/api/logging.ts",
+      "py": "services/api/logging.py",
+      "name": "logging"
+    },
+    {
+      "ref": "skills/bundled/loop.ts",
+      "py": "skills/bundled/loop.py",
+      "name": "loop"
+    },
+    {
+      "ref": "context/mailbox.tsx",
+      "py": "services/swarm/mailbox.py",
+      "name": "mailbox"
+    },
+    {
+      "ref": "utils/mailbox.ts",
+      "py": "services/swarm/mailbox.py",
+      "name": "mailbox"
+    },
+    {
+      "ref": "utils/settings/managedPath.ts",
+      "py": "settings/managed_path.py",
+      "name": "managed_path"
+    },
+    {
+      "ref": "services/lsp/manager.ts",
+      "py": "services/mcp/manager.py",
+      "name": "manager"
+    },
+    {
+      "ref": "utils/markdownConfigLoader.ts",
+      "py": "utils/markdown_config_loader.py",
+      "name": "markdown_config_loader"
+    },
+    {
+      "ref": "skills/mcpSkillBuilders.ts",
+      "py": "skills/mcp_skill_builders.py",
+      "name": "mcp_skill_builders"
+    },
+    {
+      "ref": "services/mcp/mcpStringUtils.ts",
+      "py": "services/mcp/mcp_string_utils.py",
+      "name": "mcp_string_utils"
+    },
+    {
+      "ref": "memdir/memdir.ts",
+      "py": "memdir/memdir.py",
+      "name": "memdir"
+    },
+    {
+      "ref": "commands/memory/memory.tsx",
+      "py": "tool_system/tools/memory.py",
+      "name": "memory"
+    },
+    {
+      "ref": "memdir/memoryAge.ts",
+      "py": "memdir/memory_age.py",
+      "name": "memory_age"
+    },
+    {
+      "ref": "memdir/memoryScan.ts",
+      "py": "memdir/memory_scan.py",
+      "name": "memory_scan"
+    },
+    {
+      "ref": "memdir/memoryTypes.ts",
+      "py": "memdir/memory_types.py",
+      "name": "memory_types"
+    },
+    {
+      "ref": "utils/messageQueueManager.ts",
+      "py": "utils/message_queue_manager.py",
+      "name": "message_queue_manager"
+    },
+    {
+      "ref": "services/analytics/metadata.ts",
+      "py": "services/analytics/metadata.py",
+      "name": "metadata"
+    },
+    {
+      "ref": "services/mcp/normalization.ts",
+      "py": "services/mcp/normalization.py",
+      "name": "normalization"
+    },
+    {
+      "ref": "constants/oauth.ts",
+      "py": "auth/oauth.py",
+      "name": "oauth"
+    },
+    {
+      "ref": "services/mcp/oauthPort.ts",
+      "py": "services/mcp/oauth_port.py",
+      "name": "oauth_port"
+    },
+    {
+      "ref": "services/mcp/officialRegistry.ts",
+      "py": "services/mcp/official_registry.py",
+      "name": "official_registry"
+    },
+    {
+      "ref": "ink/termio/parser.ts",
+      "py": "permissions/bash_parser/parser.py",
+      "name": "parser"
+    },
+    {
+      "ref": "keybindings/parser.ts",
+      "py": "permissions/bash_parser/parser.py",
+      "name": "parser"
+    },
+    {
+      "ref": "utils/bash/parser.ts",
+      "py": "permissions/bash_parser/parser.py",
+      "name": "parser"
+    },
+    {
+      "ref": "utils/powershell/parser.ts",
+      "py": "permissions/bash_parser/parser.py",
+      "name": "parser"
+    },
+    {
+      "ref": "memdir/paths.ts",
+      "py": "memdir/paths.py",
+      "name": "paths"
+    },
+    {
+      "ref": "utils/peerAddress.ts",
+      "py": "utils/peer_address.py",
+      "name": "peer_address"
+    },
+    {
+      "ref": "utils/settings/permissionValidation.ts",
+      "py": "settings/permission_validation.py",
+      "name": "permission_validation"
+    },
+    {
+      "ref": "commands/permissions/permissions.tsx",
+      "py": "services/swarm/permissions.py",
+      "name": "permissions"
+    },
+    {
+      "ref": "types/permissions.ts",
+      "py": "services/swarm/permissions.py",
+      "name": "permissions"
+    },
+    {
+      "ref": "utils/permissions/permissions.ts",
+      "py": "services/swarm/permissions.py",
+      "name": "permissions"
+    },
+    {
+      "ref": "tasks/pillLabel.ts",
+      "py": "tasks/pill_label.py",
+      "name": "pill_label"
+    },
+    {
+      "ref": "commands/plan/plan.tsx",
+      "py": "plan/plan.py",
+      "name": "plan"
+    },
+    {
+      "ref": "utils/plans.ts",
+      "py": "utils/plans.py",
+      "name": "plans"
+    },
+    {
+      "ref": "bridge/pollConfig.ts",
+      "py": "bridge/poll_config.py",
+      "name": "poll_config"
+    },
+    {
+      "ref": "bridge/pollConfigDefaults.ts",
+      "py": "bridge/poll_config_defaults.py",
+      "name": "poll_config_defaults"
+    },
+    {
+      "ref": "services/compact/postCompactCleanup.ts",
+      "py": "services/compact/post_compact_cleanup.py",
+      "name": "post_compact_cleanup"
+    },
+    {
+      "ref": "utils/hooks/postSamplingHooks.ts",
+      "py": "hooks/post_sampling_hooks.py",
+      "name": "post_sampling_hooks"
+    },
+    {
+      "ref": "query.ts",
+      "py": "query/query.py",
+      "name": "query"
+    },
+    {
+      "ref": "tools/BashTool/readOnlyValidation.ts",
+      "py": "tool_system/tools/bash/read_only_validation.py",
+      "name": "read_only_validation"
+    },
+    {
+      "ref": "tools/PowerShellTool/readOnlyValidation.ts",
+      "py": "tool_system/tools/bash/read_only_validation.py",
+      "name": "read_only_validation"
+    },
+    {
+      "ref": "upstreamproxy/relay.ts",
+      "py": "upstreamproxy/relay.py",
+      "name": "relay"
+    },
+    {
+      "ref": "commands/release-notes/release-notes.ts",
+      "py": "utils/release_notes.py",
+      "name": "release_notes"
+    },
+    {
+      "ref": "utils/releaseNotes.ts",
+      "py": "utils/release_notes.py",
+      "name": "release_notes"
+    },
+    {
+      "ref": "bridge/remoteBridgeCore.ts",
+      "py": "bridge/remote_bridge_core.py",
+      "name": "remote_bridge_core"
+    },
+    {
+      "ref": "cli/remoteIO.ts",
+      "py": "transports/remote_io.py",
+      "name": "remote_io"
+    },
+    {
+      "ref": "remote/RemoteSessionManager.ts",
+      "py": "remote/remote_session_manager.py",
+      "name": "remote_session_manager"
+    },
+    {
+      "ref": "bridge/replBridge.ts",
+      "py": "bridge/repl_bridge.py",
+      "name": "repl_bridge"
+    },
+    {
+      "ref": "bridge/replBridgeHandle.ts",
+      "py": "bridge/repl_bridge_handle.py",
+      "name": "repl_bridge_handle"
+    },
+    {
+      "ref": "bridge/replBridgeTransport.ts",
+      "py": "bridge/repl_bridge_transport.py",
+      "name": "repl_bridge_transport"
+    },
+    {
+      "ref": "tools/AgentTool/resumeAgent.ts",
+      "py": "agent/resume_agent.py",
+      "name": "resume_agent"
+    },
+    {
+      "ref": "commands/review.ts",
+      "py": "memory/review.py",
+      "name": "review"
+    },
+    {
+      "ref": "utils/ripgrep.ts",
+      "py": "tool_system/utils/ripgrep.py",
+      "name": "ripgrep"
+    },
+    {
+      "ref": "tools/AgentTool/runAgent.ts",
+      "py": "agent/run_agent.py",
+      "name": "run_agent"
+    },
+    {
+      "ref": "remote/sdkMessageAdapter.ts",
+      "py": "remote/sdk_message_adapter.py",
+      "name": "sdk_message_adapter"
+    },
+    {
+      "ref": "commands/security-review.ts",
+      "py": "command_system/security_review.py",
+      "name": "security_review"
+    },
+    {
+      "ref": "ink/selection.ts",
+      "py": "services/ide/selection.py",
+      "name": "selection"
+    },
+    {
+      "ref": "cli/transports/SerialBatchEventUploader.ts",
+      "py": "transports/serial_batch_event_uploader.py",
+      "name": "serial_batch_event_uploader"
+    },
+    {
+      "ref": "commands/session/session.tsx",
+      "py": "agent/session.py",
+      "name": "session"
+    },
+    {
+      "ref": "assistant/sessionHistory.ts",
+      "py": "assistant/session_history.py",
+      "name": "session_history"
+    },
+    {
+      "ref": "utils/hooks/sessionHooks.ts",
+      "py": "hooks/session_hooks.py",
+      "name": "session_hooks"
+    },
+    {
+      "ref": "bridge/sessionIdCompat.ts",
+      "py": "bridge/session_id_compat.py",
+      "name": "session_id_compat"
+    },
+    {
+      "ref": "utils/sessionIngressAuth.ts",
+      "py": "utils/session_ingress_auth.py",
+      "name": "session_ingress_auth"
+    },
+    {
+      "ref": "services/compact/sessionMemoryCompact.ts",
+      "py": "services/compact/session_memory_compact.py",
+      "name": "session_memory_compact"
+    },
+    {
+      "ref": "bridge/sessionRunner.ts",
+      "py": "bridge/session_runner.py",
+      "name": "session_runner"
+    },
+    {
+      "ref": "utils/sessionStart.ts",
+      "py": "state/session_start.py",
+      "name": "session_start"
+    },
+    {
+      "ref": "utils/sessionStorage.ts",
+      "py": "services/session_storage.py",
+      "name": "session_storage"
+    },
+    {
+      "ref": "utils/sessionTitle.ts",
+      "py": "services/session_title.py",
+      "name": "session_title"
+    },
+    {
+      "ref": "components/Settings/Settings.tsx",
+      "py": "settings/settings.py",
+      "name": "settings"
+    },
+    {
+      "ref": "utils/settings/mdm/settings.ts",
+      "py": "settings/settings.py",
+      "name": "settings"
+    },
+    {
+      "ref": "utils/settings/settings.ts",
+      "py": "settings/settings.py",
+      "name": "settings"
+    },
+    {
+      "ref": "setup.ts",
+      "py": "permissions/setup.py",
+      "name": "setup"
+    },
+    {
+      "ref": "utils/claudeInChrome/setup.ts",
+      "py": "permissions/setup.py",
+      "name": "setup"
+    },
+    {
+      "ref": "utils/computerUse/setup.ts",
+      "py": "permissions/setup.py",
+      "name": "setup"
+    },
+    {
+      "ref": "utils/bash/shellQuote.ts",
+      "py": "permissions/bash_parser/shell_quote.py",
+      "name": "shell_quote"
+    },
+    {
+      "ref": "utils/signal.ts",
+      "py": "utils/signal.py",
+      "name": "signal"
+    },
+    {
+      "ref": "skills/bundled/simplify.ts",
+      "py": "skills/bundled/simplify.py",
+      "name": "simplify"
+    },
+    {
+      "ref": "services/analytics/sink.ts",
+      "py": "services/analytics/sink.py",
+      "name": "sink"
+    },
+    {
+      "ref": "utils/bash/specs/sleep.ts",
+      "py": "tool_system/tools/sleep.py",
+      "name": "sleep"
+    },
+    {
+      "ref": "utils/sleep.ts",
+      "py": "tool_system/tools/sleep.py",
+      "name": "sleep"
+    },
+    {
+      "ref": "constants/spinnerVerbs.ts",
+      "py": "constants/spinner_verbs.py",
+      "name": "spinner_verbs"
+    },
+    {
+      "ref": "buddy/sprites.ts",
+      "py": "buddy/sprites.py",
+      "name": "sprites"
+    },
+    {
+      "ref": "utils/hooks/ssrfGuard.ts",
+      "py": "hooks/ssrf_guard.py",
+      "name": "ssrf_guard"
+    },
+    {
+      "ref": "utils/startupProfiler.ts",
+      "py": "utils/startup_profiler.py",
+      "name": "startup_profiler"
+    },
+    {
+      "ref": "commands/statusline.tsx",
+      "py": "command_system/statusline.py",
+      "name": "statusline"
+    },
+    {
+      "ref": "query/stopHooks.ts",
+      "py": "query/stop_hooks.py",
+      "name": "stop_hooks"
+    },
+    {
+      "ref": "tasks/stopTask.ts",
+      "py": "tasks/stop_task.py",
+      "name": "stop_task"
+    },
+    {
+      "ref": "cli/structuredIO.ts",
+      "py": "cli_core/structured_io.py",
+      "name": "structured_io"
+    },
+    {
+      "ref": "skills/bundled/stuck.ts",
+      "py": "skills/bundled/stuck.py",
+      "name": "stuck"
+    },
+    {
+      "ref": "ink/styles.ts",
+      "py": "outputStyles/styles.py",
+      "name": "styles"
+    },
+    {
+      "ref": "utils/subprocessEnv.ts",
+      "py": "utils/subprocess_env.py",
+      "name": "subprocess_env"
+    },
+    {
+      "ref": "commands/tasks/tasks.tsx",
+      "py": "background/tasks.py",
+      "name": "tasks"
+    },
+    {
+      "ref": "tasks.ts",
+      "py": "background/tasks.py",
+      "name": "tasks"
+    },
+    {
+      "ref": "utils/tasks.ts",
+      "py": "background/tasks.py",
+      "name": "tasks"
+    },
+    {
+      "ref": "memdir/teamMemPaths.ts",
+      "py": "memdir/team_mem_paths.py",
+      "name": "team_mem_paths"
+    },
+    {
+      "ref": "memdir/teamMemPrompts.ts",
+      "py": "memdir/team_mem_prompts.py",
+      "name": "team_mem_prompts"
+    },
+    {
+      "ref": "utils/teammate.ts",
+      "py": "services/swarm/teammate.py",
+      "name": "teammate"
+    },
+    {
+      "ref": "ink/terminal.ts",
+      "py": "query/terminal.py",
+      "name": "terminal"
+    },
+    {
+      "ref": "utils/terminal.ts",
+      "py": "query/terminal.py",
+      "name": "terminal"
+    },
+    {
+      "ref": "commands/theme/theme.tsx",
+      "py": "utils/theme.py",
+      "name": "theme"
+    },
+    {
+      "ref": "utils/theme.ts",
+      "py": "utils/theme.py",
+      "name": "theme"
+    },
+    {
+      "ref": "query/tokenBudget.ts",
+      "py": "query/token_budget.py",
+      "name": "token_budget"
+    },
+    {
+      "ref": "utils/tokenBudget.ts",
+      "py": "query/token_budget.py",
+      "name": "token_budget"
+    },
+    {
+      "ref": "services/tokenEstimation.ts",
+      "py": "token_estimation.py",
+      "name": "token_estimation"
+    },
+    {
+      "ref": "components/TokenWarning.tsx",
+      "py": "services/token_warning.py",
+      "name": "token_warning"
+    },
+    {
+      "ref": "services/tools/toolExecution.ts",
+      "py": "services/tool_execution/tool_execution.py",
+      "name": "tool_execution"
+    },
+    {
+      "ref": "services/tools/toolHooks.ts",
+      "py": "services/tool_execution/tool_hooks.py",
+      "name": "tool_hooks"
+    },
+    {
+      "ref": "vim/transitions.ts",
+      "py": "query/transitions.py",
+      "name": "transitions"
+    },
+    {
+      "ref": "cli/transports/transportUtils.ts",
+      "py": "transports/transport_utils.py",
+      "name": "transport_utils"
+    },
+    {
+      "ref": "bridge/trustedDevice.ts",
+      "py": "bridge/trusted_device.py",
+      "name": "trusted_device"
+    },
+    {
+      "ref": "skills/bundled/updateConfig.ts",
+      "py": "skills/bundled/update_config.py",
+      "name": "update_config"
+    },
+    {
+      "ref": "skills/bundled/verifyContent.ts",
+      "py": "skills/bundled/verify_content.py",
+      "name": "verify_content"
+    },
+    {
+      "ref": "utils/words.ts",
+      "py": "utils/words.py",
+      "name": "words"
+    },
+    {
+      "ref": "bridge/workSecret.ts",
+      "py": "bridge/work_secret.py",
+      "name": "work_secret"
+    },
+    {
+      "ref": "cli/transports/WorkerStateUploader.ts",
+      "py": "transports/worker_state_uploader.py",
+      "name": "worker_state_uploader"
+    },
+    {
+      "ref": "services/mcp/xaa.ts",
+      "py": "services/mcp/xaa.py",
+      "name": "xaa"
+    },
+    {
+      "ref": "services/mcp/xaaIdpLogin.ts",
+      "py": "services/mcp/xaa_idp_login.py",
+      "name": "xaa_idp_login"
+    },
+    {
+      "ref": "constants/xml.ts",
+      "py": "constants/xml.py",
+      "name": "xml"
+    },
+    {
+      "ref": "utils/xml.ts",
+      "py": "constants/xml.py",
+      "name": "xml"
+    },
+    {
+      "ref": "utils/permissions/yoloClassifier.ts",
+      "py": "permissions/yolo_classifier.py",
+      "name": "yolo_classifier"
+    }
+  ],
+  "multi_candidate": {
+    "commands/advisor.ts": [
+      "tool_system/tools/advisor.py",
+      "utils/advisor.py"
+    ],
+    "utils/advisor.ts": [
+      "tool_system/tools/advisor.py",
+      "utils/advisor.py"
+    ],
+    "utils/argumentSubstitution.ts": [
+      "command_system/argument_substitution.py",
+      "skills/argument_substitution.py"
+    ],
+    "cli/handlers/auth.ts": [
+      "auth/auth.py",
+      "services/mcp/auth.py"
+    ],
+    "services/mcp/auth.ts": [
+      "auth/auth.py",
+      "services/mcp/auth.py"
+    ],
+    "types/generated/events_mono/common/v1/auth.ts": [
+      "auth/auth.py",
+      "services/mcp/auth.py"
+    ],
+    "utils/auth.ts": [
+      "auth/auth.py",
+      "services/mcp/auth.py"
+    ],
+    "services/api/client.ts": [
+      "services/mcp/client.py",
+      "services/oauth/client.py"
+    ],
+    "services/mcp/client.ts": [
+      "services/mcp/client.py",
+      "services/oauth/client.py"
+    ],
+    "services/oauth/client.ts": [
+      "services/mcp/client.py",
+      "services/oauth/client.py"
+    ],
+    "commands/config/config.tsx": [
+      "config.py",
+      "query/config.py",
+      "services/autofix/config.py",
+      "services/mcp/config.py",
+      "tool_system/tools/config.py"
+    ],
+    "components/Settings/Config.tsx": [
+      "config.py",
+      "query/config.py",
+      "services/autofix/config.py",
+      "services/mcp/config.py",
+      "tool_system/tools/config.py"
+    ],
+    "query/config.ts": [
+      "config.py",
+      "query/config.py",
+      "services/autofix/config.py",
+      "services/mcp/config.py",
+      "tool_system/tools/config.py"
+    ],
+    "services/analytics/config.ts": [
+      "config.py",
+      "query/config.py",
+      "services/autofix/config.py",
+      "services/mcp/config.py",
+      "tool_system/tools/config.py"
+    ],
+    "services/autoDream/config.ts": [
+      "config.py",
+      "query/config.py",
+      "services/autofix/config.py",
+      "services/mcp/config.py",
+      "tool_system/tools/config.py"
+    ],
+    "services/lsp/config.ts": [
+      "config.py",
+      "query/config.py",
+      "services/autofix/config.py",
+      "services/mcp/config.py",
+      "tool_system/tools/config.py"
+    ],
+    "services/mcp/config.ts": [
+      "config.py",
+      "query/config.py",
+      "services/autofix/config.py",
+      "services/mcp/config.py",
+      "tool_system/tools/config.py"
+    ],
+    "utils/config.ts": [
+      "config.py",
+      "query/config.py",
+      "services/autofix/config.py",
+      "services/mcp/config.py",
+      "tool_system/tools/config.py"
+    ],
+    "ink/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/AgentTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/ConfigTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/EnterPlanModeTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/EnterWorktreeTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/ExitPlanModeTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/ExitWorktreeTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/FileEditTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/NotebookEditTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/REPLTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/SendMessageTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/SkillTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/TaskCreateTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/TaskGetTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/TaskListTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/TaskOutputTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/TaskUpdateTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/TeamCreateTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/TeamDeleteTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/TodoWriteTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "tools/ToolSearchTool/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "utils/settings/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "utils/settings/mdm/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "utils/swarm/constants.ts": [
+      "agent/constants.py",
+      "settings/constants.py",
+      "workflow/constants.py"
+    ],
+    "commands/context/context.tsx": [
+      "models/context.py",
+      "tool_system/context.py"
+    ],
+    "context.ts": [
+      "models/context.py",
+      "tool_system/context.py"
+    ],
+    "utils/context.ts": [
+      "models/context.py",
+      "tool_system/context.py"
+    ],
+    "cost-tracker.ts": [
+      "cost_tracker.py",
+      "services/cost_tracker.py"
+    ],
+    "commands/doctor/doctor.tsx": [
+      "entrypoints/doctor.py",
+      "services/mcp/doctor.py"
+    ],
+    "screens/Doctor.tsx": [
+      "entrypoints/doctor.py",
+      "services/mcp/doctor.py"
+    ],
+    "ink/layout/engine.ts": [
+      "command_system/engine.py",
+      "eco/engine.py",
+      "query/engine.py"
+    ],
+    "services/api/errors.ts": [
+      "services/api/errors.py",
+      "services/mcp/errors.py",
+      "tool_system/errors.py",
+      "workflow/errors.py"
+    ],
+    "utils/errors.ts": [
+      "services/api/errors.py",
+      "services/mcp/errors.py",
+      "tool_system/errors.py",
+      "workflow/errors.py"
+    ],
+    "cli/handlers/mcp.tsx": [
+      "entrypoints/mcp.py",
+      "tool_system/tools/mcp.py"
+    ],
+    "commands/mcp/mcp.tsx": [
+      "entrypoints/mcp.py",
+      "tool_system/tools/mcp.py"
+    ],
+    "entrypoints/mcp.ts": [
+      "entrypoints/mcp.py",
+      "tool_system/tools/mcp.py"
+    ],
+    "components/Messages.tsx": [
+      "compact_service/messages.py",
+      "types/messages.py",
+      "utils/messages.py"
+    ],
+    "constants/messages.ts": [
+      "compact_service/messages.py",
+      "types/messages.py",
+      "utils/messages.py"
+    ],
+    "utils/messages.ts": [
+      "compact_service/messages.py",
+      "types/messages.py",
+      "utils/messages.py"
+    ],
+    "commands/model/model.tsx": [
+      "models/model.py",
+      "skills/model.py"
+    ],
+    "utils/model/model.ts": [
+      "models/model.py",
+      "skills/model.py"
+    ],
+    "buddy/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "services/compact/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/AgentTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/AskUserQuestionTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/BashTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/BriefTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/ConfigTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/EnterPlanModeTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/EnterWorktreeTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/ExitPlanModeTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/ExitWorktreeTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/FileEditTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/FileReadTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/FileWriteTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/GlobTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/GrepTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/LSPTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/ListMcpResourcesTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/MCPTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/NotebookEditTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/PowerShellTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/ReadMcpResourceTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/RemoteTriggerTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/ScheduleCronTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/SendMessageTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/SkillTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/SleepTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/TaskCreateTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/TaskGetTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/TaskListTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/TaskStopTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/TaskUpdateTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/TeamCreateTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/TeamDeleteTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/TodoWriteTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/ToolSearchTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/WebFetchTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "tools/WebSearchTool/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "utils/claudeInChrome/prompt.ts": [
+      "agent/prompt.py",
+      "buddy/prompt.py",
+      "coordinator/prompt.py",
+      "services/compact/prompt.py",
+      "tool_system/tools/bash/prompt.py"
+    ],
+    "utils/bash/registry.ts": [
+      "command_system/registry.py",
+      "hooks/registry.py",
+      "tool_system/registry.py"
+    ],
+    "utils/swarm/backends/registry.ts": [
+      "command_system/registry.py",
+      "hooks/registry.py",
+      "tool_system/registry.py"
+    ],
+    "bootstrap/state.ts": [
+      "bootstrap/state.py",
+      "eco/state.py"
+    ],
+    "state/store.ts": [
+      "memory/store.py",
+      "utils/store.py"
+    ],
+    "utils/toolSearch.ts": [
+      "tool_system/tool_search.py",
+      "tool_system/tools/tool_search.py"
+    ],
+    "bridge/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "buddy/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "components/agents/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "ink/termio/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "server/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "services/mcp/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "services/policyLimits/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "services/remoteManagedSettings/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "services/settingsSync/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "services/teamMemorySync/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "tasks/InProcessTeammateTask/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "tasks/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "tools/FileEditTool/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "utils/memory/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "utils/settings/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "utils/swarm/backends/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "utils/todo/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "vim/types.ts": [
+      "bridge/types.py",
+      "buddy/types.py",
+      "command_system/types.py",
+      "permissions/types.py",
+      "plugins/types.py",
+      "server/types.py",
+      "services/ide/types.py",
+      "services/mcp/types.py",
+      "settings/types.py",
+      "workflow/types.py"
+    ],
+    "components/ManagedSettingsSecurityDialog/utils.ts": [
+      "tool_system/tools/bash/utils.py",
+      "wiki/utils.py"
+    ],
+    "components/PromptInput/utils.ts": [
+      "tool_system/tools/bash/utils.py",
+      "wiki/utils.py"
+    ],
+    "components/Spinner/utils.ts": [
+      "tool_system/tools/bash/utils.py",
+      "wiki/utils.py"
+    ],
+    "components/TrustDialog/utils.ts": [
+      "tool_system/tools/bash/utils.py",
+      "wiki/utils.py"
+    ],
+    "components/agents/utils.ts": [
+      "tool_system/tools/bash/utils.py",
+      "wiki/utils.py"
+    ],
+    "components/messages/UserToolResultMessage/utils.tsx": [
+      "tool_system/tools/bash/utils.py",
+      "wiki/utils.py"
+    ],
+    "components/permissions/utils.ts": [
+      "tool_system/tools/bash/utils.py",
+      "wiki/utils.py"
+    ],
+    "services/mcp/utils.ts": [
+      "tool_system/tools/bash/utils.py",
+      "wiki/utils.py"
+    ],
+    "tools/BashTool/utils.ts": [
+      "tool_system/tools/bash/utils.py",
+      "wiki/utils.py"
+    ],
+    "tools/FileEditTool/utils.ts": [
+      "tool_system/tools/bash/utils.py",
+      "wiki/utils.py"
+    ],
+    "tools/WebFetchTool/utils.ts": [
+      "tool_system/tools/bash/utils.py",
+      "wiki/utils.py"
+    ],
+    "tools/utils.ts": [
+      "tool_system/tools/bash/utils.py",
+      "wiki/utils.py"
+    ],
+    "commands/add-dir/validation.ts": [
+      "models/validation.py",
+      "settings/validation.py"
+    ],
+    "utils/settings/validation.ts": [
+      "models/validation.py",
+      "settings/validation.py"
+    ],
+    "utils/worktree.ts": [
+      "bridge/worktree.py",
+      "tool_system/tools/worktree.py",
+      "workflow/worktree.py"
+    ]
+  }
+}

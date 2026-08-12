@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>skills 源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-r7-r5-ccr-14-映射-启发式初版" data-nav>5. R7/R5/CCR-14 映射（启发式初版）</a></li>
+<li><a href="#6-文件级映射细分" data-nav>6. 文件级映射细分</a></li>
+<li><a href="#7-未确认项与待核实项" data-nav>7. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>skills 源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">44</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2302</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="skills-源码盘点">skills 源码盘点</h1>
+<blockquote>
+<p>编号: 44</p>
+<p>时间戳: 20260811_2302</p>
+<p>基线: def709361a86</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>类型: package（目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: skills</li>
+<li>类型: package（目录模块）</li>
+<li>Python 文件数: 17</li>
+<li>总行数: 3219</li>
+<li>依赖的 src 内部模块: 无</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">skills/__init__.py</code> — 90 行（类 0，函数 0）</li>
+<li><code class="inline-code">skills/argument_substitution.py</code> — 64 行（类 0，函数 3）</li>
+<li><code class="inline-code">skills/bundled/__init__.py</code> — 79 行（类 0，函数 2）</li>
+<li><code class="inline-code">skills/bundled/batch.py</code> — 150 行（类 0，函数 3）</li>
+<li><code class="inline-code">skills/bundled/debug.py</code> — 187 行（类 0，函数 7）</li>
+<li><code class="inline-code">skills/bundled/loop.py</code> — 276 行（类 1，函数 9）</li>
+<li><code class="inline-code">skills/bundled/simplify.py</code> — 88 行（类 0，函数 2）</li>
+<li><code class="inline-code">skills/bundled/stuck.py</code> — 49 行（类 0，函数 2）</li>
+<li><code class="inline-code">skills/bundled/update_config.py</code> — 149 行（类 0，函数 2）</li>
+<li><code class="inline-code">skills/bundled/verify_content.py</code> — 57 行（类 0，函数 2）</li>
+<li><code class="inline-code">skills/bundled_skills.py</code> — 225 行（类 2，函数 8）</li>
+<li><code class="inline-code">skills/create.py</code> — 71 行（类 0，函数 2）</li>
+<li><code class="inline-code">skills/frontmatter.py</code> — 108 行（类 1，函数 1）</li>
+<li><code class="inline-code">skills/loader.py</code> — 1238 行（类 0，函数 43）</li>
+<li><code class="inline-code">skills/mcp_skill_builders.py</code> — 16 行（类 0，函数 2）</li>
+<li><code class="inline-code">skills/model.py</code> — 112 行（类 1，函数 0）</li>
+<li><code class="inline-code">skills/runtime_substitution.py</code> — 260 行（类 0，函数 8）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">skills/__init__.py</code></li>
+<li>文件 <code class="inline-code">skills/argument_substitution.py</code></li>
+<li>函数 parse_arguments — L8</li>
+<li>函数 parse_argument_names — L17</li>
+<li>函数 substitute_arguments — L27</li>
+<li>文件 <code class="inline-code">skills/bundled/__init__.py</code></li>
+<li>函数 init_bundled_skills — L35</li>
+<li>函数 reset_bundled_skills_init_flag — L61</li>
+<li>文件 <code class="inline-code">skills/bundled/batch.py</code></li>
+<li>函数 _build_prompt — L32</li>
+<li>函数 _get_prompt_for_command — L118</li>
+<li>函数 register_batch_skill — L131</li>
+<li>文件 <code class="inline-code">skills/bundled/debug.py</code></li>
+<li>函数 _get_debug_log_path — L30</li>
+<li>函数 _enable_debug_logging — L45</li>
+<li>函数 _format_file_size — L57</li>
+<li>函数 _read_log_tail — L67</li>
+<li>函数 _settings_path_hint — L99</li>
+<li>函数 _build_debug_prompt — L117</li>
+<li>函数 register_debug_skill — L171</li>
+<li>文件 <code class="inline-code">skills/bundled/loop.py</code></li>
+<li>类 ParsedLoopArgs — L51</li>
+<li>函数 _normalize_interval_unit — L62</li>
+<li>函数 _parse_interval_token — L75</li>
+<li>函数 _parse_trailing_every_clause — L92</li>
+<li>函数 parse_loop_args — L103</li>
+<li>函数 _build_fixed_prompt — L145</li>
+<li>函数 _build_dynamic_prompt — L188</li>
+<li>函数 _build_loop_prompt — L241</li>
+<li>函数 _is_loop_enabled — L248</li>
+<li>函数 register_loop_skill — L258</li>
+<li>文件 <code class="inline-code">skills/bundled/simplify.py</code></li>
+<li>函数 _build_simplify_prompt — L70</li>
+<li>函数 register_simplify_skill — L77</li>
+<li>文件 <code class="inline-code">skills/bundled/stuck.py</code></li>
+<li>函数 _build_stuck_prompt — L32</li>
+<li>函数 register_stuck_skill — L38</li>
+<li>文件 <code class="inline-code">skills/bundled/update_config.py</code></li>
+<li>函数 _get_prompt_for_command — L121</li>
+<li>函数 register_update_config_skill — L129</li>
+<li>文件 <code class="inline-code">skills/bundled/verify_content.py</code></li>
+<li>函数 _build_verify_prompt — L40</li>
+<li>函数 register_verify_content_skill — L46</li>
+<li>文件 <code class="inline-code">skills/bundled_skills.py</code></li>
+<li>类 SkillValidationError — L19</li>
+<li>类 BundledSkillDefinition — L25</li>
+<li>函数 _lazy_init — L51</li>
+<li>函数 validate_skill_definition — L74</li>
+<li>函数 validate_skill — L102</li>
+<li>函数 skill_from_mcp_tool — L115</li>
+<li>函数 register_bundled_skill — L160</li>
+<li>函数 get_bundled_skills — L191</li>
+<li>函数 get_bundled_skill_by_name — L196</li>
+<li>函数 clear_bundled_skills — L206</li>
+<li>文件 <code class="inline-code">skills/create.py</code></li>
+<li>函数 create_skill — L7</li>
+<li>函数 _render_frontmatter — L59</li>
+<li>文件 <code class="inline-code">skills/frontmatter.py</code></li>
+<li>类 FrontmatterParseResult — L49</li>
+<li>函数 parse_frontmatter — L54</li>
+<li>文件 <code class="inline-code">skills/loader.py</code></li>
+<li>函数 _get_global_config_dir — L19</li>
+<li>函数 _get_managed_file_path — L26</li>
+<li>函数 get_skills_path — L33</li>
+<li>函数 _is_skill_file — L45</li>
+<li>函数 _build_namespace — L49</li>
+<li>函数 _get_skill_command_name — L57</li>
+<li>函数 _extract_description_from_markdown — L82</li>
+<li>函数 _coerce_description — L103</li>
+<li>函数 _coerce_bool — L122</li>
+<li>函数 _coerce_allowed_tools — L132</li>
+<li>函数 _coerce_model — L149</li>
+<li>函数 _coerce_effort — L188</li>
+<li>函数 _coerce_shell — L224</li>
+<li>函数 _coerce_hooks — L243</li>
+<li>函数 parse_skill_frontmatter_fields — L320</li>
+<li>函数 create_skill_command — L405</li>
+<li>函数 _find_skill_markdown_files — L461</li>
+<li>函数 load_skills_from_skills_dir — L531</li>
+<li>函数 _get_project_skills_dirs — L600</li>
+<li>函数 _is_bare_mode — L630</li>
+<li>函数 _is_skills_policy_disabled — L640</li>
+<li>函数 _is_restricted_to_plugin_only — L653</li>
+<li>函数 _get_additional_skill_dirs — L666</li>
+<li>函数 _get_file_identity — L678</li>
+<li>函数 get_skill_dir_commands — L693</li>
+<li>函数 _dedup_by_realpath — L772</li>
+<li>函数 _split_conditional — L806</li>
+<li>函数 get_dynamic_skills — L828</li>
+<li>函数 _is_path_gitignored — L832</li>
+<li>函数 discover_skill_dirs_for_paths — L857</li>
+<li>函数 add_skill_directories — L896</li>
+<li>函数 activate_conditional_skills_for_paths — L905</li>
+<li>函数 _compile_path_spec — L956</li>
+<li>函数 _path_matches_pattern — L984</li>
+<li>函数 clear_skill_caches — L998</li>
+<li>函数 clear_dynamic_skills — L1004</li>
+<li>函数 get_conditional_skill_count — L1011</li>
+<li>函数 clear_skill_registry — L1039</li>
+<li>函数 _extra_user_skill_dirs — L1043</li>
+<li>函数 _load_dirs_as — L1074</li>
+<li>函数 get_all_skills — L1087</li>
+<li>函数 get_registered_skill — L1197</li>
+<li>函数 load_skills_from_dir — L1231</li>
+<li>文件 <code class="inline-code">skills/mcp_skill_builders.py</code></li>
+<li>函数 register_mcp_skill_builders — L8</li>
+<li>函数 get_mcp_skill_builders — L15</li>
+<li>文件 <code class="inline-code">skills/model.py</code></li>
+<li>类 Skill — L8</li>
+<li>文件 <code class="inline-code">skills/runtime_substitution.py</code></li>
+<li>函数 prepend_base_dir_header — L56</li>
+<li>函数 substitute_skill_dir — L67</li>
+<li>函数 substitute_session_id — L82</li>
+<li>函数 find_shell_blocks — L96</li>
+<li>函数 has_shell_blocks — L118</li>
+<li>函数 format_shell_output — L127</li>
+<li>函数 format_shell_error — L140</li>
+<li>函数 render_skill_prompt — L171</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>skills/__init__.py → import parse_arguments（外部）</li>
+<li>skills/__init__.py → import substitute_arguments（外部）</li>
+<li>skills/__init__.py → import init_bundled_skills（外部）</li>
+<li>skills/__init__.py → import BundledSkillDefinition（外部）</li>
+<li>skills/__init__.py → import SkillValidationError（外部）</li>
+<li>skills/__init__.py → import clear_bundled_skills（外部）</li>
+<li>skills/__init__.py → import get_bundled_skill_by_name（外部）</li>
+<li>skills/__init__.py → import get_bundled_skills（外部）</li>
+<li>skills/__init__.py → import register_bundled_skill（外部）</li>
+<li>skills/__init__.py → import skill_from_mcp_tool（外部）</li>
+<li>skills/__init__.py → import validate_skill（外部）</li>
+<li>skills/__init__.py → import validate_skill_definition（外部）</li>
+<li>skills/__init__.py → import create_skill（外部）</li>
+<li>skills/__init__.py → import parse_frontmatter（外部）</li>
+<li>skills/__init__.py → import activate_conditional_skills_for_paths（外部）</li>
+<li>skills/__init__.py → import add_skill_directories（外部）</li>
+<li>skills/__init__.py → import clear_dynamic_skills（外部）</li>
+<li>skills/__init__.py → import clear_skill_caches（外部）</li>
+<li>skills/__init__.py → import clear_skill_registry（外部）</li>
+<li>skills/__init__.py → import create_skill_command（外部）</li>
+<li>skills/__init__.py → import discover_skill_dirs_for_paths（外部）</li>
+<li>skills/__init__.py → import get_all_skills（外部）</li>
+<li>skills/__init__.py → import get_conditional_skill_count（外部）</li>
+<li>skills/__init__.py → import get_dynamic_skills（外部）</li>
+<li>skills/__init__.py → import get_registered_skill（外部）</li>
+<li>skills/__init__.py → import get_skill_dir_commands（外部）</li>
+<li>skills/__init__.py → import get_skills_path（外部）</li>
+<li>skills/__init__.py → import load_skills_from_dir（外部）</li>
+<li>skills/__init__.py → import load_skills_from_skills_dir（外部）</li>
+<li>skills/__init__.py → import parse_skill_frontmatter_fields（外部）</li>
+<li>skills/__init__.py → import get_mcp_skill_builders（外部）</li>
+<li>skills/__init__.py → import register_mcp_skill_builders（外部）</li>
+<li>skills/__init__.py → import PromptSkill（外部）</li>
+<li>skills/__init__.py → import Skill（外部）</li>
+<li>skills/__init__.py → import find_shell_blocks（外部）</li>
+<li>skills/__init__.py → import format_shell_error（外部）</li>
+<li>skills/__init__.py → import format_shell_output（外部）</li>
+<li>skills/__init__.py → import has_shell_blocks（外部）</li>
+<li>skills/__init__.py → import prepend_base_dir_header（外部）</li>
+<li>skills/__init__.py → import render_skill_prompt（外部）</li>
+<li>skills/__init__.py → import substitute_session_id（外部）</li>
+<li>skills/__init__.py → import substitute_skill_dir（外部）</li>
+<li>skills/argument_substitution.py → import annotations（外部）</li>
+<li>skills/argument_substitution.py → import re（外部）</li>
+<li>skills/argument_substitution.py → import shlex（外部）</li>
+<li>skills/argument_substitution.py → import List（外部）</li>
+<li>skills/argument_substitution.py → import Sequence（外部）</li>
+<li>skills/bundled/__init__.py → import annotations（外部）</li>
+<li>skills/bundled/__init__.py → import logging（外部）</li>
+<li>skills/bundled/__init__.py → import register_batch_skill（外部）</li>
+<li>skills/bundled/__init__.py → import register_debug_skill（外部）</li>
+<li>skills/bundled/__init__.py → import register_loop_skill（外部）</li>
+<li>skills/bundled/__init__.py → import register_simplify_skill（外部）</li>
+<li>skills/bundled/__init__.py → import register_stuck_skill（外部）</li>
+<li>skills/bundled/__init__.py → import register_update_config_skill（外部）</li>
+<li>skills/bundled/__init__.py → import register_verify_content_skill（外部）</li>
+<li>skills/bundled/batch.py → import annotations（外部）</li>
+<li>skills/bundled/batch.py → import BundledSkillDefinition（外部）</li>
+<li>skills/bundled/batch.py → import register_bundled_skill（外部）</li>
+<li>skills/bundled/debug.py → import annotations（外部）</li>
+<li>skills/bundled/debug.py → import logging（外部）</li>
+<li>skills/bundled/debug.py → import os（外部）</li>
+<li>skills/bundled/debug.py → import Path（外部）</li>
+<li>skills/bundled/debug.py → import Optional（外部）</li>
+<li>skills/bundled/debug.py → import BundledSkillDefinition（外部）</li>
+<li>skills/bundled/debug.py → import register_bundled_skill（外部）</li>
+<li>skills/bundled/loop.py → import annotations（外部）</li>
+<li>skills/bundled/loop.py → import re（外部）</li>
+<li>skills/bundled/loop.py → import dataclass（外部）</li>
+<li>skills/bundled/loop.py → import Optional（外部）</li>
+<li>skills/bundled/loop.py → import BundledSkillDefinition（外部）</li>
+<li>skills/bundled/loop.py → import register_bundled_skill（外部）</li>
+<li>skills/bundled/simplify.py → import annotations（外部）</li>
+<li>skills/bundled/simplify.py → import BundledSkillDefinition（外部）</li>
+<li>skills/bundled/simplify.py → import register_bundled_skill（外部）</li>
+<li>skills/bundled/stuck.py → import annotations（外部）</li>
+<li>skills/bundled/stuck.py → import BundledSkillDefinition（外部）</li>
+<li>skills/bundled/stuck.py → import register_bundled_skill（外部）</li>
+<li>skills/bundled/update_config.py → import annotations（外部）</li>
+<li>skills/bundled/update_config.py → import BundledSkillDefinition（外部）</li>
+<li>skills/bundled/update_config.py → import register_bundled_skill（外部）</li>
+<li>skills/bundled/verify_content.py → import annotations（外部）</li>
+<li>skills/bundled/verify_content.py → import BundledSkillDefinition（外部）</li>
+<li>skills/bundled/verify_content.py → import register_bundled_skill（外部）</li>
+<li>skills/bundled_skills.py → import annotations（外部）</li>
+<li>skills/bundled_skills.py → import logging（外部）</li>
+<li>skills/bundled_skills.py → import re（外部）</li>
+<li>skills/bundled_skills.py → import dataclass（外部）</li>
+<li>skills/bundled_skills.py → import field（外部）</li>
+<li>skills/bundled_skills.py → import Any（外部）</li>
+<li>skills/bundled_skills.py → import Callable（外部）</li>
+<li>skills/bundled_skills.py → import Sequence（外部）</li>
+<li>skills/bundled_skills.py → import Skill（外部）</li>
+<li>skills/create.py → import annotations（外部）</li>
+<li>skills/create.py → import Path（外部）</li>
+<li>skills/create.py → import Any（外部）</li>
+<li>skills/create.py → import Mapping（外部）</li>
+<li>skills/create.py → import Optional（外部）</li>
+<li>skills/create.py → import Sequence（外部）</li>
+<li>skills/frontmatter.py → import annotations（外部）</li>
+<li>skills/frontmatter.py → import logging（外部）</li>
+<li>skills/frontmatter.py → import dataclass（外部）</li>
+<li>skills/frontmatter.py → import Any（外部）</li>
+<li>skills/frontmatter.py → import Dict（外部）</li>
+<li>skills/loader.py → import annotations（外部）</li>
+<li>skills/loader.py → import logging（外部）</li>
+<li>skills/loader.py → import os（外部）</li>
+<li>skills/loader.py → import re（外部）</li>
+<li>skills/loader.py → import lru_cache（外部）</li>
+<li>skills/loader.py → import Path（外部）</li>
+<li>skills/loader.py → import Any（外部）</li>
+<li>skills/loader.py → import Sequence（外部）</li>
+<li>skills/loader.py → import parse_argument_names（外部）</li>
+<li>skills/loader.py → import parse_frontmatter（外部）</li>
+<li>skills/loader.py → import Skill（外部）</li>
+<li>skills/loader.py → import PromptSkill（外部）</li>
+<li>skills/loader.py → import get_bundled_skills（外部）</li>
+<li>skills/loader.py → import get_bundled_skill_by_name（外部）</li>
+<li>skills/mcp_skill_builders.py → import annotations（外部）</li>
+<li>skills/mcp_skill_builders.py → import Any（外部）</li>
+<li>skills/mcp_skill_builders.py → import Callable（外部）</li>
+<li>skills/model.py → import annotations（外部）</li>
+<li>skills/model.py → import dataclass（外部）</li>
+<li>skills/model.py → import field（外部）</li>
+<li>skills/model.py → import Callable（外部）</li>
+<li>skills/model.py → import Optional（外部）</li>
+<li>skills/model.py → import Sequence（外部）</li>
+<li>skills/runtime_substitution.py → import annotations（外部）</li>
+<li>skills/runtime_substitution.py → import logging（外部）</li>
+<li>skills/runtime_substitution.py → import re（外部）</li>
+<li>skills/runtime_substitution.py → import Callable（外部）</li>
+<li>skills/runtime_substitution.py → import Optional（外部）</li>
+<li>skills/runtime_substitution.py → import Sequence（外部）</li>
+<li>skills/runtime_substitution.py → import substitute_arguments（外部）</li>
+</ol>
+<h2 id="5-r7-r5-ccr-14-映射-启发式初版">5. R7/R5/CCR-14 映射（启发式初版）</h2>
+<ol>
+<li>CCR-05 Tool Pool / Capability Assembly — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-文件级映射细分">6. 文件级映射细分</h2>
+<ol>
+<li><code class="inline-code">__init__.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">argument_substitution.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">batch.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">bundled_skills.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">create.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">debug.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">frontmatter.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">loader.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">loop.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">mcp_skill_builders.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">model.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">runtime_substitution.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">simplify.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">stuck.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">update_config.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">verify_content.py</code> → CCR-05（UNVERIFIED）</li>
+</ol>
+<h2 id="7-未确认项与待核实项">7. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ reference 侧对应文件/symbol 映射待核实</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 reference source</li>
+<li>☐ 本模块 R7/R5/CCR 归属的 UNVERIFIED 状态待升级或降级</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-skills-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

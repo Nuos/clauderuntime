@@ -1,0 +1,1534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>commands（reference）源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-python-侧候选映射-启发式初版" data-nav>5. Python 侧候选映射（启发式初版）</a></li>
+<li><a href="#6-未确认项与待核实项" data-nav>6. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>commands（reference）源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">06</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2337</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">来源</span><span class="meta-value">restored-src/src/commands</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（reference 目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="commands-reference-源码盘点">commands（reference）源码盘点</h1>
+<blockquote>
+<p>编号: 06</p>
+<p>时间戳: 20260811_2337</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>来源: restored-src/src/commands</p>
+<p>类型: package（reference 目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: commands</li>
+<li>类型: package（reference 目录模块）</li>
+<li>TS/JS 文件数: 207</li>
+<li>总行数: 26449</li>
+<li>依赖的 reference 内部模块: Tool, bootstrap, bridge, cli, components, constants, context, coordinator, cost-tracker, hooks, ink, keybindings, plugins, projectOnboardingState, screens, services, skills, state, tasks, tools, types, utils, voice</li>
+<li>Python 侧候选映射: command_system（UNVERIFIED）</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">commands/add-dir/add-dir.tsx</code> — 125 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/add-dir/index.ts</code> — 11 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/add-dir/validation.ts</code> — 110 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/advisor.ts</code> — 109 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/agents/agents.tsx</code> — 11 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/agents/index.ts</code> — 10 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/ant-trace/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/autofix-pr/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/backfill-sessions/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/branch/branch.ts</code> — 296 行（类 0，函数 4）</li>
+<li><code class="inline-code">commands/branch/index.ts</code> — 14 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/break-cache/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/bridge/bridge.tsx</code> — 508 行（类 0，函数 16）</li>
+<li><code class="inline-code">commands/bridge/index.ts</code> — 26 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/bridge-kick.ts</code> — 200 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/brief.ts</code> — 130 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/btw/btw.tsx</code> — 242 行（类 0，函数 5）</li>
+<li><code class="inline-code">commands/btw/index.ts</code> — 13 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/bughunter/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/chrome/chrome.tsx</code> — 284 行（类 0，函数 7）</li>
+<li><code class="inline-code">commands/chrome/index.ts</code> — 13 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/clear/caches.ts</code> — 144 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/clear/clear.ts</code> — 7 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/clear/conversation.ts</code> — 251 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/clear/index.ts</code> — 19 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/color/color.ts</code> — 93 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/color/index.ts</code> — 16 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/commit-push-pr.ts</code> — 158 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/commit.ts</code> — 92 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/compact/compact.ts</code> — 287 行（类 0，函数 4）</li>
+<li><code class="inline-code">commands/compact/index.ts</code> — 15 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/config/config.tsx</code> — 6 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/config/index.ts</code> — 11 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/context/context-noninteractive.ts</code> — 325 行（类 0，函数 3）</li>
+<li><code class="inline-code">commands/context/context.tsx</code> — 63 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/context/index.ts</code> — 24 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/copy/copy.tsx</code> — 370 行（类 0，函数 10）</li>
+<li><code class="inline-code">commands/copy/index.ts</code> — 15 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/cost/cost.ts</code> — 24 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/cost/index.ts</code> — 23 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/createMovedToPluginCommand.ts</code> — 65 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/ctx_viz/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/debug-tool-call/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/desktop/desktop.tsx</code> — 8 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/desktop/index.ts</code> — 26 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/diff/diff.tsx</code> — 8 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/diff/index.ts</code> — 8 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/doctor/doctor.tsx</code> — 6 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/doctor/index.ts</code> — 12 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/effort/effort.tsx</code> — 182 行（类 0，函数 8）</li>
+<li><code class="inline-code">commands/effort/index.ts</code> — 13 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/env/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/exit/exit.tsx</code> — 32 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/exit/index.ts</code> — 12 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/export/export.tsx</code> — 90 行（类 0，函数 5）</li>
+<li><code class="inline-code">commands/export/index.ts</code> — 11 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/extra-usage/extra-usage-core.ts</code> — 118 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/extra-usage/extra-usage-noninteractive.ts</code> — 16 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/extra-usage/extra-usage.tsx</code> — 16 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/extra-usage/index.ts</code> — 31 行（类 0，函数 3）</li>
+<li><code class="inline-code">commands/fast/fast.tsx</code> — 268 行（类 0，函数 8）</li>
+<li><code class="inline-code">commands/fast/index.ts</code> — 26 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/feedback/feedback.tsx</code> — 24 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/feedback/index.ts</code> — 26 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/files/files.ts</code> — 19 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/files/index.ts</code> — 12 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/good-claude/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/heapdump/heapdump.ts</code> — 17 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/heapdump/index.ts</code> — 12 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/help/help.tsx</code> — 10 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/help/index.ts</code> — 10 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/hooks/hooks.tsx</code> — 12 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/hooks/index.ts</code> — 11 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/ide/ide.tsx</code> — 645 行（类 0，函数 13）</li>
+<li><code class="inline-code">commands/ide/index.ts</code> — 11 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/init-verifiers.ts</code> — 262 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/init.ts</code> — 256 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/insights.ts</code> — 3200 行（类 0，函数 39）</li>
+<li><code class="inline-code">commands/install-github-app/ApiKeyStep.tsx</code> — 230 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/install-github-app/CheckExistingSecretStep.tsx</code> — 189 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/install-github-app/CheckGitHubStep.tsx</code> — 14 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/install-github-app/ChooseRepoStep.tsx</code> — 210 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/install-github-app/CreatingStep.tsx</code> — 64 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/install-github-app/ErrorStep.tsx</code> — 84 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/install-github-app/ExistingWorkflowStep.tsx</code> — 102 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/install-github-app/InstallAppStep.tsx</code> — 93 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/install-github-app/OAuthFlowStep.tsx</code> — 275 行（类 0，函数 4）</li>
+<li><code class="inline-code">commands/install-github-app/SuccessStep.tsx</code> — 95 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/install-github-app/WarningsStep.tsx</code> — 72 行（类 0，函数 3）</li>
+<li><code class="inline-code">commands/install-github-app/index.ts</code> — 13 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/install-github-app/install-github-app.tsx</code> — 586 行（类 0，函数 7）</li>
+<li><code class="inline-code">commands/install-github-app/setupGitHubActions.ts</code> — 325 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/install-slack-app/index.ts</code> — 12 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/install-slack-app/install-slack-app.ts</code> — 30 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/install.tsx</code> — 299 行（类 0，函数 6）</li>
+<li><code class="inline-code">commands/issue/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/keybindings/index.ts</code> — 13 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/keybindings/keybindings.ts</code> — 53 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/login/index.ts</code> — 14 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/login/login.tsx</code> — 103 行（类 0，函数 3）</li>
+<li><code class="inline-code">commands/logout/index.ts</code> — 10 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/logout/logout.tsx</code> — 81 行（类 0，函数 3）</li>
+<li><code class="inline-code">commands/mcp/addCommand.ts</code> — 280 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/mcp/index.ts</code> — 12 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/mcp/mcp.tsx</code> — 84 行（类 0，函数 4）</li>
+<li><code class="inline-code">commands/mcp/xaaIdpCommand.ts</code> — 266 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/memory/index.ts</code> — 10 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/memory/memory.tsx</code> — 89 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/mobile/index.ts</code> — 11 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/mobile/mobile.tsx</code> — 273 行（类 0，函数 6）</li>
+<li><code class="inline-code">commands/mock-limits/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/model/index.ts</code> — 16 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/model/model.tsx</code> — 296 行（类 0，函数 17）</li>
+<li><code class="inline-code">commands/oauth-refresh/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/onboarding/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/output-style/index.ts</code> — 11 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/output-style/output-style.tsx</code> — 6 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/passes/index.ts</code> — 22 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/passes/passes.tsx</code> — 23 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/perf-issue/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/permissions/index.ts</code> — 11 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/permissions/permissions.tsx</code> — 9 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/plan/index.ts</code> — 11 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/plan/plan.tsx</code> — 121 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/plugin/AddMarketplace.tsx</code> — 161 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/plugin/BrowseMarketplace.tsx</code> — 801 行（类 0，函数 4）</li>
+<li><code class="inline-code">commands/plugin/DiscoverPlugins.tsx</code> — 780 行（类 0，函数 5）</li>
+<li><code class="inline-code">commands/plugin/ManageMarketplaces.tsx</code> — 837 行（类 0，函数 3）</li>
+<li><code class="inline-code">commands/plugin/ManagePlugins.tsx</code> — 2214 行（类 0，函数 12）</li>
+<li><code class="inline-code">commands/plugin/PluginErrors.tsx</code> — 123 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/plugin/PluginOptionsDialog.tsx</code> — 356 行（类 0，函数 5）</li>
+<li><code class="inline-code">commands/plugin/PluginOptionsFlow.tsx</code> — 134 行（类 0，函数 3）</li>
+<li><code class="inline-code">commands/plugin/PluginSettings.tsx</code> — 1071 行（类 0，函数 24）</li>
+<li><code class="inline-code">commands/plugin/PluginTrustWarning.tsx</code> — 31 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/plugin/UnifiedInstalledCell.tsx</code> — 564 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/plugin/ValidatePlugin.tsx</code> — 97 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/plugin/index.tsx</code> — 10 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/plugin/parseArgs.ts</code> — 103 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/plugin/plugin.tsx</code> — 6 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/plugin/pluginDetailsHelpers.tsx</code> — 116 行（类 0，函数 3）</li>
+<li><code class="inline-code">commands/plugin/usePagination.ts</code> — 171 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/pr_comments/index.ts</code> — 50 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/privacy-settings/index.ts</code> — 14 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/privacy-settings/privacy-settings.tsx</code> — 57 行（类 0，函数 3）</li>
+<li><code class="inline-code">commands/rate-limit-options/index.ts</code> — 19 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/rate-limit-options/rate-limit-options.tsx</code> — 209 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/release-notes/index.ts</code> — 11 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/release-notes/release-notes.ts</code> — 50 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/reload-plugins/index.ts</code> — 18 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/reload-plugins/reload-plugins.ts</code> — 61 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/remote-env/index.ts</code> — 15 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/remote-env/remote-env.tsx</code> — 6 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/remote-setup/api.ts</code> — 182 行（类 1，函数 5）</li>
+<li><code class="inline-code">commands/remote-setup/index.ts</code> — 20 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/remote-setup/remote-setup.tsx</code> — 186 行（类 0，函数 4）</li>
+<li><code class="inline-code">commands/rename/generateSessionName.ts</code> — 67 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/rename/index.ts</code> — 12 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/rename/rename.ts</code> — 87 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/reset-limits/index.js</code> — 4 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/resume/index.ts</code> — 12 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/resume/resume.tsx</code> — 274 行（类 0，函数 8）</li>
+<li><code class="inline-code">commands/review/UltrareviewOverageDialog.tsx</code> — 95 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/review/reviewRemote.ts</code> — 316 行（类 0，函数 3）</li>
+<li><code class="inline-code">commands/review/ultrareviewCommand.tsx</code> — 57 行（类 0，函数 3）</li>
+<li><code class="inline-code">commands/review/ultrareviewEnabled.ts</code> — 14 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/review.ts</code> — 57 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/rewind/index.ts</code> — 13 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/rewind/rewind.ts</code> — 13 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/sandbox-toggle/index.ts</code> — 50 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/sandbox-toggle/sandbox-toggle.tsx</code> — 82 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/security-review.ts</code> — 243 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/session/index.ts</code> — 16 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/session/session.tsx</code> — 139 行（类 0，函数 6）</li>
+<li><code class="inline-code">commands/share/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/skills/index.ts</code> — 10 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/skills/skills.tsx</code> — 7 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/stats/index.ts</code> — 10 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/stats/stats.tsx</code> — 6 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/status/index.ts</code> — 12 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/status/status.tsx</code> — 7 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/statusline.tsx</code> — 23 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/stickers/index.ts</code> — 11 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/stickers/stickers.ts</code> — 16 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/summary/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/tag/index.ts</code> — 12 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/tag/tag.tsx</code> — 214 行（类 0，函数 4）</li>
+<li><code class="inline-code">commands/tasks/index.ts</code> — 11 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/tasks/tasks.tsx</code> — 7 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/teleport/index.js</code> — 1 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/terminalSetup/index.ts</code> — 23 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/terminalSetup/terminalSetup.tsx</code> — 530 行（类 0，函数 15）</li>
+<li><code class="inline-code">commands/theme/index.ts</code> — 10 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/theme/theme.tsx</code> — 56 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/thinkback/index.ts</code> — 13 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/thinkback/thinkback.tsx</code> — 553 行（类 0，函数 10）</li>
+<li><code class="inline-code">commands/thinkback-play/index.ts</code> — 17 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/thinkback-play/thinkback-play.ts</code> — 43 行（类 0，函数 2）</li>
+<li><code class="inline-code">commands/ultraplan.tsx</code> — 470 行（类 0，函数 10）</li>
+<li><code class="inline-code">commands/upgrade/index.ts</code> — 16 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/upgrade/upgrade.tsx</code> — 37 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/usage/index.ts</code> — 9 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/usage/usage.tsx</code> — 6 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/version.ts</code> — 22 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/vim/index.ts</code> — 11 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/vim/vim.ts</code> — 38 行（类 0，函数 1）</li>
+<li><code class="inline-code">commands/voice/index.ts</code> — 20 行（类 0，函数 0）</li>
+<li><code class="inline-code">commands/voice/voice.ts</code> — 150 行（类 0，函数 1）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">commands/add-dir/add-dir.tsx</code></li>
+<li>函数 AddDirError — L15</li>
+<li>函数 call — L65</li>
+<li>文件 <code class="inline-code">commands/add-dir/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/add-dir/validation.ts</code></li>
+<li>函数 validateDirectoryForWorkspace — L30</li>
+<li>函数 addDirHelpMessage — L94</li>
+<li>文件 <code class="inline-code">commands/advisor.ts</code></li>
+<li>文件 <code class="inline-code">commands/agents/agents.tsx</code></li>
+<li>函数 call — L6</li>
+<li>文件 <code class="inline-code">commands/agents/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/ant-trace/index.js</code></li>
+<li>文件 <code class="inline-code">commands/autofix-pr/index.js</code></li>
+<li>文件 <code class="inline-code">commands/backfill-sessions/index.js</code></li>
+<li>文件 <code class="inline-code">commands/branch/branch.ts</code></li>
+<li>函数 deriveFirstPrompt — L38</li>
+<li>函数 createFork — L61</li>
+<li>函数 getUniqueForkName — L179</li>
+<li>函数 call — L221</li>
+<li>文件 <code class="inline-code">commands/branch/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/break-cache/index.js</code></li>
+<li>文件 <code class="inline-code">commands/bridge/bridge.tsx</code></li>
+<li>函数 BridgeToggle — L38</li>
+<li>函数 _temp3 — L146</li>
+<li>函数 _temp2 — L149</li>
+<li>函数 _temp — L152</li>
+<li>函数 BridgeDisconnectDialog — L155</li>
+<li>函数 _temp10 — L432</li>
+<li>函数 _temp1 — L435</li>
+<li>函数 _temp0 — L438</li>
+<li>函数 _temp9 — L441</li>
+<li>函数 _temp8 — L444</li>
+<li>函数 _temp7 — L447</li>
+<li>函数 _temp6 — L458</li>
+<li>函数 _temp5 — L461</li>
+<li>函数 _temp4 — L464</li>
+<li>函数 checkBridgePrerequisites — L467</li>
+<li>函数 call — L505</li>
+<li>文件 <code class="inline-code">commands/bridge/index.ts</code></li>
+<li>函数 isEnabled — L4</li>
+<li>文件 <code class="inline-code">commands/bridge-kick.ts</code></li>
+<li>文件 <code class="inline-code">commands/brief.ts</code></li>
+<li>函数 getBriefConfig — L38</li>
+<li>文件 <code class="inline-code">commands/btw/btw.tsx</code></li>
+<li>函数 BtwSideQuestion — L36</li>
+<li>函数 _temp — L198</li>
+<li>函数 stripInProgressAssistantMessage — L201</li>
+<li>函数 buildCacheSafeParams — L208</li>
+<li>函数 call — L229</li>
+<li>文件 <code class="inline-code">commands/btw/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/bughunter/index.js</code></li>
+<li>文件 <code class="inline-code">commands/chrome/chrome.tsx</code></li>
+<li>函数 ClaudeInChromeMenu — L25</li>
+<li>函数 _temp5 — L263</li>
+<li>函数 _temp4 — L266</li>
+<li>函数 _temp3 — L269</li>
+<li>函数 _temp2 — L272</li>
+<li>函数 _temp — L275</li>
+<li>函数 call — L278</li>
+<li>文件 <code class="inline-code">commands/chrome/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/clear/caches.ts</code></li>
+<li>函数 clearSessionCaches — L47</li>
+<li>文件 <code class="inline-code">commands/clear/clear.ts</code></li>
+<li>函数 call — L3</li>
+<li>文件 <code class="inline-code">commands/clear/conversation.ts</code></li>
+<li>函数 clearConversation — L48</li>
+<li>文件 <code class="inline-code">commands/clear/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/color/color.ts</code></li>
+<li>函数 call — L19</li>
+<li>文件 <code class="inline-code">commands/color/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/commit-push-pr.ts</code></li>
+<li>函数 getPromptContent — L25</li>
+<li>文件 <code class="inline-code">commands/commit.ts</code></li>
+<li>函数 getPromptContent — L11</li>
+<li>文件 <code class="inline-code">commands/compact/compact.ts</code></li>
+<li>函数 compactViaReactive — L138</li>
+<li>函数 buildDisplayText — L229</li>
+<li>函数 getCacheSharingParams — L249</li>
+<li>函数 call — L39</li>
+<li>文件 <code class="inline-code">commands/compact/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/config/config.tsx</code></li>
+<li>函数 call — L4</li>
+<li>文件 <code class="inline-code">commands/config/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/context/context-noninteractive.ts</code></li>
+<li>函数 collectContextData — L33</li>
+<li>函数 call — L78</li>
+<li>函数 formatContextAsMarkdownTable — L89</li>
+<li>文件 <code class="inline-code">commands/context/context.tsx</code></li>
+<li>函数 toApiView — L18</li>
+<li>函数 call — L30</li>
+<li>文件 <code class="inline-code">commands/context/index.ts</code></li>
+<li>函数 context — L3</li>
+<li>函数 contextNonInteractive — L11</li>
+<li>文件 <code class="inline-code">commands/copy/copy.tsx</code></li>
+<li>函数 extractCodeBlocks — L30</li>
+<li>函数 collectRecentAssistantTexts — L50</li>
+<li>函数 fileExtension — L62</li>
+<li>函数 writeToFile — L73</li>
+<li>函数 copyOrWriteToFile — L81</li>
+<li>函数 truncateLine — L95</li>
+<li>函数 CopyPicker — L120</li>
+<li>函数 _temp2 — L320</li>
+<li>函数 _temp — L326</li>
+<li>函数 call — L334</li>
+<li>文件 <code class="inline-code">commands/copy/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/cost/cost.ts</code></li>
+<li>函数 call — L5</li>
+<li>文件 <code class="inline-code">commands/cost/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/createMovedToPluginCommand.ts</code></li>
+<li>函数 createMovedToPluginCommand — L21</li>
+<li>文件 <code class="inline-code">commands/ctx_viz/index.js</code></li>
+<li>文件 <code class="inline-code">commands/debug-tool-call/index.js</code></li>
+<li>文件 <code class="inline-code">commands/desktop/desktop.tsx</code></li>
+<li>函数 call — L4</li>
+<li>文件 <code class="inline-code">commands/desktop/index.ts</code></li>
+<li>函数 isSupportedPlatform — L2</li>
+<li>文件 <code class="inline-code">commands/diff/diff.tsx</code></li>
+<li>函数 call — L3</li>
+<li>文件 <code class="inline-code">commands/diff/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/doctor/doctor.tsx</code></li>
+<li>函数 call — L4</li>
+<li>文件 <code class="inline-code">commands/doctor/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/effort/effort.tsx</code></li>
+<li>函数 setEffortValue — L16</li>
+<li>函数 showCurrentEffort — L62</li>
+<li>函数 unsetEffortLevel — L76</li>
+<li>函数 executeEffort — L107</li>
+<li>函数 ShowCurrentEffort — L119</li>
+<li>函数 _temp — L131</li>
+<li>函数 ApplyEffortAndClose — L134</li>
+<li>函数 call — L171</li>
+<li>文件 <code class="inline-code">commands/effort/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/env/index.js</code></li>
+<li>文件 <code class="inline-code">commands/exit/exit.tsx</code></li>
+<li>函数 getRandomGoodbyeMessage — L11</li>
+<li>函数 call — L14</li>
+<li>文件 <code class="inline-code">commands/exit/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/export/export.tsx</code></li>
+<li>函数 formatTimestamp — L10</li>
+<li>函数 extractFirstPrompt — L19</li>
+<li>函数 sanitizeFilename — L42</li>
+<li>函数 exportWithReactRenderer — L49</li>
+<li>函数 call — L53</li>
+<li>文件 <code class="inline-code">commands/export/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/extra-usage/extra-usage-core.ts</code></li>
+<li>函数 runExtraUsage — L17</li>
+<li>文件 <code class="inline-code">commands/extra-usage/extra-usage-noninteractive.ts</code></li>
+<li>函数 call — L2</li>
+<li>文件 <code class="inline-code">commands/extra-usage/extra-usage.tsx</code></li>
+<li>函数 call — L6</li>
+<li>文件 <code class="inline-code">commands/extra-usage/index.ts</code></li>
+<li>函数 isExtraUsageAllowed — L5</li>
+<li>函数 extraUsage — L12</li>
+<li>函数 extraUsageNonInteractive — L20</li>
+<li>文件 <code class="inline-code">commands/fast/fast.tsx</code></li>
+<li>函数 applyFastMode — L16</li>
+<li>函数 FastModePicker — L41</li>
+<li>函数 _temp4 — L211</li>
+<li>函数 _temp3 — L214</li>
+<li>函数 _temp2 — L220</li>
+<li>函数 _temp — L223</li>
+<li>函数 handleFastModeShortcut — L226</li>
+<li>函数 call — L248</li>
+<li>文件 <code class="inline-code">commands/fast/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/feedback/feedback.tsx</code></li>
+<li>函数 renderFeedbackComponent — L8</li>
+<li>函数 call — L21</li>
+<li>文件 <code class="inline-code">commands/feedback/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/files/files.ts</code></li>
+<li>函数 call — L6</li>
+<li>文件 <code class="inline-code">commands/files/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/good-claude/index.js</code></li>
+<li>文件 <code class="inline-code">commands/heapdump/heapdump.ts</code></li>
+<li>函数 call — L2</li>
+<li>文件 <code class="inline-code">commands/heapdump/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/help/help.tsx</code></li>
+<li>函数 call — L4</li>
+<li>文件 <code class="inline-code">commands/help/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/hooks/hooks.tsx</code></li>
+<li>函数 call — L6</li>
+<li>文件 <code class="inline-code">commands/hooks/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/ide/ide.tsx</code></li>
+<li>函数 IDEScreen — L25</li>
+<li>函数 _temp3 — L198</li>
+<li>函数 _temp2 — L201</li>
+<li>函数 _temp — L204</li>
+<li>函数 findCurrentIDE — L208</li>
+<li>函数 IDEOpenSelection — L227</li>
+<li>函数 _temp4 — L310</li>
+<li>函数 RunningIDESelector — L316</li>
+<li>函数 _temp5 — L389</li>
+<li>函数 InstallOnMount — L395</li>
+<li>函数 call — L419</li>
+<li>函数 IDECommandFlow — L518</li>
+<li>函数 formatWorkspaceFolders — L612</li>
+<li>文件 <code class="inline-code">commands/ide/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/init-verifiers.ts</code></li>
+<li>文件 <code class="inline-code">commands/init.ts</code></li>
+<li>文件 <code class="inline-code">commands/insights.ts</code></li>
+<li>函数 getAnalysisModel — L41</li>
+<li>函数 getInsightsModel — L46</li>
+<li>函数 getDataDir — L420</li>
+<li>函数 getFacetsDir — L423</li>
+<li>函数 getSessionMetaDir — L426</li>
+<li>函数 getLanguageFromPath — L461</li>
+<li>函数 extractToolStats — L466</li>
+<li>函数 hasValidDates — L729</li>
+<li>函数 logToSessionMeta — L736</li>
+<li>函数 deduplicateSessionBranches — L812</li>
+<li>函数 formatTranscriptForFacets — L830</li>
+<li>函数 summarizeTranscriptChunk — L880</li>
+<li>函数 formatTranscriptWithSummarization — L905</li>
+<li>函数 loadCachedFacets — L940</li>
+<li>函数 saveFacets — L962</li>
+<li>函数 loadCachedSessionMeta — L975</li>
+<li>函数 saveSessionMeta — L987</li>
+<li>函数 extractFacetsFromAPI — L1000</li>
+<li>函数 detectMultiClauding — L1062</li>
+<li>函数 aggregateData — L1144</li>
+<li>函数 generateSectionInsight — L1571</li>
+<li>函数 generateParallelInsights — L1611</li>
+<li>函数 escapeHtmlWithBold — L1801</li>
+<li>函数 generateBarChart — L1823</li>
+<li>函数 generateResponseTimeHistogram — L1862</li>
+<li>函数 generateTimeOfDayChart — L1901</li>
+<li>函数 getHourCountsJson — L1938</li>
+<li>函数 generateHtmlReport — L1946</li>
+<li>函数 toggleCollapsible — L2387</li>
+<li>函数 copyText — L2392</li>
+<li>函数 copyCmdItem — L2399</li>
+<li>函数 copyAllCheckedClaudeMd — L2409</li>
+<li>函数 updateHourHistogram — L2427</li>
+<li>函数 buildExportData — L2679</li>
+<li>函数 scanAllSessions — L2755</li>
+<li>函数 generateUsageReport — L2795</li>
+<li>函数 safeEntries — L3024</li>
+<li>函数 safeKeys — L3030</li>
+<li>函数 isValidSessionFacets — L3183</li>
+<li>文件 <code class="inline-code">commands/install-github-app/ApiKeyStep.tsx</code></li>
+<li>函数 ApiKeyStep — L18</li>
+<li>文件 <code class="inline-code">commands/install-github-app/CheckExistingSecretStep.tsx</code></li>
+<li>函数 CheckExistingSecretStep — L14</li>
+<li>文件 <code class="inline-code">commands/install-github-app/CheckGitHubStep.tsx</code></li>
+<li>函数 CheckGitHubStep — L4</li>
+<li>文件 <code class="inline-code">commands/install-github-app/ChooseRepoStep.tsx</code></li>
+<li>函数 ChooseRepoStep — L15</li>
+<li>文件 <code class="inline-code">commands/install-github-app/CreatingStep.tsx</code></li>
+<li>函数 CreatingStep — L13</li>
+<li>文件 <code class="inline-code">commands/install-github-app/ErrorStep.tsx</code></li>
+<li>函数 ErrorStep — L10</li>
+<li>函数 _temp — L82</li>
+<li>文件 <code class="inline-code">commands/install-github-app/ExistingWorkflowStep.tsx</code></li>
+<li>函数 ExistingWorkflowStep — L9</li>
+<li>文件 <code class="inline-code">commands/install-github-app/InstallAppStep.tsx</code></li>
+<li>函数 InstallAppStep — L11</li>
+<li>文件 <code class="inline-code">commands/install-github-app/OAuthFlowStep.tsx</code></li>
+<li>函数 OAuthFlowStep — L36</li>
+<li>函数 handleKeyDown — L53</li>
+<li>函数 handleSubmitCode — L67</li>
+<li>函数 renderStatusMessage — L198</li>
+<li>文件 <code class="inline-code">commands/install-github-app/SuccessStep.tsx</code></li>
+<li>函数 SuccessStep — L10</li>
+<li>文件 <code class="inline-code">commands/install-github-app/WarningsStep.tsx</code></li>
+<li>函数 WarningsStep — L12</li>
+<li>函数 _temp2 — L67</li>
+<li>函数 _temp — L70</li>
+<li>文件 <code class="inline-code">commands/install-github-app/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/install-github-app/install-github-app.tsx</code></li>
+<li>函数 InstallGitHubApp — L46</li>
+<li>函数 openGitHubAppInstallation — L183</li>
+<li>函数 checkRepositoryPermissions — L187</li>
+<li>函数 checkExistingWorkflowFile — L214</li>
+<li>函数 checkExistingSecret — L218</li>
+<li>函数 handleDismissKeyDown — L528</li>
+<li>函数 call — L584</li>
+<li>文件 <code class="inline-code">commands/install-github-app/setupGitHubActions.ts</code></li>
+<li>函数 createWorkflowFile — L16</li>
+<li>函数 setupGitHubActions — L111</li>
+<li>文件 <code class="inline-code">commands/install-slack-app/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/install-slack-app/install-slack-app.ts</code></li>
+<li>函数 call — L7</li>
+<li>文件 <code class="inline-code">commands/install.tsx</code></li>
+<li>函数 getInstallationPath — L42</li>
+<li>函数 SetupNotes — L53</li>
+<li>函数 _temp — L86</li>
+<li>函数 Install — L89</li>
+<li>函数 run — L98</li>
+<li>函数 install — L279</li>
+<li>文件 <code class="inline-code">commands/issue/index.js</code></li>
+<li>文件 <code class="inline-code">commands/keybindings/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/keybindings/keybindings.ts</code></li>
+<li>函数 call — L10</li>
+<li>文件 <code class="inline-code">commands/login/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/login/login.tsx</code></li>
+<li>函数 call — L19</li>
+<li>函数 Login — L60</li>
+<li>函数 _temp — L101</li>
+<li>文件 <code class="inline-code">commands/logout/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/logout/logout.tsx</code></li>
+<li>函数 performLogout — L16</li>
+<li>函数 clearAuthRelatedCaches — L51</li>
+<li>函数 call — L72</li>
+<li>文件 <code class="inline-code">commands/mcp/addCommand.ts</code></li>
+<li>函数 registerMcpAddCommand — L33</li>
+<li>文件 <code class="inline-code">commands/mcp/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/mcp/mcp.tsx</code></li>
+<li>函数 MCPToggle — L12</li>
+<li>函数 _temp2 — L57</li>
+<li>函数 _temp — L60</li>
+<li>函数 call — L63</li>
+<li>文件 <code class="inline-code">commands/mcp/xaaIdpCommand.ts</code></li>
+<li>函数 registerMcpXaaIdpCommand — L23</li>
+<li>文件 <code class="inline-code">commands/memory/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/memory/memory.tsx</code></li>
+<li>函数 MemoryCommand — L14</li>
+<li>函数 call — L83</li>
+<li>文件 <code class="inline-code">commands/mobile/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/mobile/mobile.tsx</code></li>
+<li>函数 MobileQRCode — L24</li>
+<li>函数 _temp4 — L261</li>
+<li>函数 _temp3 — L264</li>
+<li>函数 _temp2 — L267</li>
+<li>函数 _temp — L270</li>
+<li>函数 call — L271</li>
+<li>文件 <code class="inline-code">commands/mock-limits/index.js</code></li>
+<li>文件 <code class="inline-code">commands/model/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/model/model.tsx</code></li>
+<li>函数 ModelPickerWrapper — L18</li>
+<li>函数 _temp4 — L115</li>
+<li>函数 _temp3 — L121</li>
+<li>函数 _temp2 — L124</li>
+<li>函数 _temp — L127</li>
+<li>函数 SetModelAndClose — L130</li>
+<li>函数 handleModelChange — L143</li>
+<li>函数 setModel — L198</li>
+<li>函数 isKnownAlias — L233</li>
+<li>函数 isOpus1mUnavailable — L236</li>
+<li>函数 isSonnet1mUnavailable — L240</li>
+<li>函数 ShowModelAndClose — L246</li>
+<li>函数 _temp9 — L262</li>
+<li>函数 _temp8 — L265</li>
+<li>函数 _temp7 — L268</li>
+<li>函数 renderModelLabel — L293</li>
+<li>函数 call — L271</li>
+<li>文件 <code class="inline-code">commands/oauth-refresh/index.js</code></li>
+<li>文件 <code class="inline-code">commands/onboarding/index.js</code></li>
+<li>文件 <code class="inline-code">commands/output-style/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/output-style/output-style.tsx</code></li>
+<li>函数 call — L2</li>
+<li>文件 <code class="inline-code">commands/passes/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/passes/passes.tsx</code></li>
+<li>函数 call — L7</li>
+<li>文件 <code class="inline-code">commands/perf-issue/index.js</code></li>
+<li>文件 <code class="inline-code">commands/permissions/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/permissions/permissions.tsx</code></li>
+<li>函数 call — L5</li>
+<li>文件 <code class="inline-code">commands/plan/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/plan/plan.tsx</code></li>
+<li>函数 PlanDisplay — L14</li>
+<li>函数 call — L64</li>
+<li>文件 <code class="inline-code">commands/plugin/AddMarketplace.tsx</code></li>
+<li>函数 AddMarketplace — L29</li>
+<li>文件 <code class="inline-code">commands/plugin/BrowseMarketplace.tsx</code></li>
+<li>函数 BrowseMarketplace — L49</li>
+<li>函数 loadMarketplaceData — L126</li>
+<li>函数 loadPluginsForMarketplace — L249</li>
+<li>函数 finish — L544</li>
+<li>文件 <code class="inline-code">commands/plugin/DiscoverPlugins.tsx</code></li>
+<li>函数 DiscoverPlugins — L48</li>
+<li>函数 loadAllPlugins — L124</li>
+<li>函数 finish — L469</li>
+<li>函数 DiscoverPluginsKeyHint — L651</li>
+<li>函数 EmptyStateMessage — L706</li>
+<li>文件 <code class="inline-code">commands/plugin/ManageMarketplaces.tsx</code></li>
+<li>函数 ManageMarketplaces — L49</li>
+<li>函数 loadMarketplaces — L73</li>
+<li>函数 ManageMarketplacesKeyHints — L766</li>
+<li>文件 <code class="inline-code">commands/plugin/ManagePlugins.tsx</code></li>
+<li>函数 getBaseFileNames — L129</li>
+<li>函数 getSkillDirNames — L160</li>
+<li>函数 PluginComponentsDisplay — L194</li>
+<li>函数 loadComponents — L211</li>
+<li>函数 checkIfLocalPlugin — L376</li>
+<li>函数 filterManagedDisabledPlugins — L391</li>
+<li>函数 ManagePlugins — L397</li>
+<li>函数 detectMcpb — L827</li>
+<li>函数 loadInstalledPlugins — L861</li>
+<li>函数 finish — L1633</li>
+<li>函数 handleSave — L1678</li>
+<li>函数 handleCancel — L1714</li>
+<li>文件 <code class="inline-code">commands/plugin/PluginErrors.tsx</code></li>
+<li>函数 formatErrorMessage — L2</li>
+<li>函数 getErrorGuidance — L61</li>
+<li>文件 <code class="inline-code">commands/plugin/PluginOptionsDialog.tsx</code></li>
+<li>函数 buildFinalValues — L24</li>
+<li>函数 PluginOptionsDialog — L55</li>
+<li>函数 _temp3 — L348</li>
+<li>函数 _temp2 — L351</li>
+<li>函数 _temp — L354</li>
+<li>文件 <code class="inline-code">commands/plugin/PluginOptionsFlow.tsx</code></li>
+<li>函数 findPluginOptionsTarget — L27</li>
+<li>函数 PluginOptionsFlow — L59</li>
+<li>函数 handleSave — L115</li>
+<li>文件 <code class="inline-code">commands/plugin/PluginSettings.tsx</code></li>
+<li>函数 MarketplaceList — L31</li>
+<li>函数 _temp — L75</li>
+<li>函数 McpRedirectBanner — L78</li>
+<li>函数 getExtraMarketplaceSourceInfo — L113</li>
+<li>函数 buildMarketplaceAction — L153</li>
+<li>函数 buildPluginAction — L184</li>
+<li>函数 isTransientError — L196</li>
+<li>函数 getPluginNameFromError — L204</li>
+<li>函数 buildErrorRows — L211</li>
+<li>函数 removeExtraMarketplace — L317</li>
+<li>函数 ErrorsTabContent — L357</li>
+<li>函数 _temp9 — L600</li>
+<li>函数 _temp8 — L603</li>
+<li>函数 _temp7 — L606</li>
+<li>函数 _temp6 — L615</li>
+<li>函数 _temp5 — L624</li>
+<li>函数 _temp4 — L627</li>
+<li>函数 _temp3 — L630</li>
+<li>函数 _temp2 — L633</li>
+<li>函数 getInitialViewState — L636</li>
+<li>函数 getInitialTab — L723</li>
+<li>函数 PluginSettings — L728</li>
+<li>函数 _temp1 — L1054</li>
+<li>函数 _temp0 — L1063</li>
+<li>文件 <code class="inline-code">commands/plugin/PluginTrustWarning.tsx</code></li>
+<li>函数 PluginTrustWarning — L6</li>
+<li>文件 <code class="inline-code">commands/plugin/UnifiedInstalledCell.tsx</code></li>
+<li>函数 UnifiedInstalledCell — L11</li>
+<li>文件 <code class="inline-code">commands/plugin/ValidatePlugin.tsx</code></li>
+<li>函数 ValidatePlugin — L14</li>
+<li>文件 <code class="inline-code">commands/plugin/index.tsx</code></li>
+<li>文件 <code class="inline-code">commands/plugin/parseArgs.ts</code></li>
+<li>函数 parsePluginArgs — L16</li>
+<li>文件 <code class="inline-code">commands/plugin/plugin.tsx</code></li>
+<li>函数 call — L4</li>
+<li>文件 <code class="inline-code">commands/plugin/pluginDetailsHelpers.tsx</code></li>
+<li>函数 extractGitHubRepo — L35</li>
+<li>函数 buildPluginDetailsMenuOptions — L46</li>
+<li>函数 PluginSelectionKeyHint — L79</li>
+<li>文件 <code class="inline-code">commands/plugin/usePagination.ts</code></li>
+<li>函数 usePagination — L47</li>
+<li>文件 <code class="inline-code">commands/pr_comments/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/privacy-settings/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/privacy-settings/privacy-settings.tsx</code></li>
+<li>函数 call — L7</li>
+<li>函数 onDoneWithDecision — L21</li>
+<li>函数 onDoneWithSettingsCheck — L30</li>
+<li>文件 <code class="inline-code">commands/rate-limit-options/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/rate-limit-options/rate-limit-options.tsx</code></li>
+<li>函数 RateLimitOptionsMenu — L24</li>
+<li>函数 call — L207</li>
+<li>文件 <code class="inline-code">commands/release-notes/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/release-notes/release-notes.ts</code></li>
+<li>函数 formatReleaseNotes — L8</li>
+<li>函数 call — L18</li>
+<li>文件 <code class="inline-code">commands/reload-plugins/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/reload-plugins/reload-plugins.ts</code></li>
+<li>函数 n — L58</li>
+<li>函数 call — L9</li>
+<li>文件 <code class="inline-code">commands/remote-env/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/remote-env/remote-env.tsx</code></li>
+<li>函数 call — L4</li>
+<li>文件 <code class="inline-code">commands/remote-setup/api.ts</code></li>
+<li>类 RedactedGithubToken — L16</li>
+<li>函数 importGithubToken — L51</li>
+<li>函数 hasExistingEnvironment — L101</li>
+<li>函数 createDefaultEnvironment — L119</li>
+<li>函数 isSignedIn — L171</li>
+<li>函数 getCodeWebUrl — L179</li>
+<li>文件 <code class="inline-code">commands/remote-setup/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/remote-setup/remote-setup.tsx</code></li>
+<li>函数 checkLoginState — L23</li>
+<li>函数 errorMessage — L62</li>
+<li>函数 Web — L82</li>
+<li>函数 call — L184</li>
+<li>文件 <code class="inline-code">commands/rename/generateSessionName.ts</code></li>
+<li>函数 generateSessionName — L9</li>
+<li>文件 <code class="inline-code">commands/rename/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/rename/rename.ts</code></li>
+<li>函数 call — L20</li>
+<li>文件 <code class="inline-code">commands/reset-limits/index.js</code></li>
+<li>函数 resetLimits — L3</li>
+<li>函数 resetLimitsNonInteractive — L4</li>
+<li>文件 <code class="inline-code">commands/resume/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/resume/resume.tsx</code></li>
+<li>函数 resumeHelpMessage — L31</li>
+<li>函数 ResumeError — L39</li>
+<li>函数 ResumeCommand — L89</li>
+<li>函数 init — L124</li>
+<li>函数 handleSelect — L136</li>
+<li>函数 handleCancel — L172</li>
+<li>函数 filterResumableSessions — L191</li>
+<li>函数 call — L194</li>
+<li>文件 <code class="inline-code">commands/review/UltrareviewOverageDialog.tsx</code></li>
+<li>函数 UltrareviewOverageDialog — L10</li>
+<li>文件 <code class="inline-code">commands/review/reviewRemote.ts</code></li>
+<li>函数 confirmOverage — L37</li>
+<li>函数 checkOverageGate — L52</li>
+<li>函数 launchRemoteReview — L128</li>
+<li>文件 <code class="inline-code">commands/review/ultrareviewCommand.tsx</code></li>
+<li>函数 contentBlocksToString — L6</li>
+<li>函数 launchAndDone — L9</li>
+<li>函数 call — L28</li>
+<li>文件 <code class="inline-code">commands/review/ultrareviewEnabled.ts</code></li>
+<li>函数 isUltrareviewEnabled — L8</li>
+<li>文件 <code class="inline-code">commands/review.ts</code></li>
+<li>文件 <code class="inline-code">commands/rewind/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/rewind/rewind.ts</code></li>
+<li>函数 call — L3</li>
+<li>文件 <code class="inline-code">commands/sandbox-toggle/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/sandbox-toggle/sandbox-toggle.tsx</code></li>
+<li>函数 call — L10</li>
+<li>文件 <code class="inline-code">commands/security-review.ts</code></li>
+<li>文件 <code class="inline-code">commands/session/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/session/session.tsx</code></li>
+<li>函数 SessionInfo — L14</li>
+<li>函数 _temp4 — L125</li>
+<li>函数 _temp3 — L128</li>
+<li>函数 _temp2 — L131</li>
+<li>函数 _temp — L134</li>
+<li>函数 call — L137</li>
+<li>文件 <code class="inline-code">commands/share/index.js</code></li>
+<li>文件 <code class="inline-code">commands/skills/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/skills/skills.tsx</code></li>
+<li>函数 call — L5</li>
+<li>文件 <code class="inline-code">commands/stats/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/stats/stats.tsx</code></li>
+<li>函数 call — L4</li>
+<li>文件 <code class="inline-code">commands/status/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/status/status.tsx</code></li>
+<li>函数 call — L5</li>
+<li>文件 <code class="inline-code">commands/statusline.tsx</code></li>
+<li>文件 <code class="inline-code">commands/stickers/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/stickers/stickers.ts</code></li>
+<li>函数 call — L3</li>
+<li>文件 <code class="inline-code">commands/summary/index.js</code></li>
+<li>文件 <code class="inline-code">commands/tag/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/tag/tag.tsx</code></li>
+<li>函数 ConfirmRemoveTag — L15</li>
+<li>函数 ToggleTagAndClose — L72</li>
+<li>函数 ShowHelp — L181</li>
+<li>函数 call — L205</li>
+<li>文件 <code class="inline-code">commands/tasks/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/tasks/tasks.tsx</code></li>
+<li>函数 call — L5</li>
+<li>文件 <code class="inline-code">commands/teleport/index.js</code></li>
+<li>文件 <code class="inline-code">commands/terminalSetup/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/terminalSetup/terminalSetup.tsx</code></li>
+<li>函数 isVSCodeRemoteSSH — L39</li>
+<li>函数 getNativeCSIuTerminalDisplayName — L47</li>
+<li>函数 formatPathLink — L65</li>
+<li>函数 shouldOfferTerminalSetup — L73</li>
+<li>函数 setupTerminal — L79</li>
+<li>函数 isShiftEnterKeyBindingInstalled — L127</li>
+<li>函数 hasUsedBackslashReturn — L130</li>
+<li>函数 markBackslashReturnUsed — L133</li>
+<li>函数 call — L142</li>
+<li>函数 installBindingsForVSCodeTerminal — L194</li>
+<li>函数 enableOptionAsMetaForProfile — L270</li>
+<li>函数 disableAudioBellForProfile — L289</li>
+<li>函数 enableOptionAsMetaForTerminal — L310</li>
+<li>函数 installBindingsForAlacritty — L373</li>
+<li>函数 installBindingsForZed — L462</li>
+<li>文件 <code class="inline-code">commands/theme/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/theme/theme.tsx</code></li>
+<li>函数 ThemePickerCommand — L13</li>
+<li>函数 call — L54</li>
+<li>文件 <code class="inline-code">commands/thinkback/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/thinkback/thinkback.tsx</code></li>
+<li>函数 getMarketplaceName — L31</li>
+<li>函数 getMarketplaceRepo — L34</li>
+<li>函数 getPluginId — L37</li>
+<li>函数 getThinkbackSkillDir — L45</li>
+<li>函数 playAnimation — L59</li>
+<li>函数 ThinkbackInstaller — L152</li>
+<li>函数 checkAndInstall — L164</li>
+<li>函数 ThinkbackMenu — L271</li>
+<li>函数 ThinkbackFlow — L387</li>
+<li>函数 call — L548</li>
+<li>文件 <code class="inline-code">commands/thinkback-play/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/thinkback-play/thinkback-play.ts</code></li>
+<li>函数 getPluginId — L9</li>
+<li>函数 call — L17</li>
+<li>文件 <code class="inline-code">commands/ultraplan.tsx</code></li>
+<li>函数 getUltraplanModel — L32</li>
+<li>函数 buildUltraplanPrompt — L63</li>
+<li>函数 startDetachedPoll — L74</li>
+<li>函数 buildLaunchMessage — L185</li>
+<li>函数 buildSessionReadyMessage — L189</li>
+<li>函数 buildAlreadyActiveMessage — L192</li>
+<li>函数 stopUltraplan — L203</li>
+<li>函数 launchUltraplan — L234</li>
+<li>函数 launchDetached — L294</li>
+<li>函数 CCR_TERMS_URL — L25</li>
+<li>文件 <code class="inline-code">commands/upgrade/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/upgrade/upgrade.tsx</code></li>
+<li>函数 call — L9</li>
+<li>文件 <code class="inline-code">commands/usage/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/usage/usage.tsx</code></li>
+<li>函数 call — L4</li>
+<li>文件 <code class="inline-code">commands/version.ts</code></li>
+<li>文件 <code class="inline-code">commands/vim/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/vim/vim.ts</code></li>
+<li>函数 call — L7</li>
+<li>文件 <code class="inline-code">commands/voice/index.ts</code></li>
+<li>文件 <code class="inline-code">commands/voice/voice.ts</code></li>
+<li>函数 call — L15</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>commands/add-dir/add-dir.tsx → import bootstrap（内部）</li>
+<li>commands/add-dir/add-dir.tsx → import commands（外部）</li>
+<li>commands/add-dir/add-dir.tsx → import components（内部）</li>
+<li>commands/add-dir/add-dir.tsx → import ink（内部）</li>
+<li>commands/add-dir/add-dir.tsx → import types（内部）</li>
+<li>commands/add-dir/add-dir.tsx → import utils（内部）</li>
+<li>commands/add-dir/index.ts → import commands（外部）</li>
+<li>commands/add-dir/validation.ts → import Tool（内部）</li>
+<li>commands/add-dir/validation.ts → import utils（内部）</li>
+<li>commands/advisor.ts → import commands（外部）</li>
+<li>commands/advisor.ts → import types（内部）</li>
+<li>commands/advisor.ts → import utils（内部）</li>
+<li>commands/agents/agents.tsx → import components（内部）</li>
+<li>commands/agents/agents.tsx → import Tool（内部）</li>
+<li>commands/agents/agents.tsx → import tools（内部）</li>
+<li>commands/agents/agents.tsx → import types（内部）</li>
+<li>commands/agents/index.ts → import commands（外部）</li>
+<li>commands/branch/branch.ts → import bootstrap（内部）</li>
+<li>commands/branch/branch.ts → import commands（外部）</li>
+<li>commands/branch/branch.ts → import services（内部）</li>
+<li>commands/branch/branch.ts → import types（内部）</li>
+<li>commands/branch/branch.ts → import utils（内部）</li>
+<li>commands/branch/index.ts → import commands（外部）</li>
+<li>commands/bridge/bridge.tsx → import bridge（内部）</li>
+<li>commands/bridge/bridge.tsx → import components（内部）</li>
+<li>commands/bridge/bridge.tsx → import context（内部）</li>
+<li>commands/bridge/bridge.tsx → import ink（内部）</li>
+<li>commands/bridge/bridge.tsx → import keybindings（内部）</li>
+<li>commands/bridge/bridge.tsx → import services（内部）</li>
+<li>commands/bridge/bridge.tsx → import state（内部）</li>
+<li>commands/bridge/bridge.tsx → import Tool（内部）</li>
+<li>commands/bridge/bridge.tsx → import types（内部）</li>
+<li>commands/bridge/bridge.tsx → import utils（内部）</li>
+<li>commands/bridge/index.ts → import bridge（内部）</li>
+<li>commands/bridge/index.ts → import commands（外部）</li>
+<li>commands/bridge-kick.ts → import bridge（内部）</li>
+<li>commands/bridge-kick.ts → import commands（外部）</li>
+<li>commands/bridge-kick.ts → import types（内部）</li>
+<li>commands/brief.ts → import bootstrap（内部）</li>
+<li>commands/brief.ts → import services（内部）</li>
+<li>commands/brief.ts → import Tool（内部）</li>
+<li>commands/brief.ts → import tools（内部）</li>
+<li>commands/brief.ts → import types（内部）</li>
+<li>commands/brief.ts → import utils（内部）</li>
+<li>commands/btw/btw.tsx → import commands（外部）</li>
+<li>commands/btw/btw.tsx → import components（内部）</li>
+<li>commands/btw/btw.tsx → import constants（内部）</li>
+<li>commands/btw/btw.tsx → import context（内部）</li>
+<li>commands/btw/btw.tsx → import hooks（内部）</li>
+<li>commands/btw/btw.tsx → import ink（内部）</li>
+<li>commands/btw/btw.tsx → import types（内部）</li>
+<li>commands/btw/btw.tsx → import utils（内部）</li>
+<li>commands/btw/index.ts → import commands（外部）</li>
+<li>commands/chrome/chrome.tsx → import components（内部）</li>
+<li>commands/chrome/chrome.tsx → import ink（内部）</li>
+<li>commands/chrome/chrome.tsx → import state（内部）</li>
+<li>commands/chrome/chrome.tsx → import utils（内部）</li>
+<li>commands/chrome/index.ts → import bootstrap（内部）</li>
+<li>commands/chrome/index.ts → import commands（外部）</li>
+<li>commands/clear/caches.ts → import bootstrap（内部）</li>
+<li>commands/clear/caches.ts → import commands（外部）</li>
+<li>commands/clear/caches.ts → import constants（内部）</li>
+<li>commands/clear/caches.ts → import context（内部）</li>
+<li>commands/clear/caches.ts → import hooks（内部）</li>
+<li>commands/clear/caches.ts → import services（内部）</li>
+<li>commands/clear/caches.ts → import skills（内部）</li>
+<li>commands/clear/caches.ts → import utils（内部）</li>
+<li>commands/clear/clear.ts → import types（内部）</li>
+<li>commands/clear/clear.ts → import commands（外部）</li>
+<li>commands/clear/conversation.ts → import bootstrap（内部）</li>
+<li>commands/clear/conversation.ts → import services（内部）</li>
+<li>commands/clear/conversation.ts → import state（内部）</li>
+<li>commands/clear/conversation.ts → import tasks（内部）</li>
+<li>commands/clear/conversation.ts → import types（内部）</li>
+<li>commands/clear/conversation.ts → import utils（内部）</li>
+<li>commands/clear/conversation.ts → import commands（外部）</li>
+<li>commands/clear/conversation.ts → import proactive（外部）</li>
+<li>commands/clear/conversation.ts → import coordinator（内部）</li>
+<li>commands/clear/index.ts → import commands（外部）</li>
+<li>commands/color/color.ts → import bootstrap（内部）</li>
+<li>commands/color/color.ts → import Tool（内部）</li>
+<li>commands/color/color.ts → import tools（内部）</li>
+<li>commands/color/color.ts → import types（内部）</li>
+<li>commands/color/color.ts → import utils（内部）</li>
+<li>commands/color/index.ts → import commands（外部）</li>
+<li>commands/commit-push-pr.ts → import commands（外部）</li>
+<li>commands/commit-push-pr.ts → import utils（内部）</li>
+<li>commands/commit.ts → import commands（外部）</li>
+<li>commands/commit.ts → import utils（内部）</li>
+<li>commands/compact/compact.ts → import bootstrap（内部）</li>
+<li>commands/compact/compact.ts → import constants（内部）</li>
+<li>commands/compact/compact.ts → import context（内部）</li>
+<li>commands/compact/compact.ts → import keybindings（内部）</li>
+<li>commands/compact/compact.ts → import services（内部）</li>
+<li>commands/compact/compact.ts → import Tool（内部）</li>
+<li>commands/compact/compact.ts → import types（内部）</li>
+<li>commands/compact/compact.ts → import utils（内部）</li>
+<li>commands/compact/index.ts → import commands（外部）</li>
+<li>commands/compact/index.ts → import utils（内部）</li>
+<li>commands/config/config.tsx → import components（内部）</li>
+<li>commands/config/config.tsx → import types（内部）</li>
+<li>commands/config/index.ts → import commands（外部）</li>
+<li>commands/context/context-noninteractive.ts → import services（内部）</li>
+<li>commands/context/context-noninteractive.ts → import state（内部）</li>
+<li>commands/context/context-noninteractive.ts → import Tool（内部）</li>
+<li>commands/context/context-noninteractive.ts → import tools（内部）</li>
+<li>commands/context/context-noninteractive.ts → import types（内部）</li>
+<li>commands/context/context-noninteractive.ts → import utils（内部）</li>
+<li>commands/context/context.tsx → import commands（外部）</li>
+<li>commands/context/context.tsx → import components（内部）</li>
+<li>commands/context/context.tsx → import services（内部）</li>
+<li>commands/context/context.tsx → import types（内部）</li>
+<li>commands/context/context.tsx → import utils（内部）</li>
+<li>commands/context/index.ts → import bootstrap（内部）</li>
+<li>commands/context/index.ts → import commands（外部）</li>
+<li>commands/copy/copy.tsx → import commands（外部）</li>
+<li>commands/copy/copy.tsx → import components（内部）</li>
+<li>commands/copy/copy.tsx → import ink（内部）</li>
+<li>commands/copy/copy.tsx → import services（内部）</li>
+<li>commands/copy/copy.tsx → import types（内部）</li>
+<li>commands/copy/copy.tsx → import utils（内部）</li>
+<li>commands/copy/index.ts → import commands（外部）</li>
+<li>commands/cost/cost.ts → import cost-tracker（内部）</li>
+<li>commands/cost/cost.ts → import services（内部）</li>
+<li>commands/cost/cost.ts → import types（内部）</li>
+<li>commands/cost/cost.ts → import utils（内部）</li>
+<li>commands/cost/index.ts → import commands（外部）</li>
+<li>commands/cost/index.ts → import utils（内部）</li>
+<li>commands/createMovedToPluginCommand.ts → import commands（外部）</li>
+<li>commands/createMovedToPluginCommand.ts → import Tool（内部）</li>
+<li>commands/desktop/desktop.tsx → import commands（外部）</li>
+<li>commands/desktop/desktop.tsx → import components（内部）</li>
+<li>commands/desktop/index.ts → import commands（外部）</li>
+<li>commands/diff/diff.tsx → import types（内部）</li>
+<li>commands/diff/index.ts → import commands（外部）</li>
+<li>commands/doctor/doctor.tsx → import screens（内部）</li>
+<li>commands/doctor/doctor.tsx → import types（内部）</li>
+<li>commands/doctor/index.ts → import commands（外部）</li>
+<li>commands/doctor/index.ts → import utils（内部）</li>
+<li>commands/effort/effort.tsx → import hooks（内部）</li>
+<li>commands/effort/effort.tsx → import services（内部）</li>
+<li>commands/effort/effort.tsx → import state（内部）</li>
+<li>commands/effort/effort.tsx → import types（内部）</li>
+<li>commands/effort/effort.tsx → import utils（内部）</li>
+<li>commands/effort/index.ts → import commands（外部）</li>
+<li>commands/effort/index.ts → import utils（内部）</li>
+<li>commands/exit/exit.tsx → import components（内部）</li>
+<li>commands/exit/exit.tsx → import types（内部）</li>
+<li>commands/exit/exit.tsx → import utils（内部）</li>
+<li>commands/exit/index.ts → import commands（外部）</li>
+<li>commands/export/export.tsx → import components（内部）</li>
+<li>commands/export/export.tsx → import Tool（内部）</li>
+<li>commands/export/export.tsx → import types（内部）</li>
+<li>commands/export/export.tsx → import utils（内部）</li>
+<li>commands/export/index.ts → import commands（外部）</li>
+<li>commands/extra-usage/extra-usage-core.ts → import services（内部）</li>
+<li>commands/extra-usage/extra-usage-core.ts → import utils（内部）</li>
+<li>commands/extra-usage/extra-usage-noninteractive.ts → import commands（外部）</li>
+<li>commands/extra-usage/extra-usage.tsx → import commands（外部）</li>
+<li>commands/extra-usage/extra-usage.tsx → import types（内部）</li>
+<li>commands/extra-usage/index.ts → import bootstrap（内部）</li>
+<li>commands/extra-usage/index.ts → import commands（外部）</li>
+<li>commands/extra-usage/index.ts → import utils（内部）</li>
+<li>commands/fast/fast.tsx → import commands（外部）</li>
+<li>commands/fast/fast.tsx → import components（内部）</li>
+<li>commands/fast/fast.tsx → import ink（内部）</li>
+<li>commands/fast/fast.tsx → import keybindings（内部）</li>
+<li>commands/fast/fast.tsx → import services（内部）</li>
+<li>commands/fast/fast.tsx → import state（内部）</li>
+<li>commands/fast/fast.tsx → import types（内部）</li>
+<li>commands/fast/fast.tsx → import utils（内部）</li>
+<li>commands/fast/index.ts → import commands（外部）</li>
+<li>commands/fast/index.ts → import utils（内部）</li>
+<li>commands/feedback/feedback.tsx → import commands（外部）</li>
+<li>commands/feedback/feedback.tsx → import components（内部）</li>
+<li>commands/feedback/feedback.tsx → import types（内部）</li>
+<li>commands/feedback/index.ts → import commands（外部）</li>
+<li>commands/feedback/index.ts → import services（内部）</li>
+<li>commands/feedback/index.ts → import utils（内部）</li>
+<li>commands/files/files.ts → import Tool（内部）</li>
+<li>commands/files/files.ts → import types（内部）</li>
+<li>commands/files/files.ts → import utils（内部）</li>
+<li>commands/files/index.ts → import commands（外部）</li>
+<li>commands/heapdump/heapdump.ts → import utils（内部）</li>
+<li>commands/heapdump/index.ts → import commands（外部）</li>
+<li>commands/help/help.tsx → import components（内部）</li>
+<li>commands/help/help.tsx → import types（内部）</li>
+<li>commands/help/index.ts → import commands（外部）</li>
+<li>commands/hooks/hooks.tsx → import components（内部）</li>
+<li>commands/hooks/hooks.tsx → import services（内部）</li>
+<li>commands/hooks/hooks.tsx → import tools（内部）</li>
+<li>commands/hooks/hooks.tsx → import types（内部）</li>
+<li>commands/hooks/index.ts → import commands（外部）</li>
+<li>commands/ide/ide.tsx → import services（内部）</li>
+<li>commands/ide/ide.tsx → import commands（外部）</li>
+<li>commands/ide/ide.tsx → import components（内部）</li>
+<li>commands/ide/ide.tsx → import ink（内部）</li>
+<li>commands/ide/ide.tsx → import state（内部）</li>
+<li>commands/ide/ide.tsx → import utils（内部）</li>
+<li>commands/ide/index.ts → import commands（外部）</li>
+<li>commands/init-verifiers.ts → import commands（外部）</li>
+<li>commands/init.ts → import commands（外部）</li>
+<li>commands/init.ts → import projectOnboardingState（内部）</li>
+<li>commands/init.ts → import utils（内部）</li>
+<li>commands/insights.ts → import commands（外部）</li>
+<li>commands/insights.ts → import services（内部）</li>
+<li>commands/insights.ts → import tools（内部）</li>
+<li>commands/insights.ts → import types（内部）</li>
+<li>commands/insights.ts → import utils（内部）</li>
+<li>commands/install-github-app/ApiKeyStep.tsx → import components（内部）</li>
+<li>commands/install-github-app/ApiKeyStep.tsx → import hooks（内部）</li>
+<li>commands/install-github-app/ApiKeyStep.tsx → import ink（内部）</li>
+<li>commands/install-github-app/ApiKeyStep.tsx → import keybindings（内部）</li>
+<li>commands/install-github-app/CheckExistingSecretStep.tsx → import components（内部）</li>
+<li>commands/install-github-app/CheckExistingSecretStep.tsx → import hooks（内部）</li>
+<li>commands/install-github-app/CheckExistingSecretStep.tsx → import ink（内部）</li>
+<li>commands/install-github-app/CheckExistingSecretStep.tsx → import keybindings（内部）</li>
+<li>commands/install-github-app/CheckGitHubStep.tsx → import ink（内部）</li>
+<li>commands/install-github-app/ChooseRepoStep.tsx → import components（内部）</li>
+<li>commands/install-github-app/ChooseRepoStep.tsx → import hooks（内部）</li>
+<li>commands/install-github-app/ChooseRepoStep.tsx → import ink（内部）</li>
+<li>commands/install-github-app/ChooseRepoStep.tsx → import keybindings（内部）</li>
+<li>commands/install-github-app/CreatingStep.tsx → import ink（内部）</li>
+<li>commands/install-github-app/CreatingStep.tsx → import commands（外部）</li>
+<li>commands/install-github-app/ErrorStep.tsx → import constants（内部）</li>
+<li>commands/install-github-app/ErrorStep.tsx → import ink（内部）</li>
+<li>commands/install-github-app/ExistingWorkflowStep.tsx → import components（内部）</li>
+<li>commands/install-github-app/ExistingWorkflowStep.tsx → import ink（内部）</li>
+<li>commands/install-github-app/InstallAppStep.tsx → import constants（内部）</li>
+<li>commands/install-github-app/InstallAppStep.tsx → import ink（内部）</li>
+<li>commands/install-github-app/InstallAppStep.tsx → import keybindings（内部）</li>
+<li>commands/install-github-app/OAuthFlowStep.tsx → import services（内部）</li>
+<li>commands/install-github-app/OAuthFlowStep.tsx → import components（内部）</li>
+<li>commands/install-github-app/OAuthFlowStep.tsx → import hooks（内部）</li>
+<li>commands/install-github-app/OAuthFlowStep.tsx → import ink（内部）</li>
+<li>commands/install-github-app/OAuthFlowStep.tsx → import utils（内部）</li>
+<li>commands/install-github-app/SuccessStep.tsx → import ink（内部）</li>
+<li>commands/install-github-app/WarningsStep.tsx → import constants（内部）</li>
+<li>commands/install-github-app/WarningsStep.tsx → import ink（内部）</li>
+<li>commands/install-github-app/WarningsStep.tsx → import keybindings（内部）</li>
+<li>commands/install-github-app/WarningsStep.tsx → import commands（外部）</li>
+<li>commands/install-github-app/index.ts → import commands（外部）</li>
+<li>commands/install-github-app/index.ts → import utils（内部）</li>
+<li>commands/install-github-app/install-github-app.tsx → import services（内部）</li>
+<li>commands/install-github-app/install-github-app.tsx → import components（内部）</li>
+<li>commands/install-github-app/install-github-app.tsx → import constants（内部）</li>
+<li>commands/install-github-app/install-github-app.tsx → import hooks（内部）</li>
+<li>commands/install-github-app/install-github-app.tsx → import ink（内部）</li>
+<li>commands/install-github-app/install-github-app.tsx → import types（内部）</li>
+<li>commands/install-github-app/install-github-app.tsx → import utils（内部）</li>
+<li>commands/install-github-app/install-github-app.tsx → import commands（外部）</li>
+<li>commands/install-github-app/setupGitHubActions.ts → import services（内部）</li>
+<li>commands/install-github-app/setupGitHubActions.ts → import utils（内部）</li>
+<li>commands/install-github-app/setupGitHubActions.ts → import constants（内部）</li>
+<li>commands/install-github-app/setupGitHubActions.ts → import commands（外部）</li>
+<li>commands/install-slack-app/index.ts → import commands（外部）</li>
+<li>commands/install-slack-app/install-slack-app.ts → import commands（外部）</li>
+<li>commands/install-slack-app/install-slack-app.ts → import services（内部）</li>
+<li>commands/install-slack-app/install-slack-app.ts → import utils（内部）</li>
+<li>commands/install.tsx → import commands（外部）</li>
+<li>commands/install.tsx → import services（内部）</li>
+<li>commands/install.tsx → import components（内部）</li>
+<li>commands/install.tsx → import ink（内部）</li>
+<li>commands/install.tsx → import utils（内部）</li>
+<li>commands/keybindings/index.ts → import commands（外部）</li>
+<li>commands/keybindings/index.ts → import keybindings（内部）</li>
+<li>commands/keybindings/keybindings.ts → import keybindings（内部）</li>
+<li>commands/keybindings/keybindings.ts → import utils（内部）</li>
+<li>commands/login/index.ts → import commands（外部）</li>
+<li>commands/login/index.ts → import utils（内部）</li>
+<li>commands/login/login.tsx → import bootstrap（内部）</li>
+<li>commands/login/login.tsx → import bridge（内部）</li>
+<li>commands/login/login.tsx → import commands（外部）</li>
+<li>commands/login/login.tsx → import components（内部）</li>
+<li>commands/login/login.tsx → import hooks（内部）</li>
+<li>commands/login/login.tsx → import ink（内部）</li>
+<li>commands/login/login.tsx → import services（内部）</li>
+<li>commands/login/login.tsx → import types（内部）</li>
+<li>commands/login/login.tsx → import utils（内部）</li>
+<li>commands/logout/index.ts → import commands（外部）</li>
+<li>commands/logout/index.ts → import utils（内部）</li>
+<li>commands/logout/logout.tsx → import bridge（内部）</li>
+<li>commands/logout/logout.tsx → import ink（内部）</li>
+<li>commands/logout/logout.tsx → import services（内部）</li>
+<li>commands/logout/logout.tsx → import utils（内部）</li>
+<li>commands/mcp/addCommand.ts → import cli（内部）</li>
+<li>commands/mcp/addCommand.ts → import services（内部）</li>
+<li>commands/mcp/addCommand.ts → import utils（内部）</li>
+<li>commands/mcp/index.ts → import commands（外部）</li>
+<li>commands/mcp/mcp.tsx → import components（内部）</li>
+<li>commands/mcp/mcp.tsx → import services（内部）</li>
+<li>commands/mcp/mcp.tsx → import state（内部）</li>
+<li>commands/mcp/mcp.tsx → import types（内部）</li>
+<li>commands/mcp/mcp.tsx → import commands（外部）</li>
+<li>commands/mcp/xaaIdpCommand.ts → import cli（内部）</li>
+<li>commands/mcp/xaaIdpCommand.ts → import services（内部）</li>
+<li>commands/mcp/xaaIdpCommand.ts → import utils（内部）</li>
+<li>commands/memory/index.ts → import commands（外部）</li>
+<li>commands/memory/memory.tsx → import commands（外部）</li>
+<li>commands/memory/memory.tsx → import components（内部）</li>
+<li>commands/memory/memory.tsx → import ink（内部）</li>
+<li>commands/memory/memory.tsx → import types（内部）</li>
+<li>commands/memory/memory.tsx → import utils（内部）</li>
+<li>commands/mobile/index.ts → import commands（外部）</li>
+<li>commands/mobile/mobile.tsx → import components（内部）</li>
+<li>commands/mobile/mobile.tsx → import ink（内部）</li>
+<li>commands/mobile/mobile.tsx → import keybindings（内部）</li>
+<li>commands/mobile/mobile.tsx → import types（内部）</li>
+<li>commands/model/index.ts → import commands（外部）</li>
+<li>commands/model/index.ts → import utils（内部）</li>
+<li>commands/model/model.tsx → import commands（外部）</li>
+<li>commands/model/model.tsx → import components（内部）</li>
+<li>commands/model/model.tsx → import constants（内部）</li>
+<li>commands/model/model.tsx → import services（内部）</li>
+<li>commands/model/model.tsx → import state（内部）</li>
+<li>commands/model/model.tsx → import types（内部）</li>
+<li>commands/model/model.tsx → import utils（内部）</li>
+<li>commands/output-style/index.ts → import commands（外部）</li>
+<li>commands/output-style/output-style.tsx → import types（内部）</li>
+<li>commands/passes/index.ts → import commands（外部）</li>
+<li>commands/passes/index.ts → import services（内部）</li>
+<li>commands/passes/passes.tsx → import components（内部）</li>
+<li>commands/passes/passes.tsx → import services（内部）</li>
+<li>commands/passes/passes.tsx → import types（内部）</li>
+<li>commands/passes/passes.tsx → import utils（内部）</li>
+<li>commands/permissions/index.ts → import commands（外部）</li>
+<li>commands/permissions/permissions.tsx → import components（内部）</li>
+<li>commands/permissions/permissions.tsx → import types（内部）</li>
+<li>commands/permissions/permissions.tsx → import utils（内部）</li>
+<li>commands/plan/index.ts → import commands（外部）</li>
+<li>commands/plan/plan.tsx → import bootstrap（内部）</li>
+<li>commands/plan/plan.tsx → import commands（外部）</li>
+<li>commands/plan/plan.tsx → import ink（内部）</li>
+<li>commands/plan/plan.tsx → import types（内部）</li>
+<li>commands/plan/plan.tsx → import utils（内部）</li>
+<li>commands/plugin/AddMarketplace.tsx → import services（内部）</li>
+<li>commands/plugin/AddMarketplace.tsx → import components（内部）</li>
+<li>commands/plugin/AddMarketplace.tsx → import ink（内部）</li>
+<li>commands/plugin/AddMarketplace.tsx → import utils（内部）</li>
+<li>commands/plugin/AddMarketplace.tsx → import commands（外部）</li>
+<li>commands/plugin/BrowseMarketplace.tsx → import components（内部）</li>
+<li>commands/plugin/BrowseMarketplace.tsx → import ink（内部）</li>
+<li>commands/plugin/BrowseMarketplace.tsx → import keybindings（内部）</li>
+<li>commands/plugin/BrowseMarketplace.tsx → import types（内部）</li>
+<li>commands/plugin/BrowseMarketplace.tsx → import utils（内部）</li>
+<li>commands/plugin/BrowseMarketplace.tsx → import commands（外部）</li>
+<li>commands/plugin/DiscoverPlugins.tsx → import components（内部）</li>
+<li>commands/plugin/DiscoverPlugins.tsx → import hooks（内部）</li>
+<li>commands/plugin/DiscoverPlugins.tsx → import ink（内部）</li>
+<li>commands/plugin/DiscoverPlugins.tsx → import keybindings（内部）</li>
+<li>commands/plugin/DiscoverPlugins.tsx → import types（内部）</li>
+<li>commands/plugin/DiscoverPlugins.tsx → import utils（内部）</li>
+<li>commands/plugin/DiscoverPlugins.tsx → import commands（外部）</li>
+<li>commands/plugin/ManageMarketplaces.tsx → import services（内部）</li>
+<li>commands/plugin/ManageMarketplaces.tsx → import components（内部）</li>
+<li>commands/plugin/ManageMarketplaces.tsx → import ink（内部）</li>
+<li>commands/plugin/ManageMarketplaces.tsx → import keybindings（内部）</li>
+<li>commands/plugin/ManageMarketplaces.tsx → import types（内部）</li>
+<li>commands/plugin/ManageMarketplaces.tsx → import utils（内部）</li>
+<li>commands/plugin/ManageMarketplaces.tsx → import commands（外部）</li>
+<li>commands/plugin/ManagePlugins.tsx → import components（内部）</li>
+<li>commands/plugin/ManagePlugins.tsx → import hooks（内部）</li>
+<li>commands/plugin/ManagePlugins.tsx → import ink（内部）</li>
+<li>commands/plugin/ManagePlugins.tsx → import keybindings（内部）</li>
+<li>commands/plugin/ManagePlugins.tsx → import plugins（内部）</li>
+<li>commands/plugin/ManagePlugins.tsx → import services（内部）</li>
+<li>commands/plugin/ManagePlugins.tsx → import state（内部）</li>
+<li>commands/plugin/ManagePlugins.tsx → import Tool（内部）</li>
+<li>commands/plugin/ManagePlugins.tsx → import types（内部）</li>
+<li>commands/plugin/ManagePlugins.tsx → import utils（内部）</li>
+<li>commands/plugin/ManagePlugins.tsx → import commands（外部）</li>
+<li>commands/plugin/PluginErrors.tsx → import types（内部）</li>
+<li>commands/plugin/PluginOptionsDialog.tsx → import components（内部）</li>
+<li>commands/plugin/PluginOptionsDialog.tsx → import ink（内部）</li>
+<li>commands/plugin/PluginOptionsDialog.tsx → import keybindings（内部）</li>
+<li>commands/plugin/PluginOptionsDialog.tsx → import utils（内部）</li>
+<li>commands/plugin/PluginOptionsFlow.tsx → import types（内部）</li>
+<li>commands/plugin/PluginOptionsFlow.tsx → import utils（内部）</li>
+<li>commands/plugin/PluginOptionsFlow.tsx → import commands（外部）</li>
+<li>commands/plugin/PluginSettings.tsx → import components（内部）</li>
+<li>commands/plugin/PluginSettings.tsx → import hooks（内部）</li>
+<li>commands/plugin/PluginSettings.tsx → import ink（内部）</li>
+<li>commands/plugin/PluginSettings.tsx → import keybindings（内部）</li>
+<li>commands/plugin/PluginSettings.tsx → import state（内部）</li>
+<li>commands/plugin/PluginSettings.tsx → import types（内部）</li>
+<li>commands/plugin/PluginSettings.tsx → import utils（内部）</li>
+<li>commands/plugin/PluginSettings.tsx → import commands（外部）</li>
+<li>commands/plugin/PluginTrustWarning.tsx → import ink（内部）</li>
+<li>commands/plugin/PluginTrustWarning.tsx → import utils（内部）</li>
+<li>commands/plugin/UnifiedInstalledCell.tsx → import ink（内部）</li>
+<li>commands/plugin/UnifiedInstalledCell.tsx → import utils（内部）</li>
+<li>commands/plugin/UnifiedInstalledCell.tsx → import commands（外部）</li>
+<li>commands/plugin/ValidatePlugin.tsx → import ink（内部）</li>
+<li>commands/plugin/ValidatePlugin.tsx → import utils（内部）</li>
+<li>commands/plugin/index.tsx → import commands（外部）</li>
+<li>commands/plugin/plugin.tsx → import types（内部）</li>
+<li>commands/plugin/plugin.tsx → import commands（外部）</li>
+<li>commands/plugin/pluginDetailsHelpers.tsx → import components（内部）</li>
+<li>commands/plugin/pluginDetailsHelpers.tsx → import ink（内部）</li>
+<li>commands/plugin/pluginDetailsHelpers.tsx → import utils（内部）</li>
+<li>commands/pr_comments/index.ts → import commands（外部）</li>
+<li>commands/privacy-settings/index.ts → import commands（外部）</li>
+<li>commands/privacy-settings/index.ts → import utils（内部）</li>
+<li>commands/privacy-settings/privacy-settings.tsx → import components（内部）</li>
+<li>commands/privacy-settings/privacy-settings.tsx → import services（内部）</li>
+<li>commands/privacy-settings/privacy-settings.tsx → import types（内部）</li>
+<li>commands/rate-limit-options/index.ts → import commands（外部）</li>
+<li>commands/rate-limit-options/index.ts → import utils（内部）</li>
+<li>commands/rate-limit-options/rate-limit-options.tsx → import commands（外部）</li>
+<li>commands/rate-limit-options/rate-limit-options.tsx → import components（内部）</li>
+<li>commands/rate-limit-options/rate-limit-options.tsx → import services（内部）</li>
+<li>commands/rate-limit-options/rate-limit-options.tsx → import Tool（内部）</li>
+<li>commands/rate-limit-options/rate-limit-options.tsx → import types（内部）</li>
+<li>commands/rate-limit-options/rate-limit-options.tsx → import utils（内部）</li>
+<li>commands/release-notes/index.ts → import commands（外部）</li>
+<li>commands/release-notes/release-notes.ts → import types（内部）</li>
+<li>commands/release-notes/release-notes.ts → import utils（内部）</li>
+<li>commands/reload-plugins/index.ts → import commands（外部）</li>
+<li>commands/reload-plugins/reload-plugins.ts → import bootstrap（内部）</li>
+<li>commands/reload-plugins/reload-plugins.ts → import services（内部）</li>
+<li>commands/reload-plugins/reload-plugins.ts → import types（内部）</li>
+<li>commands/reload-plugins/reload-plugins.ts → import utils（内部）</li>
+<li>commands/remote-env/index.ts → import commands（外部）</li>
+<li>commands/remote-env/index.ts → import services（内部）</li>
+<li>commands/remote-env/index.ts → import utils（内部）</li>
+<li>commands/remote-env/remote-env.tsx → import components（内部）</li>
+<li>commands/remote-env/remote-env.tsx → import types（内部）</li>
+<li>commands/remote-setup/api.ts → import constants（内部）</li>
+<li>commands/remote-setup/api.ts → import utils（内部）</li>
+<li>commands/remote-setup/index.ts → import commands（外部）</li>
+<li>commands/remote-setup/index.ts → import services（内部）</li>
+<li>commands/remote-setup/remote-setup.tsx → import components（内部）</li>
+<li>commands/remote-setup/remote-setup.tsx → import ink（内部）</li>
+<li>commands/remote-setup/remote-setup.tsx → import services（内部）</li>
+<li>commands/remote-setup/remote-setup.tsx → import types（内部）</li>
+<li>commands/remote-setup/remote-setup.tsx → import utils（内部）</li>
+<li>commands/remote-setup/remote-setup.tsx → import commands（外部）</li>
+<li>commands/rename/generateSessionName.ts → import services（内部）</li>
+<li>commands/rename/generateSessionName.ts → import types（内部）</li>
+<li>commands/rename/generateSessionName.ts → import utils（内部）</li>
+<li>commands/rename/index.ts → import commands（外部）</li>
+<li>commands/rename/rename.ts → import bootstrap（内部）</li>
+<li>commands/rename/rename.ts → import bridge（内部）</li>
+<li>commands/rename/rename.ts → import Tool（内部）</li>
+<li>commands/rename/rename.ts → import types（内部）</li>
+<li>commands/rename/rename.ts → import utils（内部）</li>
+<li>commands/rename/rename.ts → import commands（外部）</li>
+<li>commands/resume/index.ts → import commands（外部）</li>
+<li>commands/resume/resume.tsx → import bootstrap（内部）</li>
+<li>commands/resume/resume.tsx → import commands（外部）</li>
+<li>commands/resume/resume.tsx → import components（内部）</li>
+<li>commands/resume/resume.tsx → import context（内部）</li>
+<li>commands/resume/resume.tsx → import hooks（内部）</li>
+<li>commands/resume/resume.tsx → import ink（内部）</li>
+<li>commands/resume/resume.tsx → import types（内部）</li>
+<li>commands/resume/resume.tsx → import utils（内部）</li>
+<li>commands/review/UltrareviewOverageDialog.tsx → import components（内部）</li>
+<li>commands/review/UltrareviewOverageDialog.tsx → import ink（内部）</li>
+<li>commands/review/reviewRemote.ts → import services（内部）</li>
+<li>commands/review/reviewRemote.ts → import Tool（内部）</li>
+<li>commands/review/reviewRemote.ts → import tasks（内部）</li>
+<li>commands/review/reviewRemote.ts → import utils（内部）</li>
+<li>commands/review/ultrareviewCommand.tsx → import types（内部）</li>
+<li>commands/review/ultrareviewCommand.tsx → import commands（外部）</li>
+<li>commands/review/ultrareviewEnabled.ts → import services（内部）</li>
+<li>commands/review.ts → import commands（外部）</li>
+<li>commands/rewind/index.ts → import commands（外部）</li>
+<li>commands/rewind/rewind.ts → import commands（外部）</li>
+<li>commands/rewind/rewind.ts → import Tool（内部）</li>
+<li>commands/sandbox-toggle/index.ts → import commands（外部）</li>
+<li>commands/sandbox-toggle/index.ts → import utils（内部）</li>
+<li>commands/sandbox-toggle/sandbox-toggle.tsx → import bootstrap（内部）</li>
+<li>commands/sandbox-toggle/sandbox-toggle.tsx → import components（内部）</li>
+<li>commands/sandbox-toggle/sandbox-toggle.tsx → import ink（内部）</li>
+<li>commands/sandbox-toggle/sandbox-toggle.tsx → import utils（内部）</li>
+<li>commands/security-review.ts → import utils（内部）</li>
+<li>commands/security-review.ts → import commands（外部）</li>
+<li>commands/session/index.ts → import bootstrap（内部）</li>
+<li>commands/session/index.ts → import commands（外部）</li>
+<li>commands/session/session.tsx → import components（内部）</li>
+<li>commands/session/session.tsx → import ink（内部）</li>
+<li>commands/session/session.tsx → import keybindings（内部）</li>
+<li>commands/session/session.tsx → import state（内部）</li>
+<li>commands/session/session.tsx → import types（内部）</li>
+<li>commands/session/session.tsx → import utils（内部）</li>
+<li>commands/skills/index.ts → import commands（外部）</li>
+<li>commands/skills/skills.tsx → import commands（外部）</li>
+<li>commands/skills/skills.tsx → import components（内部）</li>
+<li>commands/skills/skills.tsx → import types（内部）</li>
+<li>commands/stats/index.ts → import commands（外部）</li>
+<li>commands/stats/stats.tsx → import components（内部）</li>
+<li>commands/stats/stats.tsx → import types（内部）</li>
+<li>commands/status/index.ts → import commands（外部）</li>
+<li>commands/status/status.tsx → import commands（外部）</li>
+<li>commands/status/status.tsx → import components（内部）</li>
+<li>commands/status/status.tsx → import types（内部）</li>
+<li>commands/statusline.tsx → import commands（外部）</li>
+<li>commands/statusline.tsx → import tools（内部）</li>
+<li>commands/stickers/index.ts → import commands（外部）</li>
+<li>commands/stickers/stickers.ts → import types（内部）</li>
+<li>commands/stickers/stickers.ts → import utils（内部）</li>
+<li>commands/tag/index.ts → import commands（外部）</li>
+<li>commands/tag/tag.tsx → import bootstrap（内部）</li>
+<li>commands/tag/tag.tsx → import commands（外部）</li>
+<li>commands/tag/tag.tsx → import components（内部）</li>
+<li>commands/tag/tag.tsx → import constants（内部）</li>
+<li>commands/tag/tag.tsx → import ink（内部）</li>
+<li>commands/tag/tag.tsx → import services（内部）</li>
+<li>commands/tag/tag.tsx → import types（内部）</li>
+<li>commands/tag/tag.tsx → import utils（内部）</li>
+<li>commands/tasks/index.ts → import commands（外部）</li>
+<li>commands/tasks/tasks.tsx → import commands（外部）</li>
+<li>commands/tasks/tasks.tsx → import components（内部）</li>
+<li>commands/tasks/tasks.tsx → import types（内部）</li>
+<li>commands/terminalSetup/index.ts → import commands（外部）</li>
+<li>commands/terminalSetup/index.ts → import utils（内部）</li>
+<li>commands/terminalSetup/terminalSetup.tsx → import utils（内部）</li>
+<li>commands/terminalSetup/terminalSetup.tsx → import ink（内部）</li>
+<li>commands/terminalSetup/terminalSetup.tsx → import projectOnboardingState（内部）</li>
+<li>commands/terminalSetup/terminalSetup.tsx → import Tool（内部）</li>
+<li>commands/terminalSetup/terminalSetup.tsx → import types（内部）</li>
+<li>commands/theme/index.ts → import commands（外部）</li>
+<li>commands/theme/theme.tsx → import commands（外部）</li>
+<li>commands/theme/theme.tsx → import components（内部）</li>
+<li>commands/theme/theme.tsx → import ink（内部）</li>
+<li>commands/theme/theme.tsx → import types（内部）</li>
+<li>commands/thinkback/index.ts → import commands（外部）</li>
+<li>commands/thinkback/index.ts → import services（内部）</li>
+<li>commands/thinkback/thinkback.tsx → import commands（外部）</li>
+<li>commands/thinkback/thinkback.tsx → import components（内部）</li>
+<li>commands/thinkback/thinkback.tsx → import ink（内部）</li>
+<li>commands/thinkback/thinkback.tsx → import services（内部）</li>
+<li>commands/thinkback/thinkback.tsx → import utils（内部）</li>
+<li>commands/thinkback-play/index.ts → import commands（外部）</li>
+<li>commands/thinkback-play/index.ts → import services（内部）</li>
+<li>commands/thinkback-play/thinkback-play.ts → import commands（外部）</li>
+<li>commands/thinkback-play/thinkback-play.ts → import utils（内部）</li>
+<li>commands/ultraplan.tsx → import bridge（内部）</li>
+<li>commands/ultraplan.tsx → import commands（外部）</li>
+<li>commands/ultraplan.tsx → import constants（内部）</li>
+<li>commands/ultraplan.tsx → import services（内部）</li>
+<li>commands/ultraplan.tsx → import state（内部）</li>
+<li>commands/ultraplan.tsx → import tasks（内部）</li>
+<li>commands/ultraplan.tsx → import types（内部）</li>
+<li>commands/ultraplan.tsx → import utils（内部）</li>
+<li>commands/upgrade/index.ts → import commands（外部）</li>
+<li>commands/upgrade/index.ts → import utils（内部）</li>
+<li>commands/upgrade/upgrade.tsx → import commands（外部）</li>
+<li>commands/upgrade/upgrade.tsx → import services（内部）</li>
+<li>commands/upgrade/upgrade.tsx → import types（内部）</li>
+<li>commands/upgrade/upgrade.tsx → import utils（内部）</li>
+<li>commands/usage/index.ts → import commands（外部）</li>
+<li>commands/usage/usage.tsx → import components（内部）</li>
+<li>commands/usage/usage.tsx → import types（内部）</li>
+<li>commands/version.ts → import types（内部）</li>
+<li>commands/vim/index.ts → import commands（外部）</li>
+<li>commands/vim/vim.ts → import services（内部）</li>
+<li>commands/vim/vim.ts → import types（内部）</li>
+<li>commands/vim/vim.ts → import utils（内部）</li>
+<li>commands/voice/index.ts → import commands（外部）</li>
+<li>commands/voice/index.ts → import voice（内部）</li>
+<li>commands/voice/voice.ts → import hooks（内部）</li>
+<li>commands/voice/voice.ts → import keybindings（内部）</li>
+<li>commands/voice/voice.ts → import services（内部）</li>
+<li>commands/voice/voice.ts → import types（内部）</li>
+<li>commands/voice/voice.ts → import utils（内部）</li>
+<li>commands/voice/voice.ts → import voice（内部）</li>
+</ol>
+<h2 id="5-python-侧候选映射-启发式初版">5. Python 侧候选映射（启发式初版）</h2>
+<ol>
+<li>→ python <code class="inline-code">command_system</code> — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-未确认项与待核实项">6. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ python 候选映射待逐符号对照核实（symbol 级 map 未生成）</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 python 实现</li>
+<li>☐ 顶层符号提取为启发式正则，需人工抽样验证召回率</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-commands-reference-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

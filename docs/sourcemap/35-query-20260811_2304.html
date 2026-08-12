@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>query 源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-r7-r5-ccr-14-映射-启发式初版" data-nav>5. R7/R5/CCR-14 映射（启发式初版）</a></li>
+<li><a href="#6-文件级映射细分" data-nav>6. 文件级映射细分</a></li>
+<li><a href="#7-未确认项与待核实项" data-nav>7. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>query 源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">35</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2304</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="query-源码盘点">query 源码盘点</h1>
+<blockquote>
+<p>编号: 35</p>
+<p>时间戳: 20260811_2304</p>
+<p>基线: def709361a86</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>类型: package（目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: query</li>
+<li>类型: package（目录模块）</li>
+<li>Python 文件数: 16</li>
+<li>总行数: 5837</li>
+<li>依赖的 src 内部模块: context_system, providers, services, token_estimation, tool_system, types, utils</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">query/__init__.py</code> — 18 行（类 0，函数 0）</li>
+<li><code class="inline-code">query/agent_loop_compat.py</code> — 953 行（类 1，函数 7）</li>
+<li><code class="inline-code">query/budget.py</code> — 106 行（类 2，函数 2）</li>
+<li><code class="inline-code">query/config.py</code> — 128 行（类 2，函数 1）</li>
+<li><code class="inline-code">query/continuation_nudge.py</code> — 85 行（类 0，函数 1）</li>
+<li><code class="inline-code">query/deps.py</code> — 11 行（类 1，函数 0）</li>
+<li><code class="inline-code">query/engine.py</code> — 330 行（类 2，函数 0）</li>
+<li><code class="inline-code">query/model_call.py</code> — 996 行（类 0，函数 13）</li>
+<li><code class="inline-code">query/query.py</code> — 1963 行（类 2，函数 20）</li>
+<li><code class="inline-code">query/recovery.py</code> — 49 行（类 0，函数 5）</li>
+<li><code class="inline-code">query/stop_hooks.py</code> — 388 行（类 2，函数 5）</li>
+<li><code class="inline-code">query/terminal.py</code> — 69 行（类 2，函数 1）</li>
+<li><code class="inline-code">query/token_budget.py</code> — 157 行（类 4，函数 6）</li>
+<li><code class="inline-code">query/tool_failure_loop_guard.py</code> — 440 行（类 2，函数 15）</li>
+<li><code class="inline-code">query/tool_round.py</code> — 69 行（类 1，函数 2）</li>
+<li><code class="inline-code">query/transitions.py</code> — 75 行（类 2，函数 0）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">query/__init__.py</code></li>
+<li>文件 <code class="inline-code">query/agent_loop_compat.py</code></li>
+<li>类 AgentLoopRunResult — L378</li>
+<li>函数 _is_tool_result_block — L59</li>
+<li>函数 _tool_result_fields — L80</li>
+<li>函数 run_query_as_agent_loop_sync — L91</li>
+<li>函数 build_effective_system_prompt — L178</li>
+<li>函数 _last_user_text — L390</li>
+<li>函数 _maybe_recall_memories — L410</li>
+<li>函数 run_query_as_agent_loop — L461</li>
+<li>文件 <code class="inline-code">query/budget.py</code></li>
+<li>类 BudgetViolation — L25</li>
+<li>类 BudgetGuard — L32</li>
+<li>函数 resolve_max_turns — L74</li>
+<li>函数 resolve_max_cost_usd — L94</li>
+<li>文件 <code class="inline-code">query/config.py</code></li>
+<li>类 QueryConfig — L10</li>
+<li>类 FrozenQueryConfig — L41</li>
+<li>函数 build_query_config — L68</li>
+<li>文件 <code class="inline-code">query/continuation_nudge.py</code></li>
+<li>函数 detect_continuation_signal — L75</li>
+<li>文件 <code class="inline-code">query/deps.py</code></li>
+<li>类 QueryDeps — L9</li>
+<li>文件 <code class="inline-code">query/engine.py</code></li>
+<li>类 QueryEngineConfig — L36</li>
+<li>类 QueryEngine — L59</li>
+<li>文件 <code class="inline-code">query/model_call.py</code></li>
+<li>函数 _create_assistant_api_error_message — L32</li>
+<li>函数 _model_supports_extended_thinking — L49</li>
+<li>函数 _model_supports_adaptive_thinking — L55</li>
+<li>函数 _model_supports_effort — L68</li>
+<li>函数 _model_supports_xhigh_effort — L78</li>
+<li>函数 resolve_thinking_effort — L85</li>
+<li>函数 normalize_effort_for_provider — L109</li>
+<li>函数 build_anthropic_thinking_kwargs — L129</li>
+<li>函数 invoke_provider — L163</li>
+<li>函数 _strip_block_metadata — L225</li>
+<li>函数 _split_system_prompt_blocks — L255</li>
+<li>函数 _append_session_context_tail — L296</li>
+<li>函数 _call_model_sync — L331</li>
+<li>文件 <code class="inline-code">query/query.py</code></li>
+<li>类 QueryParams — L111</li>
+<li>类 StreamEvent — L183</li>
+<li>函数 _is_prompt_too_long_message — L188</li>
+<li>函数 _create_user_message — L196</li>
+<li>函数 _create_assistant_api_error_message — L203</li>
+<li>函数 _create_user_interruption_message — L213</li>
+<li>函数 _create_max_turns_attachment — L219</li>
+<li>函数 _fire_post_sampling_hooks — L226</li>
+<li>函数 _drain_pending_user_messages — L288</li>
+<li>函数 _yield_missing_tool_result_blocks — L331</li>
+<li>函数 _model_supports_extended_thinking — L364</li>
+<li>函数 _model_supports_adaptive_thinking — L384</li>
+<li>函数 _model_supports_effort — L416</li>
+<li>函数 _model_supports_xhigh_effort — L441</li>
+<li>函数 resolve_thinking_effort — L479</li>
+<li>函数 normalize_effort_for_provider — L532</li>
+<li>函数 build_anthropic_thinking_kwargs — L570</li>
+<li>函数 _is_overloaded_error — L638</li>
+<li>函数 _retry_after_seconds — L648</li>
+<li>函数 _fire_stop_failure_hooks — L664</li>
+<li>函数 query — L686</li>
+<li>函数 run_query — L1936</li>
+<li>文件 <code class="inline-code">query/recovery.py</code></li>
+<li>函数 get_context_window — L13</li>
+<li>函数 is_withheld_error — L33</li>
+<li>函数 is_withheld_max_output_tokens — L40</li>
+<li>函数 is_withheld_prompt_too_long — L44</li>
+<li>函数 is_withheld_media_size — L48</li>
+<li>文件 <code class="inline-code">query/stop_hooks.py</code></li>
+<li>类 StopHookInfo — L27</li>
+<li>类 StopHookResult — L34</li>
+<li>函数 handle_stop_hooks — L39</li>
+<li>函数 handle_stop_hooks_streaming — L66</li>
+<li>函数 _handle_stop_hooks_generator — L90</li>
+<li>函数 _get_permission_mode — L369</li>
+<li>函数 _get_stop_hook_message — L382</li>
+<li>文件 <code class="inline-code">query/terminal.py</code></li>
+<li>类 Terminal — L46</li>
+<li>类 TerminalHolder — L52</li>
+<li>函数 set_terminal — L61</li>
+<li>文件 <code class="inline-code">query/token_budget.py</code></li>
+<li>类 BudgetTracker — L29</li>
+<li>类 ContinueDecision — L41</li>
+<li>类 StopDecision — L51</li>
+<li>类 BudgetPosition — L134</li>
+<li>函数 create_budget_tracker — L36</li>
+<li>函数 check_token_budget — L59</li>
+<li>函数 get_budget_continuation_message — L106</li>
+<li>函数 _parse_budget_match — L113</li>
+<li>函数 parse_token_budget — L117</li>
+<li>函数 find_token_budget_positions — L139</li>
+<li>文件 <code class="inline-code">query/tool_failure_loop_guard.py</code></li>
+<li>类 ToolFailureLoopGuardState — L57</li>
+<li>类 ToolFailureLoopGuardDecision — L65</li>
+<li>函数 create_tool_failure_loop_guard_state — L79</li>
+<li>函数 get_tool_failure_loop_threshold — L83</li>
+<li>函数 update_tool_failure_loop_guard — L101</li>
+<li>函数 _normalize_threshold — L261</li>
+<li>函数 _reset — L274</li>
+<li>函数 _create_advisory_message — L281</li>
+<li>函数 _get_tool_result_blocks — L299</li>
+<li>函数 _tool_result_content_to_string — L318</li>
+<li>函数 _is_ignored_synthetic_tool_result — L333</li>
+<li>函数 _normalize_error_category — L353</li>
+<li>函数 _normalize_tool_result_text — L384</li>
+<li>函数 _extract_normalized_path — L389</li>
+<li>函数 _normalize_path — L404</li>
+<li>函数 _increment_counter — L414</li>
+<li>函数 _create_trip_message — L419</li>
+<li>文件 <code class="inline-code">query/tool_round.py</code></li>
+<li>类 ToolRoundState — L15</li>
+<li>函数 _is_hook_stopped_continuation — L21</li>
+<li>函数 execute_tool_round — L32</li>
+<li>文件 <code class="inline-code">query/transitions.py</code></li>
+<li>类 Transition — L37</li>
+<li>类 QueryState — L47</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>query/__init__.py → import query（外部）</li>
+<li>query/agent_loop_compat.py → import __future__（外部）</li>
+<li>query/agent_loop_compat.py → import dataclasses（外部）</li>
+<li>query/agent_loop_compat.py → import typing（外部）</li>
+<li>query/agent_loop_compat.py → import tool_system（内部）</li>
+<li>query/agent_loop_compat.py → import providers（内部）</li>
+<li>query/agent_loop_compat.py → import types（内部）</li>
+<li>query/agent_loop_compat.py → import utils（内部）</li>
+<li>query/agent_loop_compat.py → import query（外部）</li>
+<li>query/budget.py → import __future__（外部）</li>
+<li>query/budget.py → import dataclasses（外部）</li>
+<li>query/budget.py → import time（外部）</li>
+<li>query/budget.py → import typing（外部）</li>
+<li>query/config.py → import __future__（外部）</li>
+<li>query/config.py → import copy（外部）</li>
+<li>query/config.py → import dataclasses（外部）</li>
+<li>query/config.py → import typing（外部）</li>
+<li>query/config.py → import uuid（外部）</li>
+<li>query/continuation_nudge.py → import __future__（外部）</li>
+<li>query/continuation_nudge.py → import re（外部）</li>
+<li>query/deps.py → import __future__（外部）</li>
+<li>query/deps.py → import dataclasses（外部）</li>
+<li>query/deps.py → import typing（外部）</li>
+<li>query/deps.py → import uuid（外部）</li>
+<li>query/engine.py → import __future__（外部）</li>
+<li>query/engine.py → import dataclasses（外部）</li>
+<li>query/engine.py → import pathlib（外部）</li>
+<li>query/engine.py → import typing（外部）</li>
+<li>query/engine.py → import uuid（外部）</li>
+<li>query/engine.py → import types（内部）</li>
+<li>query/engine.py → import tool_system（内部）</li>
+<li>query/engine.py → import utils（内部）</li>
+<li>query/engine.py → import providers（内部）</li>
+<li>query/engine.py → import context_system（内部）</li>
+<li>query/engine.py → import query（外部）</li>
+<li>query/engine.py → import services（内部）</li>
+<li>query/model_call.py → import __future__（外部）</li>
+<li>query/model_call.py → import asyncio（外部）</li>
+<li>query/model_call.py → import json（外部）</li>
+<li>query/model_call.py → import logging（外部）</li>
+<li>query/model_call.py → import os（外部）</li>
+<li>query/model_call.py → import re（外部）</li>
+<li>query/model_call.py → import time（外部）</li>
+<li>query/model_call.py → import typing（外部）</li>
+<li>query/model_call.py → import providers（内部）</li>
+<li>query/model_call.py → import tool_system（内部）</li>
+<li>query/model_call.py → import types（内部）</li>
+<li>query/model_call.py → import utils（内部）</li>
+<li>query/query.py → import __future__（外部）</li>
+<li>query/query.py → import asyncio（外部）</li>
+<li>query/query.py → import json（外部）</li>
+<li>query/query.py → import logging（外部）</li>
+<li>query/query.py → import math（外部）</li>
+<li>query/query.py → import random（外部）</li>
+<li>query/query.py → import os（外部）</li>
+<li>query/query.py → import re（外部）</li>
+<li>query/query.py → import sys（外部）</li>
+<li>query/query.py → import time（外部）</li>
+<li>query/query.py → import dataclasses（外部）</li>
+<li>query/query.py → import typing（外部）</li>
+<li>query/query.py → import uuid（外部）</li>
+<li>query/query.py → import types（内部）</li>
+<li>query/query.py → import tool_system（内部）</li>
+<li>query/query.py → import utils（内部）</li>
+<li>query/query.py → import providers（内部）</li>
+<li>query/query.py → import query（外部）</li>
+<li>query/query.py → import services（内部）</li>
+<li>query/query.py → import token_estimation（内部）</li>
+<li>query/recovery.py → import __future__（外部）</li>
+<li>query/recovery.py → import logging（外部）</li>
+<li>query/recovery.py → import providers（内部）</li>
+<li>query/recovery.py → import types（内部）</li>
+<li>query/stop_hooks.py → import __future__（外部）</li>
+<li>query/stop_hooks.py → import logging（外部）</li>
+<li>query/stop_hooks.py → import time（外部）</li>
+<li>query/stop_hooks.py → import dataclasses（外部）</li>
+<li>query/stop_hooks.py → import typing（外部）</li>
+<li>query/stop_hooks.py → import types（内部）</li>
+<li>query/terminal.py → import __future__（外部）</li>
+<li>query/terminal.py → import dataclasses（外部）</li>
+<li>query/terminal.py → import typing（外部）</li>
+<li>query/token_budget.py → import __future__（外部）</li>
+<li>query/token_budget.py → import re（外部）</li>
+<li>query/token_budget.py → import time（外部）</li>
+<li>query/token_budget.py → import dataclasses（外部）</li>
+<li>query/token_budget.py → import typing（外部）</li>
+<li>query/tool_failure_loop_guard.py → import __future__（外部）</li>
+<li>query/tool_failure_loop_guard.py → import os（外部）</li>
+<li>query/tool_failure_loop_guard.py → import re（外部）</li>
+<li>query/tool_failure_loop_guard.py → import dataclasses（外部）</li>
+<li>query/tool_failure_loop_guard.py → import typing（外部）</li>
+<li>query/tool_failure_loop_guard.py → import types（内部）</li>
+<li>query/tool_round.py → import __future__（外部）</li>
+<li>query/tool_round.py → import dataclasses（外部）</li>
+<li>query/tool_round.py → import typing（外部）</li>
+<li>query/tool_round.py → import providers（内部）</li>
+<li>query/tool_round.py → import tool_system（内部）</li>
+<li>query/tool_round.py → import types（内部）</li>
+<li>query/transitions.py → import __future__（外部）</li>
+<li>query/transitions.py → import dataclasses（外部）</li>
+<li>query/transitions.py → import typing（外部）</li>
+<li>query/transitions.py → import tool_system（内部）</li>
+<li>query/transitions.py → import types（内部）</li>
+<li>query/transitions.py → import query（外部）</li>
+</ol>
+<h2 id="5-r7-r5-ccr-14-映射-启发式初版">5. R7/R5/CCR-14 映射（启发式初版）</h2>
+<ol>
+<li>R7-03 Agent Loop — 候选（启发式），状态 UNVERIFIED</li>
+<li>R5-02 Core Layer — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-03 Context Shaping Pipeline — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-04 Context Assembly / Injection — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-08 Recovery / Resilience Controller — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-14 Runtime Config / Feature Gate Control Plane — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-文件级映射细分">6. 文件级映射细分</h2>
+<ol>
+<li><code class="inline-code">__init__.py</code> → R7-03, R5-02, CCR-03, CCR-04, CCR-08, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">agent_loop_compat.py</code> → R7-03, R5-02, CCR-03, CCR-04, CCR-08, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">budget.py</code> → R7-03, R5-02, CCR-03, CCR-04, CCR-08, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">config.py</code> → R7-03, R5-02, CCR-03, CCR-04, CCR-08, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">continuation_nudge.py</code> → R7-03, R5-02, CCR-03, CCR-04, CCR-08, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">deps.py</code> → R7-03, R5-02, CCR-03, CCR-04, CCR-08, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">engine.py</code> → R7-03, R5-02, CCR-03, CCR-04, CCR-08, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">model_call.py</code> → R7-03, R5-02, CCR-03, CCR-04, CCR-08, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">query.py</code> → R7-03, R5-02, CCR-03, CCR-04, CCR-08, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">recovery.py</code> → R7-03, R5-02, CCR-03, CCR-04, CCR-08, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">stop_hooks.py</code> → R7-03, R5-02, CCR-03, CCR-04, CCR-08, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">terminal.py</code> → R7-03, R5-02, CCR-03, CCR-04, CCR-08, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">token_budget.py</code> → R7-03, R5-02, CCR-03, CCR-04, CCR-08, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">tool_failure_loop_guard.py</code> → R7-03, R5-02, CCR-03, CCR-04, CCR-08, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">tool_round.py</code> → R7-03, R5-02, CCR-03, CCR-04, CCR-08, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">transitions.py</code> → R7-03, R5-02, CCR-03, CCR-04, CCR-08, CCR-14（UNVERIFIED）</li>
+</ol>
+<h2 id="7-未确认项与待核实项">7. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ reference 侧对应文件/symbol 映射待核实</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 reference source</li>
+<li>☐ 本模块 R7/R5/CCR 归属的 UNVERIFIED 状态待升级或降级</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-query-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

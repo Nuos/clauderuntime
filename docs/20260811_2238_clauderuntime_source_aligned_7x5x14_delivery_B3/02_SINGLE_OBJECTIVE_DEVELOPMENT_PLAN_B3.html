@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>ClaudeRuntime B3 唯一首要目标开发计划</title>
+<style>
+:root{
+ --bg:#f5f7fb;--paper:#fff;--ink:#172033;--muted:#667085;--blue:#0b4da2;
+ --blue2:#153b75;--teal:#0b7f77;--line:#d7deea;--soft:#eef4ff;
+ --warn:#fff7e8;--danger:#fff1f1;--code:#0f1e34;
+}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;line-height:1.72;font-size:14px}
+.layout{display:grid;grid-template-columns:300px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow:auto;background:#0d2346;color:#eaf2ff;padding:22px 18px;border-right:1px solid #193968}
+.brand{font-size:18px;font-weight:800;line-height:1.35;margin:0 0 8px}.subbrand{font-size:12px;color:#bcd0ef;margin-bottom:18px}
+nav a{display:block;color:#e7effc;padding:7px 9px;border-radius:8px;font-size:12px;margin:1px 0;text-decoration:none}
+nav a.l2{padding-left:18px;color:#cfe0fa}nav a.l3{padding-left:30px;color:#aec6e8;font-size:11px}nav a:hover{background:#173865}
+main{padding:34px 42px 70px;max-width:1500px;width:100%}
+.hero{background:linear-gradient(135deg,#0f356f,#0b4da2 58%,#0b7f77);color:#fff;border-radius:18px;padding:32px 36px;margin-bottom:22px;box-shadow:0 10px 30px rgba(24,53,101,.16)}
+.hero h1{margin:0 0 8px;font-size:30px}.hero p{margin:0;color:#e4efff}
+article{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:28px 34px;box-shadow:0 4px 18px rgba(29,48,84,.05)}
+h1{font-size:29px;color:#0f2f61}h2{font-size:23px;color:#0f2f61;margin-top:34px;padding-top:8px;border-top:1px solid #edf0f4}
+h3{font-size:18px;color:#174d91;margin-top:25px}h4{font-size:15px;color:#315681}
+a{color:var(--blue)}blockquote{margin:16px 0;padding:13px 17px;border-left:4px solid var(--teal);background:#f1fbf9}
+pre{white-space:pre-wrap;background:var(--code);color:#e7f0ff;padding:16px 18px;border-radius:12px;overflow:auto;font-size:13px;line-height:1.55}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#f0f3f8;padding:1px 5px;border-radius:4px}
+pre code{background:transparent;padding:0}
+table{border-collapse:collapse;width:100%;margin:12px 0 22px;font-size:13px}th,td{border:1px solid #d8dfeb;padding:9px 11px;vertical-align:top}th{background:#edf4ff;text-align:left;color:#153b75}
+strong{color:#112d55}.meta{font-size:12px;color:#e4efff}.footer{font-size:12px;color:#667085;text-align:center;margin-top:22px}
+.notice{background:#fff7e8;border:1px solid #f3d49a;padding:12px 15px;border-radius:10px;margin-bottom:18px}
+@media(max-width:980px){.layout{grid-template-columns:1fr}aside{position:relative;height:auto}main{padding:18px 12px 40px}article{padding:22px 18px}.hero{padding:24px 20px}}
+@media print{aside{display:none}.layout{display:block}main{padding:0}article{box-shadow:none;border:0}.hero{box-shadow:none}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <div class="brand">ClaudeRuntime B3 唯一首要目标开发计划</div>
+  <div class="subbrand">Only 7×5×14 Source Closure</div>
+  <nav><a class="" href="#clauderuntime-b3-唯一首要目标开发计划">ClaudeRuntime B3 唯一首要目标开发计划</a>
+<a class="" href="#0-唯一目标">0. 唯一目标</a>
+<a class="" href="#1-critical-cone">1. Critical Cone</a>
+<a class="" href="#2-执行原则">2. 执行原则</a>
+<a class="l2" href="#2-1-不按-模块好不好做-排序">2.1 不按“模块好不好做”排序</a>
+<a class="l2" href="#2-2-不做-cosmetic-parity">2.2 不做 cosmetic parity</a>
+<a class="" href="#3-wave-0-reference-contract-freeze">3. Wave 0 — Reference Contract Freeze</a>
+<a class="" href="#4-wave-1-canonical-core-spine">4. Wave 1 — Canonical Core Spine</a>
+<a class="" href="#5-wave-2-safety-action-spine">5. Wave 2 — Safety / Action Spine</a>
+<a class="" href="#6-wave-3-state-session-trust-spine">6. Wave 3 — State / Session / Trust Spine</a>
+<a class="" href="#7-wave-4-isolation-backend-spine">7. Wave 4 — Isolation / Backend Spine</a>
+<a class="" href="#8-wave-5-cross-surface-crosscut-closure">8. Wave 5 — Cross-Surface / Crosscut Closure</a>
+<a class="" href="#9-最终判定">9. 最终判定</a>
+<a class="" href="#10-默认延期">10. 默认延期</a>
+<a class="" href="#11-program-结束条件">11. Program 结束条件</a></nav>
+</aside>
+<main>
+  <div class="hero">
+    <h1>ClaudeRuntime B3 唯一首要目标开发计划</h1>
+    <p>Only 7×5×14 Source Closure</p>
+  </div>
+  <div class="notice"><strong>离线可查看：</strong>本文件 CSS 全部内联，不依赖图片、CDN 或外部脚本。直接双击即可打开。</div>
+  <article><h1 id="clauderuntime-b3-唯一首要目标开发计划">ClaudeRuntime B3 唯一首要目标开发计划</h1>
+<blockquote>
+<p>文档编号：<code>CR-B3-SINGLE-OBJECTIVE-PLAN</code><br />
+最高行为约束：<code>CR-SOURCE-ALIGNED-RULE-BIBLE-v4.0</code><br />
+基线：<code>def709361a86900920bf1d6b75134fdc9bc59def</code> / Reference <code>2.1.88</code></p>
+</blockquote>
+<h1 id="0-唯一目标">0. 唯一目标</h1>
+<blockquote>
+<p><strong>把 Reference-7、Reference-5、CCR-14 全部做到 source-aligned complete。</strong></p>
+</blockquote>
+<p>当前开发只允许三种工作类型：</p>
+<pre><code class="language-text">CORE_REQUIRED
+EVIDENCE_REQUIRED
+DEFERRED
+</code></pre>
+<p>只要一项工作不能证明“不做它就无法完成 7×5×14”，它就是 <code>DEFERRED</code>。</p>
+<h1 id="1-critical-cone">1. Critical Cone</h1>
+<p>当前允许主动开发的代码与证据范围仅限：</p>
+<ul>
+<li>User authority / surface adapters / RuntimeEvent；</li>
+<li>shared query/queryLoop；</li>
+<li>context assembly + Compact-5；</li>
+<li>hooks；</li>
+<li>permission / authorization；</li>
+<li>tool pool / tool descriptor / orchestration / streaming executor；</li>
+<li>retry / recovery / terminal / stop；</li>
+<li>result normalization / budget / persistence；</li>
+<li>transcript / session / sidechain；</li>
+<li>subagent / background / scheduler 必要生命周期；</li>
+<li>trust lifecycle；</li>
+<li>workspace / sandbox / env / network / process；</li>
+<li>MCP critical capability/transport/trust path；</li>
+<li>resume / fork / rewind；</li>
+<li>证明以上行为所需 source-map、callgraph、tests、fault injection、CI。</li>
+</ul>
+<h1 id="2-执行原则">2. 执行原则</h1>
+<h2 id="2-1-不按-模块好不好做-排序">2.1 不按“模块好不好做”排序</h2>
+<p>执行顺序只由 dependency graph 决定：</p>
+<pre><code class="language-text">Reference Contract
+    ↓
+Core Spine
+    ↓
+Safety/Action
+    ↓
+State/Session
+    ↓
+Isolation/Backend
+    ↓
+Cross-surface
+    ↓
+Total Differential Closure
+</code></pre>
+<h2 id="2-2-不做-cosmetic-parity">2.2 不做 cosmetic parity</h2>
+<p>允许 Python-native package layout，但必须满足：</p>
+<ul>
+<li>reference owner 可定位；</li>
+<li>Python owner 可定位；</li>
+<li>call edge 可映射；</li>
+<li>state transition 可映射；</li>
+<li>behavior/safety/error trace 可比较。</li>
+</ul>
+<h1 id="3-wave-0-reference-contract-freeze">3. Wave 0 — Reference Contract Freeze</h1>
+<p>必须完成：</p>
+<ol>
+<li>Reference-7 每个组件：文件、symbol、关键 call-edge、state-edge；</li>
+<li>Reference-5 每层：边界、入口、出口、跨层调用；</li>
+<li>CCR-14 每个机制：入口、状态机、正常路径、失败路径、退出路径；</li>
+<li>旧 AUX lifecycle obligations 全部映射到 R7/R5/CCR；</li>
+<li>package/symbol/callgraph maps 覆盖整个 critical cone；</li>
+<li>所有未确认内容保持 <code>UNKNOWN</code>，不得凭记忆填充。</li>
+</ol>
+<p><strong>Exit Gate：所有后续实现任务都有明确 reference evidence。</strong></p>
+<h1 id="4-wave-1-canonical-core-spine">4. Wave 1 — Canonical Core Spine</h1>
+<p>覆盖：</p>
+<ul>
+<li>R7-01 User；</li>
+<li>R7-02 Interfaces；</li>
+<li>R7-03 Agent Loop；</li>
+<li>R5-01 Surface；</li>
+<li>R5-02 Core；</li>
+<li>CCR-03 Context Shaping；</li>
+<li>CCR-04 Context Assembly；</li>
+<li>CCR-08 Recovery；</li>
+<li>CCR-14 Runtime Config。</li>
+</ul>
+<p>必须实现/验证：</p>
+<ol>
+<li>所有 surface 汇入一个 authoritative query path；</li>
+<li>一次 turn 的主顺序：
+<code>settings → mutable state → context assembly → pre-model shapers → model → tool dispatch → permission gate → execution/result → stop/continue</code>；</li>
+<li>Compact-5 顺序：
+<code>Result Budget → Snip → Microcompact → Context Collapse → Auto-Compact</code>；</li>
+<li>retry / max-output / prompt-too-long / reactive compact / stream fallback / fallback model；</li>
+<li>stop condition 与 terminal reasons；</li>
+<li>abort/generator-close 不留下不可解释 transient state；</li>
+<li>runtime config 在 query entry 明确快照，避免同一 turn 中配置漂移。</li>
+</ol>
+<h1 id="5-wave-2-safety-action-spine">5. Wave 2 — Safety / Action Spine</h1>
+<p>覆盖：</p>
+<ul>
+<li>R7-04 Permission System；</li>
+<li>R7-05 Tools；</li>
+<li>R5-03 Safety/Action；</li>
+<li>CCR-01 Hook Runtime；</li>
+<li>CCR-02 Authorization Pipeline；</li>
+<li>CCR-05 Capability Assembly；</li>
+<li>CCR-06 Tool Orchestration；</li>
+<li>CCR-07 Streaming Tool Execution；</li>
+<li>CCR-09 Result Processing。</li>
+</ul>
+<p>必须实现/验证：</p>
+<pre><code class="language-text">Tool Intent
+  ↓
+Tool Pool / Capability Projection
+  ↓
+PreToolUse / Hook
+  ↓
+deny-first rules
+  ↓
+tool-specific checks
+  ↓
+permission mode / classifier / human escalation
+  ↓
+execution-boundary preparation
+  ↓
+Tool Orchestration
+  ↓
+Execution
+  ↓
+Result normalization / budget / persistence
+</code></pre>
+<p>强制安全规则：</p>
+<ul>
+<li>deny &gt; ask &gt; allow；</li>
+<li>headless cannot-prompt → fail closed；</li>
+<li>hook allow 不能越过 deny/safety；</li>
+<li>classifier unavailable 不得 silent allow；</li>
+<li>builtin/MCP/subagent-as-tool 使用同一 action contract；</li>
+<li>tool result 必须按 tool-use contract 回写；</li>
+<li>speculative tool execution 不能改变 permission precedence。</li>
+</ul>
+<h1 id="6-wave-3-state-session-trust-spine">6. Wave 3 — State / Session / Trust Spine</h1>
+<p>覆盖：</p>
+<ul>
+<li>R7-06 State &amp; Persistence；</li>
+<li>R5-04 State；</li>
+<li>CCR-10 Session / Transcript；</li>
+<li>CCR-11 Subagent；</li>
+<li>CCR-13 Trust。</li>
+</ul>
+<p>必须区分：</p>
+<pre><code class="language-text">Durable Transcript
+Runtime State
+Working Context
+Projected Context
+Compacted Summary
+Instruction/Memory
+Sidechain Transcript
+Externalized Result Payload
+</code></pre>
+<p>必须闭环：</p>
+<ul>
+<li>append-oriented transcript；</li>
+<li>tail crash tolerance；</li>
+<li>UUID/lineage；</li>
+<li>content replacement reconstruction；</li>
+<li>compact boundary；</li>
+<li>sidechain；</li>
+<li>subagent isolated context + summary return；</li>
+<li>background lifecycle；</li>
+<li>Resume 真正重入 query/model；</li>
+<li>Fork 独立 lineage；</li>
+<li>Rewind 明确 working-state 与 durable history 语义；</li>
+<li>session-scoped trust 不恢复；</li>
+<li>scheduler/pending message/resume race safety。</li>
+</ul>
+<h1 id="7-wave-4-isolation-backend-spine">7. Wave 4 — Isolation / Backend Spine</h1>
+<p>覆盖：</p>
+<ul>
+<li>R7-07 Execution Environment；</li>
+<li>R5-05 Backend；</li>
+<li>CCR-12 Isolation；</li>
+<li>CCR-13 Trust；</li>
+<li>CCR-14 Runtime Config。</li>
+</ul>
+<p>必须形成：</p>
+<pre><code class="language-text">Permission
+  ↓
+Workspace canonicalization / second check
+  ↓
+Sandbox policy
+  ↓
+Env / secret policy
+  ↓
+Network policy
+  ↓
+Process policy
+  ↓
+Backend invocation
+  ↓
+timeout / abort / kill-tree / result
+</code></pre>
+<p><code>NoSandboxBackend</code> 只能作为显式 unsandboxed backend。最终 source-aligned mode 必须具备参考语义要求的真实 isolation，或以有证据的 OS-specific verified adaptation 实现。</p>
+<h1 id="8-wave-5-cross-surface-crosscut-closure">8. Wave 5 — Cross-Surface / Crosscut Closure</h1>
+<p>此阶段禁止新增产品功能，只做完整闭环：</p>
+<ul>
+<li>same scripted turn → Interactive / Headless / SDK / Desktop / TUI 语义等价；</li>
+<li>hook traces；</li>
+<li>permission traces；</li>
+<li>tool streaming/batched traces；</li>
+<li>result-order traces；</li>
+<li>recovery traces；</li>
+<li>transcript/resume/fork/rewind traces；</li>
+<li>sandbox deny/escape/network/env/process fault traces；</li>
+<li>subagent/background/MCP/scheduler lifecycle traces；</li>
+<li>current HEAD reproducible CI。</li>
+</ul>
+<h1 id="9-最终判定">9. 最终判定</h1>
+<p>每个 R7/R5/CCR 只能以以下状态计入完成：</p>
+<ul>
+<li><code>EXACT</code></li>
+<li><code>SEMANTIC_EQUIVALENT</code></li>
+<li><code>PYTHON_ADAPTATION_VERIFIED</code></li>
+</ul>
+<p>以下全部视为未完成：</p>
+<ul>
+<li><code>PARTIAL</code></li>
+<li><code>UNKNOWN</code></li>
+<li><code>MISSING</code></li>
+<li><code>PRODUCT_EXTENSION</code></li>
+<li><code>INTENTIONAL_DIVERGENCE</code></li>
+</ul>
+<p>产品 divergence 只能存在于 core source-aligned path 外。</p>
+<h1 id="10-默认延期">10. 默认延期</h1>
+<p>B3 完成前默认延期：</p>
+<ul>
+<li>新 provider/vendor；</li>
+<li>非 reference 必需的新工具；</li>
+<li>新 workflow 产品功能；</li>
+<li>UI 视觉增强；</li>
+<li>新 benchmark 包装；</li>
+<li>营销/发布工程；</li>
+<li>与 critical cone 无关的性能优化；</li>
+<li>纯命名/目录模仿；</li>
+<li>非必要文档美化。</li>
+</ul>
+<h1 id="11-program-结束条件">11. Program 结束条件</h1>
+<pre><code class="language-text">7/7  Reference-7 complete
+5/5  Reference-5 complete
+14/14 CCR-14 complete
+
+old AUX lifecycle obligations fully covered
+critical unknown/partial/missing = 0
+critical divergence = 0
+critical source / callgraph map complete
+critical behavior / safety / state / fault tests green
+cross-surface traces equivalent
+current HEAD CI reproducible
+</code></pre>
+</article>
+  <div class="footer">ClaudeRuntime Source-Aligned 7×5×14 — B3</div>
+</main>
+</div>
+</body>
+</html>

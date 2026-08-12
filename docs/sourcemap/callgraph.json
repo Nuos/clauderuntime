@@ -1,0 +1,334 @@
+{
+  "schema": "clauderuntime-callgraph-import-level",
+  "date": "2026-08-12",
+  "nodes": [
+    "agent",
+    "assistant",
+    "auth",
+    "background",
+    "bootstrap",
+    "bridge",
+    "buddy",
+    "cli_backup",
+    "cli_core",
+    "command_system",
+    "compact_service",
+    "components",
+    "constants",
+    "context_system",
+    "coordinator",
+    "core-single-files",
+    "eco",
+    "entrypoints",
+    "execution",
+    "goals",
+    "hooks",
+    "keybindings",
+    "knowledge",
+    "memdir",
+    "memory",
+    "migrations",
+    "models",
+    "moreright",
+    "native_ts",
+    "outputStyles",
+    "permissions",
+    "plan",
+    "plugins",
+    "providers",
+    "query",
+    "reference_data",
+    "remote",
+    "scheduled_tasks",
+    "schemas",
+    "screens",
+    "server",
+    "services",
+    "settings",
+    "skills",
+    "state",
+    "tasks",
+    "tool_system",
+    "transports",
+    "types",
+    "upstreamproxy",
+    "utils",
+    "vim",
+    "voice",
+    "wiki",
+    "workflow"
+  ],
+  "edges": [
+    [
+      "agent",
+      "bootstrap"
+    ],
+    [
+      "agent",
+      "permissions"
+    ],
+    [
+      "agent",
+      "providers"
+    ],
+    [
+      "agent",
+      "tool_system"
+    ],
+    [
+      "agent",
+      "types"
+    ],
+    [
+      "agent",
+      "utils"
+    ],
+    [
+      "command_system",
+      "context_system"
+    ],
+    [
+      "command_system",
+      "cost_tracker"
+    ],
+    [
+      "command_system",
+      "history"
+    ],
+    [
+      "command_system",
+      "providers"
+    ],
+    [
+      "command_system",
+      "skills"
+    ],
+    [
+      "command_system",
+      "utils"
+    ],
+    [
+      "compact_service",
+      "agent"
+    ],
+    [
+      "compact_service",
+      "providers"
+    ],
+    [
+      "compact_service",
+      "services"
+    ],
+    [
+      "compact_service",
+      "types"
+    ],
+    [
+      "context_system",
+      "skills"
+    ],
+    [
+      "context_system",
+      "token_estimation"
+    ],
+    [
+      "context_system",
+      "types"
+    ],
+    [
+      "core-single-files",
+      "cost_tracker"
+    ],
+    [
+      "core-single-files",
+      "tasks_core"
+    ],
+    [
+      "entrypoints",
+      "types"
+    ],
+    [
+      "query",
+      "context_system"
+    ],
+    [
+      "query",
+      "providers"
+    ],
+    [
+      "query",
+      "services"
+    ],
+    [
+      "query",
+      "token_estimation"
+    ],
+    [
+      "query",
+      "tool_system"
+    ],
+    [
+      "query",
+      "types"
+    ],
+    [
+      "query",
+      "utils"
+    ],
+    [
+      "services",
+      "compact_service"
+    ],
+    [
+      "services",
+      "context_system"
+    ],
+    [
+      "services",
+      "providers"
+    ],
+    [
+      "services",
+      "token_estimation"
+    ],
+    [
+      "services",
+      "types"
+    ],
+    [
+      "services",
+      "utils"
+    ],
+    [
+      "settings",
+      "config"
+    ],
+    [
+      "tool_system",
+      "utils"
+    ],
+    [
+      "utils",
+      "types"
+    ]
+  ],
+  "in_degree": {
+    "types": 7,
+    "providers": 5,
+    "utils": 5,
+    "context_system": 3,
+    "token_estimation": 3,
+    "tool_system": 2,
+    "cost_tracker": 2,
+    "skills": 2,
+    "services": 2,
+    "bootstrap": 1,
+    "permissions": 1,
+    "history": 1,
+    "agent": 1,
+    "tasks_core": 1,
+    "compact_service": 1,
+    "config": 1,
+    "assistant": 0,
+    "auth": 0,
+    "background": 0,
+    "bridge": 0,
+    "buddy": 0,
+    "cli_backup": 0,
+    "cli_core": 0,
+    "command_system": 0,
+    "components": 0,
+    "constants": 0,
+    "coordinator": 0,
+    "core-single-files": 0,
+    "eco": 0,
+    "entrypoints": 0,
+    "execution": 0,
+    "goals": 0,
+    "hooks": 0,
+    "keybindings": 0,
+    "knowledge": 0,
+    "memdir": 0,
+    "memory": 0,
+    "migrations": 0,
+    "models": 0,
+    "moreright": 0,
+    "native_ts": 0,
+    "outputStyles": 0,
+    "plan": 0,
+    "plugins": 0,
+    "query": 0,
+    "reference_data": 0,
+    "remote": 0,
+    "scheduled_tasks": 0,
+    "schemas": 0,
+    "screens": 0,
+    "server": 0,
+    "settings": 0,
+    "state": 0,
+    "tasks": 0,
+    "transports": 0,
+    "upstreamproxy": 0,
+    "vim": 0,
+    "voice": 0,
+    "wiki": 0,
+    "workflow": 0
+  },
+  "out_degree": {
+    "query": 7,
+    "agent": 6,
+    "command_system": 6,
+    "services": 6,
+    "compact_service": 4,
+    "context_system": 3,
+    "core-single-files": 2,
+    "entrypoints": 1,
+    "settings": 1,
+    "tool_system": 1,
+    "utils": 1,
+    "assistant": 0,
+    "auth": 0,
+    "background": 0,
+    "bootstrap": 0,
+    "bridge": 0,
+    "buddy": 0,
+    "cli_backup": 0,
+    "cli_core": 0,
+    "components": 0,
+    "constants": 0,
+    "coordinator": 0,
+    "eco": 0,
+    "execution": 0,
+    "goals": 0,
+    "hooks": 0,
+    "keybindings": 0,
+    "knowledge": 0,
+    "memdir": 0,
+    "memory": 0,
+    "migrations": 0,
+    "models": 0,
+    "moreright": 0,
+    "native_ts": 0,
+    "outputStyles": 0,
+    "permissions": 0,
+    "plan": 0,
+    "plugins": 0,
+    "providers": 0,
+    "reference_data": 0,
+    "remote": 0,
+    "scheduled_tasks": 0,
+    "schemas": 0,
+    "screens": 0,
+    "server": 0,
+    "skills": 0,
+    "state": 0,
+    "tasks": 0,
+    "transports": 0,
+    "types": 0,
+    "upstreamproxy": 0,
+    "vim": 0,
+    "voice": 0,
+    "wiki": 0,
+    "workflow": 0
+  }
+}

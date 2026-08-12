@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>transports 源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-r7-r5-ccr-14-映射-启发式初版" data-nav>5. R7/R5/CCR-14 映射（启发式初版）</a></li>
+<li><a href="#6-文件级映射细分" data-nav>6. 文件级映射细分</a></li>
+<li><a href="#7-未确认项与待核实项" data-nav>7. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>transports 源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">48</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2302</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="transports-源码盘点">transports 源码盘点</h1>
+<blockquote>
+<p>编号: 48</p>
+<p>时间戳: 20260811_2302</p>
+<p>基线: def709361a86</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>类型: package（目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: transports</li>
+<li>类型: package（目录模块）</li>
+<li>Python 文件数: 9</li>
+<li>总行数: 3146</li>
+<li>依赖的 src 内部模块: 无</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">transports/__init__.py</code> — 55 行（类 0，函数 0）</li>
+<li><code class="inline-code">transports/ccr_client.py</code> — 384 行（类 2，函数 0）</li>
+<li><code class="inline-code">transports/hybrid_transport.py</code> — 388 行（类 1，函数 1）</li>
+<li><code class="inline-code">transports/remote_io.py</code> — 317 行（类 1，函数 1）</li>
+<li><code class="inline-code">transports/serial_batch_event_uploader.py</code> — 503 行（类 3，函数 0）</li>
+<li><code class="inline-code">transports/sse_transport.py</code> — 244 行（类 2，函数 0）</li>
+<li><code class="inline-code">transports/transport_utils.py</code> — 134 行（类 1，函数 2）</li>
+<li><code class="inline-code">transports/websocket_transport.py</code> — 961 行（类 2，函数 1）</li>
+<li><code class="inline-code">transports/worker_state_uploader.py</code> — 160 行（类 2，函数 1）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">transports/__init__.py</code></li>
+<li>文件 <code class="inline-code">transports/ccr_client.py</code></li>
+<li>类 CCRClientOptions — L64</li>
+<li>类 CCRClient — L78</li>
+<li>文件 <code class="inline-code">transports/hybrid_transport.py</code></li>
+<li>类 HybridTransport — L100</li>
+<li>函数 _convert_ws_url_to_post_url — L353</li>
+<li>文件 <code class="inline-code">transports/remote_io.py</code></li>
+<li>类 RemoteIO — L96</li>
+<li>函数 _is_debug_mode — L80</li>
+<li>文件 <code class="inline-code">transports/serial_batch_event_uploader.py</code></li>
+<li>类 RetryableError — L70</li>
+<li>类 SerialBatchEventUploaderConfig — L89</li>
+<li>类 SerialBatchEventUploader — L163</li>
+<li>文件 <code class="inline-code">transports/sse_transport.py</code></li>
+<li>类 SSEEvent — L45</li>
+<li>类 SSETransport — L58</li>
+<li>文件 <code class="inline-code">transports/transport_utils.py</code></li>
+<li>类 Transport — L52</li>
+<li>函数 is_env_truthy — L65</li>
+<li>函数 get_transport_for_url — L72</li>
+<li>文件 <code class="inline-code">transports/websocket_transport.py</code></li>
+<li>类 WebSocketTransportOptions — L149</li>
+<li>类 WebSocketTransport — L178</li>
+<li>函数 _monotonic_ms — L168</li>
+<li>文件 <code class="inline-code">transports/worker_state_uploader.py</code></li>
+<li>类 WorkerStateUploaderConfig — L46</li>
+<li>类 WorkerStateUploader — L64</li>
+<li>函数 _coalesce_patches — L137</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>transports/__init__.py → import annotations（外部）</li>
+<li>transports/__init__.py → import CCRClient（外部）</li>
+<li>transports/__init__.py → import HybridTransport（外部）</li>
+<li>transports/__init__.py → import RemoteIO（外部）</li>
+<li>transports/__init__.py → import SerialBatchEventUploader（外部）</li>
+<li>transports/__init__.py → import SSETransport（外部）</li>
+<li>transports/__init__.py → import Transport（外部）</li>
+<li>transports/__init__.py → import get_transport_for_url（外部）</li>
+<li>transports/__init__.py → import WebSocketTransport（外部）</li>
+<li>transports/__init__.py → import WorkerStateUploader（外部）</li>
+<li>transports/__init__.py → import WorkerStateUploaderConfig（外部）</li>
+<li>transports/ccr_client.py → import annotations（外部）</li>
+<li>transports/ccr_client.py → import asyncio（外部）</li>
+<li>transports/ccr_client.py → import logging（外部）</li>
+<li>transports/ccr_client.py → import random（外部）</li>
+<li>transports/ccr_client.py → import Callable（外部）</li>
+<li>transports/ccr_client.py → import dataclass（外部）</li>
+<li>transports/ccr_client.py → import field（外部）</li>
+<li>transports/ccr_client.py → import Any（外部）</li>
+<li>transports/ccr_client.py → import httpx（外部）</li>
+<li>transports/ccr_client.py → import EpochSupersededError（外部）</li>
+<li>transports/hybrid_transport.py → import annotations（外部）</li>
+<li>transports/hybrid_transport.py → import asyncio（外部）</li>
+<li>transports/hybrid_transport.py → import logging（外部）</li>
+<li>transports/hybrid_transport.py → import Callable（外部）</li>
+<li>transports/hybrid_transport.py → import Any（外部）</li>
+<li>transports/hybrid_transport.py → import urlparse（外部）</li>
+<li>transports/hybrid_transport.py → import urlunparse（外部）</li>
+<li>transports/hybrid_transport.py → import httpx（外部）</li>
+<li>transports/hybrid_transport.py → import SerialBatchEventUploader（外部）</li>
+<li>transports/hybrid_transport.py → import SerialBatchEventUploaderConfig（外部）</li>
+<li>transports/hybrid_transport.py → import WebSocketTransport（外部）</li>
+<li>transports/hybrid_transport.py → import WebSocketTransportOptions（外部）</li>
+<li>transports/hybrid_transport.py → import get_session_ingress_auth_token（外部）</li>
+<li>transports/remote_io.py → import annotations（外部）</li>
+<li>transports/remote_io.py → import asyncio（外部）</li>
+<li>transports/remote_io.py → import logging（外部）</li>
+<li>transports/remote_io.py → import os（外部）</li>
+<li>transports/remote_io.py → import sys（外部）</li>
+<li>transports/remote_io.py → import AsyncIterable（外部）</li>
+<li>transports/remote_io.py → import AsyncIterator（外部）</li>
+<li>transports/remote_io.py → import Any（外部）</li>
+<li>transports/remote_io.py → import get_poll_interval_config（外部）</li>
+<li>transports/remote_io.py → import ndjson_safe_dumps（外部）</li>
+<li>transports/remote_io.py → import Transport（外部）</li>
+<li>transports/remote_io.py → import get_transport_for_url（外部）</li>
+<li>transports/remote_io.py → import is_env_truthy（外部）</li>
+<li>transports/remote_io.py → import get_session_ingress_auth_headers（外部）</li>
+<li>transports/remote_io.py → import get_session_ingress_auth_token（外部）</li>
+<li>transports/serial_batch_event_uploader.py → import annotations（外部）</li>
+<li>transports/serial_batch_event_uploader.py → import asyncio（外部）</li>
+<li>transports/serial_batch_event_uploader.py → import json（外部）</li>
+<li>transports/serial_batch_event_uploader.py → import logging（外部）</li>
+<li>transports/serial_batch_event_uploader.py → import random（外部）</li>
+<li>transports/serial_batch_event_uploader.py → import Awaitable（外部）</li>
+<li>transports/serial_batch_event_uploader.py → import Callable（外部）</li>
+<li>transports/serial_batch_event_uploader.py → import dataclass（外部）</li>
+<li>transports/serial_batch_event_uploader.py → import Generic（外部）</li>
+<li>transports/serial_batch_event_uploader.py → import TypeVar（外部）</li>
+<li>transports/sse_transport.py → import annotations（外部）</li>
+<li>transports/sse_transport.py → import asyncio（外部）</li>
+<li>transports/sse_transport.py → import logging（外部）</li>
+<li>transports/sse_transport.py → import Awaitable（外部）</li>
+<li>transports/sse_transport.py → import Callable（外部）</li>
+<li>transports/sse_transport.py → import dataclass（外部）</li>
+<li>transports/sse_transport.py → import field（外部）</li>
+<li>transports/sse_transport.py → import httpx（外部）</li>
+<li>transports/sse_transport.py → import aconnect_sse（外部）</li>
+<li>transports/sse_transport.py → import WS_CLOSE_RECONNECT_BUDGET_EXHAUSTED（外部）</li>
+<li>transports/transport_utils.py → import annotations（外部）</li>
+<li>transports/transport_utils.py → import os（外部）</li>
+<li>transports/transport_utils.py → import Callable（外部）</li>
+<li>transports/transport_utils.py → import Protocol（外部）</li>
+<li>transports/transport_utils.py → import runtime_checkable（外部）</li>
+<li>transports/transport_utils.py → import httpx（外部）</li>
+<li>transports/transport_utils.py → import HybridTransport（外部）</li>
+<li>transports/transport_utils.py → import SSETransport（外部）</li>
+<li>transports/transport_utils.py → import WebSocketTransport（外部）</li>
+<li>transports/websocket_transport.py → import annotations（外部）</li>
+<li>transports/websocket_transport.py → import asyncio（外部）</li>
+<li>transports/websocket_transport.py → import json（外部）</li>
+<li>transports/websocket_transport.py → import logging（外部）</li>
+<li>transports/websocket_transport.py → import random（外部）</li>
+<li>transports/websocket_transport.py → import time（外部）</li>
+<li>transports/websocket_transport.py → import deque（外部）</li>
+<li>transports/websocket_transport.py → import Callable（外部）</li>
+<li>transports/websocket_transport.py → import dataclass（外部）</li>
+<li>transports/websocket_transport.py → import Any（外部）</li>
+<li>transports/websocket_transport.py → import Literal（外部）</li>
+<li>transports/websocket_transport.py → import websockets（外部）</li>
+<li>transports/websocket_transport.py → import ClientConnection（外部）</li>
+<li>transports/websocket_transport.py → import connect（外部）</li>
+<li>transports/websocket_transport.py → import is_env_truthy（外部）</li>
+<li>transports/worker_state_uploader.py → import annotations（外部）</li>
+<li>transports/worker_state_uploader.py → import asyncio（外部）</li>
+<li>transports/worker_state_uploader.py → import random（外部）</li>
+<li>transports/worker_state_uploader.py → import Awaitable（外部）</li>
+<li>transports/worker_state_uploader.py → import Callable（外部）</li>
+<li>transports/worker_state_uploader.py → import dataclass（外部）</li>
+<li>transports/worker_state_uploader.py → import Any（外部）</li>
+</ol>
+<h2 id="5-r7-r5-ccr-14-映射-启发式初版">5. R7/R5/CCR-14 映射（启发式初版）</h2>
+<ol>
+<li>R7-02 Interfaces — 候选（启发式），状态 UNVERIFIED</li>
+<li>R5-01 Surface Layer — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-文件级映射细分">6. 文件级映射细分</h2>
+<ol>
+<li><code class="inline-code">__init__.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">ccr_client.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">hybrid_transport.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">remote_io.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">serial_batch_event_uploader.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">sse_transport.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">transport_utils.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">websocket_transport.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">worker_state_uploader.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+</ol>
+<h2 id="7-未确认项与待核实项">7. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ reference 侧对应文件/symbol 映射待核实</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 reference source</li>
+<li>☐ 本模块 R7/R5/CCR 归属的 UNVERIFIED 状态待升级或降级</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-transports-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

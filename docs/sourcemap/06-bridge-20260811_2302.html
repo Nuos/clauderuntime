@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bridge 源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-r7-r5-ccr-14-映射-启发式初版" data-nav>5. R7/R5/CCR-14 映射（启发式初版）</a></li>
+<li><a href="#6-文件级映射细分" data-nav>6. 文件级映射细分</a></li>
+<li><a href="#7-未确认项与待核实项" data-nav>7. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>bridge 源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">06</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2302</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="bridge-源码盘点">bridge 源码盘点</h1>
+<blockquote>
+<p>编号: 06</p>
+<p>时间戳: 20260811_2302</p>
+<p>基线: def709361a86</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>类型: package（目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: bridge</li>
+<li>类型: package（目录模块）</li>
+<li>Python 文件数: 37</li>
+<li>总行数: 11760</li>
+<li>依赖的 src 内部模块: 无</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">bridge/__init__.py</code> — 201 行（类 0，函数 1）</li>
+<li><code class="inline-code">bridge/bounded_uuid_set.py</code> — 75 行（类 1，函数 0）</li>
+<li><code class="inline-code">bridge/bridge_api.py</code> — 740 行（类 1，函数 7）</li>
+<li><code class="inline-code">bridge/bridge_config.py</code> — 80 行（类 0，函数 4）</li>
+<li><code class="inline-code">bridge/bridge_enabled.py</code> — 101 行（类 0，函数 8）</li>
+<li><code class="inline-code">bridge/bridge_main.py</code> — 1243 行（类 5，函数 12）</li>
+<li><code class="inline-code">bridge/bridge_permission_callbacks.py</code> — 101 行（类 2，函数 1）</li>
+<li><code class="inline-code">bridge/bridge_pointer.py</code> — 259 行（类 1，函数 5）</li>
+<li><code class="inline-code">bridge/bridge_status_util.py</code> — 448 行（类 2，函数 17）</li>
+<li><code class="inline-code">bridge/capacity_wake.py</code> — 114 行（类 2，函数 1）</li>
+<li><code class="inline-code">bridge/close_codes.py</code> — 52 行（类 0，函数 0）</li>
+<li><code class="inline-code">bridge/code_session_api.py</code> — 265 行（类 1，函数 4）</li>
+<li><code class="inline-code">bridge/debug_utils.py</code> — 186 行（类 0，函数 7）</li>
+<li><code class="inline-code">bridge/env_less_bridge_config.py</code> — 142 行（类 1，函数 4）</li>
+<li><code class="inline-code">bridge/exceptions.py</code> — 62 行（类 3，函数 0）</li>
+<li><code class="inline-code">bridge/flush_gate.py</code> — 92 行（类 1，函数 0）</li>
+<li><code class="inline-code">bridge/inbound_attachments.py</code> — 273 行（类 0，函数 9）</li>
+<li><code class="inline-code">bridge/inbound_messages.py</code> — 143 行（类 0，函数 4）</li>
+<li><code class="inline-code">bridge/init_repl_bridge.py</code> — 398 行（类 1，函数 4）</li>
+<li><code class="inline-code">bridge/jwt_utils.py</code> — 348 行（类 1，函数 3）</li>
+<li><code class="inline-code">bridge/messaging.py</code> — 402 行（类 2，函数 11）</li>
+<li><code class="inline-code">bridge/messaging_handlers.py</code> — 261 行（类 4，函数 2）</li>
+<li><code class="inline-code">bridge/no_proxy.py</code> — 50 行（类 0，函数 1）</li>
+<li><code class="inline-code">bridge/poll_config.py</code> — 189 行（类 1，函数 2）</li>
+<li><code class="inline-code">bridge/poll_config_defaults.py</code> — 95 行（类 1，函数 0）</li>
+<li><code class="inline-code">bridge/protojson.py</code> — 63 行（类 0，函数 1）</li>
+<li><code class="inline-code">bridge/remote_bridge_core.py</code> — 1176 行（类 3，函数 8）</li>
+<li><code class="inline-code">bridge/repl_bridge.py</code> — 1394 行（类 3，函数 3）</li>
+<li><code class="inline-code">bridge/repl_bridge_handle.py</code> — 100 行（类 0，函数 4）</li>
+<li><code class="inline-code">bridge/repl_bridge_transport.py</code> — 417 行（类 4，函数 2）</li>
+<li><code class="inline-code">bridge/sdk_types.py</code> — 275 行（类 19，函数 0）</li>
+<li><code class="inline-code">bridge/session_id_compat.py</code> — 81 行（类 0，函数 4）</li>
+<li><code class="inline-code">bridge/session_runner.py</code> — 959 行（类 5，函数 8）</li>
+<li><code class="inline-code">bridge/trusted_device.py</code> — 97 行（类 0，函数 4）</li>
+<li><code class="inline-code">bridge/types.py</code> — 500 行（类 12，函数 0）</li>
+<li><code class="inline-code">bridge/work_secret.py</code> — 156 行（类 1，函数 4）</li>
+<li><code class="inline-code">bridge/worktree.py</code> — 222 行（类 1，函数 4）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">bridge/__init__.py</code></li>
+<li>函数 __getattr__ — L105</li>
+<li>文件 <code class="inline-code">bridge/bounded_uuid_set.py</code></li>
+<li>类 BoundedUUIDSet — L27</li>
+<li>文件 <code class="inline-code">bridge/bridge_api.py</code></li>
+<li>类 _BridgeApiClient — L169</li>
+<li>函数 validate_bridge_id — L66</li>
+<li>函数 is_expired_error_type — L82</li>
+<li>函数 is_suppressible_403 — L93</li>
+<li>函数 create_bridge_api_client — L119</li>
+<li>函数 _extract_error_type_from_data — L630</li>
+<li>函数 _safe_json — L648</li>
+<li>函数 _handle_error_status — L656</li>
+<li>文件 <code class="inline-code">bridge/bridge_config.py</code></li>
+<li>函数 get_bridge_token_override — L36</li>
+<li>函数 get_bridge_base_url_override — L46</li>
+<li>函数 get_bridge_access_token — L55</li>
+<li>函数 get_bridge_base_url — L65</li>
+<li>文件 <code class="inline-code">bridge/bridge_enabled.py</code></li>
+<li>函数 is_bridge_enabled — L19</li>
+<li>函数 is_bridge_enabled_blocking — L28</li>
+<li>函数 get_bridge_disabled_reason — L37</li>
+<li>函数 is_env_less_bridge_enabled — L46</li>
+<li>函数 is_cse_shim_enabled — L55</li>
+<li>函数 check_bridge_min_version — L65</li>
+<li>函数 get_ccr_auto_connect_default — L74</li>
+<li>函数 is_ccr_mirror_enabled — L83</li>
+<li>文件 <code class="inline-code">bridge/bridge_main.py</code></li>
+<li>类 BackoffConfig — L111</li>
+<li>类 ParsedArgs — L137</li>
+<li>类 BridgeHeadlessPermanentError — L336</li>
+<li>类 _BackoffTrack — L395</li>
+<li>类 _BridgeDaemon — L437</li>
+<li>函数 _make_error — L156</li>
+<li>函数 _parse_spawn_value — L160</li>
+<li>函数 _parse_capacity_value — L173</li>
+<li>函数 parse_args — L185</li>
+<li>函数 _int_seconds_to_ms — L286</li>
+<li>函数 _now_ms — L297</li>
+<li>函数 is_connection_error — L306</li>
+<li>函数 is_server_error — L326</li>
+<li>函数 run_bridge_loop — L348</li>
+<li>函数 bridge_main — L1082</li>
+<li>函数 _install_signal_handlers — L1187</li>
+<li>函数 _print_usage — L1209</li>
+<li>文件 <code class="inline-code">bridge/bridge_permission_callbacks.py</code></li>
+<li>类 BridgePermissionResponse — L22</li>
+<li>类 BridgePermissionCallbacks — L59</li>
+<li>函数 is_bridge_permission_response — L44</li>
+<li>文件 <code class="inline-code">bridge/bridge_pointer.py</code></li>
+<li>类 BridgePointer — L63</li>
+<li>函数 _pointer_path — L101</li>
+<li>函数 _now_ms — L105</li>
+<li>函数 read_pointer — L109</li>
+<li>函数 write_pointer — L195</li>
+<li>函数 clear_pointer — L249</li>
+<li>文件 <code class="inline-code">bridge/bridge_status_util.py</code></li>
+<li>类 ShimmerSegments — L293</li>
+<li>类 BridgeStatusInfo — L351</li>
+<li>函数 string_width — L89</li>
+<li>函数 truncate_to_width — L105</li>
+<li>函数 _strip_ansi — L159</li>
+<li>函数 _grapheme_split — L164</li>
+<li>函数 _iter_tokens — L174</li>
+<li>函数 get_claude_ai_base_url — L194</li>
+<li>函数 get_remote_session_url — L205</li>
+<li>函数 timestamp — L227</li>
+<li>函数 abbreviate_activity — L236</li>
+<li>函数 build_bridge_connect_url — L249</li>
+<li>函数 build_bridge_session_url — L261</li>
+<li>函数 compute_glimmer_index — L281</li>
+<li>函数 compute_shimmer_segments — L305</li>
+<li>函数 get_bridge_status — L361</li>
+<li>函数 build_idle_footer_text — L394</li>
+<li>函数 build_active_footer_text — L402</li>
+<li>函数 wrap_with_osc8_link — L415</li>
+<li>文件 <code class="inline-code">bridge/capacity_wake.py</code></li>
+<li>类 CapacitySignal — L30</li>
+<li>类 CapacityWake — L42</li>
+<li>函数 create_capacity_wake — L112</li>
+<li>文件 <code class="inline-code">bridge/close_codes.py</code></li>
+<li>文件 <code class="inline-code">bridge/code_session_api.py</code></li>
+<li>类 RemoteCredentials — L50</li>
+<li>函数 _oauth_headers — L41</li>
+<li>函数 create_code_session — L68</li>
+<li>函数 fetch_remote_credentials — L128</li>
+<li>函数 register_worker — L206</li>
+<li>文件 <code class="inline-code">bridge/debug_utils.py</code></li>
+<li>函数 redact_secrets — L37</li>
+<li>函数 debug_truncate — L55</li>
+<li>函数 debug_body — L66</li>
+<li>函数 describe_http_error — L92</li>
+<li>函数 extract_http_status — L117</li>
+<li>函数 extract_error_detail — L137</li>
+<li>函数 log_bridge_skip — L156</li>
+<li>文件 <code class="inline-code">bridge/env_less_bridge_config.py</code></li>
+<li>类 EnvLessBridgeConfig — L26</li>
+<li>函数 get_env_less_bridge_config — L77</li>
+<li>函数 validate_env_less_bridge_config_raw — L89</li>
+<li>函数 check_env_less_bridge_min_version — L106</li>
+<li>函数 should_show_app_upgrade_message — L122</li>
+<li>文件 <code class="inline-code">bridge/exceptions.py</code></li>
+<li>类 EpochSupersededError — L10</li>
+<li>类 BridgeAuthError — L21</li>
+<li>类 BridgeFatalError — L29</li>
+<li>文件 <code class="inline-code">bridge/flush_gate.py</code></li>
+<li>类 FlushGate — L30</li>
+<li>文件 <code class="inline-code">bridge/inbound_attachments.py</code></li>
+<li>函数 extract_inbound_attachments — L48</li>
+<li>函数 resolve_inbound_attachments — L71</li>
+<li>函数 prepend_path_refs — L101</li>
+<li>函数 resolve_and_prepend — L137</li>
+<li>函数 _sanitize_filename — L161</li>
+<li>函数 _uploads_dir — L173</li>
+<li>函数 _debug — L187</li>
+<li>函数 _resolve_one — L192</li>
+<li>函数 _urlencode_segment — L256</li>
+<li>文件 <code class="inline-code">bridge/inbound_messages.py</code></li>
+<li>函数 detect_image_format_from_base64 — L27</li>
+<li>函数 extract_inbound_message_fields — L58</li>
+<li>函数 normalize_image_blocks — L92</li>
+<li>函数 _is_malformed_base64_image — L129</li>
+<li>文件 <code class="inline-code">bridge/init_repl_bridge.py</code></li>
+<li>类 InitBridgeOptions — L96</li>
+<li>函数 init_repl_bridge — L148</li>
+<li>函数 _strip_display_tags — L340</li>
+<li>函数 derive_title — L349</li>
+<li>函数 _fire_state — L377</li>
+<li>文件 <code class="inline-code">bridge/jwt_utils.py</code></li>
+<li>类 TokenRefreshScheduler — L109</li>
+<li>函数 decode_jwt_payload — L36</li>
+<li>函数 decode_jwt_expiry — L63</li>
+<li>函数 _format_duration_ms — L100</li>
+<li>文件 <code class="inline-code">bridge/messaging.py</code></li>
+<li>类 AllowResponse — L348</li>
+<li>类 DenyResponse — L356</li>
+<li>函数 is_sdk_message — L44</li>
+<li>函数 is_sdk_control_response — L57</li>
+<li>函数 is_sdk_control_request — L66</li>
+<li>函数 normalize_control_message_keys — L100</li>
+<li>函数 _looks_camel_case — L125</li>
+<li>函数 handle_ingress_message — L133</li>
+<li>函数 is_eligible_bridge_message — L232</li>
+<li>函数 _strip_display_tags — L259</li>
+<li>函数 extract_title_text — L270</li>
+<li>函数 make_result_message — L320</li>
+<li>函数 remote_permission_response_from_dict — L367</li>
+<li>文件 <code class="inline-code">bridge/messaging_handlers.py</code></li>
+<li>类 Ok — L42</li>
+<li>类 Err — L47</li>
+<li>类 _TransportLike — L59</li>
+<li>类 ServerControlRequestHandlers — L86</li>
+<li>函数 handle_server_control_request — L125</li>
+<li>函数 _send — L222</li>
+<li>文件 <code class="inline-code">bridge/no_proxy.py</code></li>
+<li>函数 default_no_proxy — L45</li>
+<li>文件 <code class="inline-code">bridge/poll_config.py</code></li>
+<li>类 _PollIntervalSchema — L45</li>
+<li>函数 get_poll_interval_config — L159</li>
+<li>函数 validate_poll_interval_config_raw — L170</li>
+<li>文件 <code class="inline-code">bridge/poll_config_defaults.py</code></li>
+<li>类 PollIntervalConfig — L47</li>
+<li>文件 <code class="inline-code">bridge/protojson.py</code></li>
+<li>函数 coerce_int64 — L35</li>
+<li>文件 <code class="inline-code">bridge/remote_bridge_core.py</code></li>
+<li>类 EnvLessBridgeParams — L127</li>
+<li>类 RemoteBridgeHandle — L155</li>
+<li>类 _BridgeState — L354</li>
+<li>函数 init_env_less_bridge_core — L179</li>
+<li>函数 _freeze_token — L977</li>
+<li>函数 _fire_state — L988</li>
+<li>函数 _msg_dict — L1007</li>
+<li>函数 _with_retry — L1034</li>
+<li>函数 _async_refresh_token — L1067</li>
+<li>函数 _safe_archive_session — L1086</li>
+<li>函数 _archive_v2_session — L1115</li>
+<li>文件 <code class="inline-code">bridge/repl_bridge.py</code></li>
+<li>类 BridgeCoreParams — L139</li>
+<li>类 ReplBridgeHandle — L210</li>
+<li>类 _BridgeState — L508</li>
+<li>函数 init_bridge_core — L233</li>
+<li>函数 _validated_spawn_mode — L1364</li>
+<li>函数 _fire_state — L1371</li>
+<li>文件 <code class="inline-code">bridge/repl_bridge_handle.py</code></li>
+<li>函数 set_repl_bridge_handle — L39</li>
+<li>函数 get_repl_bridge_handle — L63</li>
+<li>函数 get_self_bridge_compat_id — L71</li>
+<li>函数 _reset_for_testing — L85</li>
+<li>文件 <code class="inline-code">bridge/repl_bridge_transport.py</code></li>
+<li>类 ReplBridgeTransport — L41</li>
+<li>类 V2TransportOptions — L74</li>
+<li>类 _V2ReplTransport — L88</li>
+<li>类 _V1ReplTransport — L319</li>
+<li>函数 create_v2_repl_transport — L234</li>
+<li>函数 create_v1_repl_transport — L402</li>
+<li>文件 <code class="inline-code">bridge/sdk_types.py</code></li>
+<li>类 UserMessage — L32</li>
+<li>类 AssistantMessage — L45</li>
+<li>类 SystemMessage — L55</li>
+<li>类 SDKResultSuccess — L65</li>
+<li>类 ToolResultMessage — L88</li>
+<li>类 KeepAliveMessage — L99</li>
+<li>类 StreamlinedTextMessage — L105</li>
+<li>类 StreamlinedToolUseSummaryMessage — L112</li>
+<li>类 InitializeRequest — L126</li>
+<li>类 SetModelRequest — L130</li>
+<li>类 SetMaxThinkingTokensRequest — L135</li>
+<li>类 SetPermissionModeRequest — L140</li>
+<li>类 InterruptRequest — L145</li>
+<li>类 SDKControlPermissionRequest — L149</li>
+<li>类 SDKControlRequest — L170</li>
+<li>类 ControlResponseSuccess — L181</li>
+<li>类 ControlResponseError — L187</li>
+<li>类 SDKControlResponse — L196</li>
+<li>类 SDKControlCancelRequest — L206</li>
+<li>文件 <code class="inline-code">bridge/session_id_compat.py</code></li>
+<li>函数 set_cse_shim_gate — L27</li>
+<li>函数 to_compat_session_id — L39</li>
+<li>函数 to_infra_session_id — L53</li>
+<li>函数 _reset_shim_gate_for_testing — L67</li>
+<li>文件 <code class="inline-code">bridge/session_runner.py</code></li>
+<li>类 BuildChildEnvOpts — L91</li>
+<li>类 PermissionRequest — L329</li>
+<li>类 SessionSpawnerDeps — L342</li>
+<li>类 _SubprocessSpawner — L381</li>
+<li>类 _SpawnedSession — L402</li>
+<li>函数 build_child_env — L100</li>
+<li>函数 safe_filename_id — L130</li>
+<li>函数 _tool_summary — L167</li>
+<li>函数 _input_preview — L188</li>
+<li>函数 extract_activities — L198</li>
+<li>函数 _extract_user_message_text — L295</li>
+<li>函数 create_session_spawner — L370</li>
+<li>函数 _now_ms — L935</li>
+<li>文件 <code class="inline-code">bridge/trusted_device.py</code></li>
+<li>函数 get_trusted_device_token — L39</li>
+<li>函数 clear_trusted_device_token_cache — L52</li>
+<li>函数 clear_trusted_device_token — L62</li>
+<li>函数 enroll_trusted_device — L72</li>
+<li>文件 <code class="inline-code">bridge/types.py</code></li>
+<li>类 WorkData — L73</li>
+<li>类 WorkResponse — L83</li>
+<li>类 SessionActivity — L107</li>
+<li>类 BridgeConfig — L138</li>
+<li>类 _PermissionResponseInner — L169</li>
+<li>类 PermissionResponseEvent — L175</li>
+<li>类 BridgeApiClient — L190</li>
+<li>类 SessionHandle — L257</li>
+<li>类 SessionSpawnOpts — L306</li>
+<li>类 SessionSpawner — L323</li>
+<li>类 BridgeLogger — L332</li>
+<li>类 ReplBridgeHandle — L413</li>
+<li>文件 <code class="inline-code">bridge/work_secret.py</code></li>
+<li>类 WorkSecret — L20</li>
+<li>函数 decode_work_secret — L39</li>
+<li>函数 build_sdk_url — L95</li>
+<li>函数 build_ccr_v2_sdk_url — L117</li>
+<li>函数 same_session_id — L127</li>
+<li>文件 <code class="inline-code">bridge/worktree.py</code></li>
+<li>类 WorktreePaths — L53</li>
+<li>函数 _run_git — L74</li>
+<li>函数 _is_git_repo — L127</li>
+<li>函数 create_agent_worktree — L132</li>
+<li>函数 remove_agent_worktree — L203</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>bridge/__init__.py → import annotations（外部）</li>
+<li>bridge/__init__.py → import json（外部）</li>
+<li>bridge/__init__.py → import Path（外部）</li>
+<li>bridge/__init__.py → import BoundedUUIDSet（外部）</li>
+<li>bridge/__init__.py → import ANTHROPIC_VERSION（外部）</li>
+<li>bridge/__init__.py → import BETA_HEADER（外部）</li>
+<li>bridge/__init__.py → import create_bridge_api_client（外部）</li>
+<li>bridge/__init__.py → import is_expired_error_type（外部）</li>
+<li>bridge/__init__.py → import is_suppressible_403（外部）</li>
+<li>bridge/__init__.py → import validate_bridge_id（外部）</li>
+<li>bridge/__init__.py → import get_bridge_access_token（外部）</li>
+<li>bridge/__init__.py → import get_bridge_base_url（外部）</li>
+<li>bridge/__init__.py → import get_bridge_base_url_override（外部）</li>
+<li>bridge/__init__.py → import get_bridge_token_override（外部）</li>
+<li>bridge/__init__.py → import BridgePermissionResponse（外部）</li>
+<li>bridge/__init__.py → import is_bridge_permission_response（外部）</li>
+<li>bridge/__init__.py → import BridgeStatusInfo（外部）</li>
+<li>bridge/__init__.py → import build_active_footer_text（外部）</li>
+<li>bridge/__init__.py → import build_bridge_connect_url（外部）</li>
+<li>bridge/__init__.py → import build_bridge_session_url（外部）</li>
+<li>bridge/__init__.py → import build_idle_footer_text（外部）</li>
+<li>bridge/__init__.py → import format_duration（外部）</li>
+<li>bridge/__init__.py → import get_bridge_status（外部）</li>
+<li>bridge/__init__.py → import truncate_to_width（外部）</li>
+<li>bridge/__init__.py → import wrap_with_osc8_link（外部）</li>
+<li>bridge/__init__.py → import CapacityWake（外部）</li>
+<li>bridge/__init__.py → import create_capacity_wake（外部）</li>
+<li>bridge/__init__.py → import WS_CLOSE_EPOCH_MISMATCH（外部）</li>
+<li>bridge/__init__.py → import WS_CLOSE_INIT_FAILURE（外部）</li>
+<li>bridge/__init__.py → import WS_CLOSE_PERMANENT_UNAUTHORIZED（外部）</li>
+<li>bridge/__init__.py → import WS_CLOSE_RECONNECT_BUDGET_EXHAUSTED（外部）</li>
+<li>bridge/__init__.py → import WS_CLOSE_SESSION_NOT_FOUND（外部）</li>
+<li>bridge/__init__.py → import DEFAULT_ENV_LESS_BRIDGE_CONFIG（外部）</li>
+<li>bridge/__init__.py → import EnvLessBridgeConfig（外部）</li>
+<li>bridge/__init__.py → import get_env_less_bridge_config（外部）</li>
+<li>bridge/__init__.py → import BridgeAuthError（外部）</li>
+<li>bridge/__init__.py → import BridgeFatalError（外部）</li>
+<li>bridge/__init__.py → import EpochSupersededError（外部）</li>
+<li>bridge/__init__.py → import FlushGate（外部）</li>
+<li>bridge/__init__.py → import extract_inbound_message_fields（外部）</li>
+<li>bridge/__init__.py → import normalize_image_blocks（外部）</li>
+<li>bridge/__init__.py → import get_poll_interval_config（外部）</li>
+<li>bridge/__init__.py → import DEFAULT_POLL_CONFIG（外部）</li>
+<li>bridge/__init__.py → import PollIntervalConfig（外部）</li>
+<li>bridge/__init__.py → import get_repl_bridge_handle（外部）</li>
+<li>bridge/__init__.py → import get_self_bridge_compat_id（外部）</li>
+<li>bridge/__init__.py → import set_repl_bridge_handle（外部）</li>
+<li>bridge/__init__.py → import set_cse_shim_gate（外部）</li>
+<li>bridge/__init__.py → import to_compat_session_id（外部）</li>
+<li>bridge/__init__.py → import to_infra_session_id（外部）</li>
+<li>bridge/__init__.py → import BRIDGE_LOGIN_ERROR（外部）</li>
+<li>bridge/__init__.py → import BRIDGE_LOGIN_INSTRUCTION（外部）</li>
+<li>bridge/__init__.py → import DEFAULT_SESSION_TIMEOUT_MS（外部）</li>
+<li>bridge/__init__.py → import REMOTE_CONTROL_DISCONNECTED_MSG（外部）</li>
+<li>bridge/__init__.py → import BridgeConfig（外部）</li>
+<li>bridge/__init__.py → import SessionActivity（外部）</li>
+<li>bridge/__init__.py → import WorkSecret（外部）</li>
+<li>bridge/__init__.py → import build_ccr_v2_sdk_url（外部）</li>
+<li>bridge/__init__.py → import build_sdk_url（外部）</li>
+<li>bridge/__init__.py → import decode_work_secret（外部）</li>
+<li>bridge/__init__.py → import same_session_id（外部）</li>
+<li>bridge/bounded_uuid_set.py → import annotations（外部）</li>
+<li>bridge/bounded_uuid_set.py → import deque（外部）</li>
+<li>bridge/bridge_api.py → import annotations（外部）</li>
+<li>bridge/bridge_api.py → import logging（外部）</li>
+<li>bridge/bridge_api.py → import re（外部）</li>
+<li>bridge/bridge_api.py → import Any（外部）</li>
+<li>bridge/bridge_api.py → import Awaitable（外部）</li>
+<li>bridge/bridge_api.py → import Callable（外部）</li>
+<li>bridge/bridge_api.py → import httpx（外部）</li>
+<li>bridge/bridge_api.py → import debug_body（外部）</li>
+<li>bridge/bridge_api.py → import extract_error_detail（外部）</li>
+<li>bridge/bridge_api.py → import BridgeFatalError（外部）</li>
+<li>bridge/bridge_api.py → import BRIDGE_LOGIN_INSTRUCTION（外部）</li>
+<li>bridge/bridge_api.py → import BridgeApiClient（外部）</li>
+<li>bridge/bridge_api.py → import BridgeConfig（外部）</li>
+<li>bridge/bridge_api.py → import PermissionResponseEvent（外部）</li>
+<li>bridge/bridge_api.py → import WorkResponse（外部）</li>
+<li>bridge/bridge_config.py → import annotations（外部）</li>
+<li>bridge/bridge_config.py → import os（外部）</li>
+<li>bridge/bridge_enabled.py → import annotations（外部）</li>
+<li>bridge/bridge_main.py → import annotations（外部）</li>
+<li>bridge/bridge_main.py → import asyncio（外部）</li>
+<li>bridge/bridge_main.py → import logging（外部）</li>
+<li>bridge/bridge_main.py → import signal（外部）</li>
+<li>bridge/bridge_main.py → import socket（外部）</li>
+<li>bridge/bridge_main.py → import time（外部）</li>
+<li>bridge/bridge_main.py → import uuid（外部）</li>
+<li>bridge/bridge_main.py → import Awaitable（外部）</li>
+<li>bridge/bridge_main.py → import Callable（外部）</li>
+<li>bridge/bridge_main.py → import dataclass（外部）</li>
+<li>bridge/bridge_main.py → import field（外部）</li>
+<li>bridge/bridge_main.py → import Any（外部）</li>
+<li>bridge/bridge_main.py → import TokenRefreshScheduler（外部）</li>
+<li>bridge/bridge_main.py → import BridgeFatalError（外部）</li>
+<li>bridge/bridge_main.py → import create_bridge_api_client（外部）</li>
+<li>bridge/bridge_main.py → import is_expired_error_type（外部）</li>
+<li>bridge/bridge_main.py → import DEFAULT_POLL_CONFIG（外部）</li>
+<li>bridge/bridge_main.py → import PollIntervalConfig（外部）</li>
+<li>bridge/bridge_main.py → import SessionSpawnerDeps（外部）</li>
+<li>bridge/bridge_main.py → import create_session_spawner（外部）</li>
+<li>bridge/bridge_main.py → import BridgeApiClient（外部）</li>
+<li>bridge/bridge_main.py → import BridgeConfig（外部）</li>
+<li>bridge/bridge_main.py → import SessionHandle（外部）</li>
+<li>bridge/bridge_main.py → import SessionSpawnOpts（外部）</li>
+<li>bridge/bridge_main.py → import SessionSpawner（外部）</li>
+<li>bridge/bridge_main.py → import SpawnMode（外部）</li>
+<li>bridge/bridge_main.py → import build_ccr_v2_sdk_url（外部）</li>
+<li>bridge/bridge_main.py → import build_sdk_url（外部）</li>
+<li>bridge/bridge_main.py → import decode_work_secret（外部）</li>
+<li>bridge/bridge_main.py → import WorktreePaths（外部）</li>
+<li>bridge/bridge_main.py → import create_agent_worktree（外部）</li>
+<li>bridge/bridge_main.py → import remove_agent_worktree（外部）</li>
+<li>bridge/bridge_permission_callbacks.py → import annotations（外部）</li>
+<li>bridge/bridge_permission_callbacks.py → import Any（外部）</li>
+<li>bridge/bridge_permission_callbacks.py → import Callable（外部）</li>
+<li>bridge/bridge_permission_callbacks.py → import Protocol（外部）</li>
+<li>bridge/bridge_permission_callbacks.py → import TypedDict（外部）</li>
+<li>bridge/bridge_permission_callbacks.py → import TypeGuard（外部）</li>
+<li>bridge/bridge_pointer.py → import annotations（外部）</li>
+<li>bridge/bridge_pointer.py → import json（外部）</li>
+<li>bridge/bridge_pointer.py → import logging（外部）</li>
+<li>bridge/bridge_pointer.py → import os（外部）</li>
+<li>bridge/bridge_pointer.py → import time（外部）</li>
+<li>bridge/bridge_pointer.py → import asdict（外部）</li>
+<li>bridge/bridge_pointer.py → import dataclass（外部）</li>
+<li>bridge/bridge_status_util.py → import annotations（外部）</li>
+<li>bridge/bridge_status_util.py → import time（外部）</li>
+<li>bridge/bridge_status_util.py → import dataclass（外部）</li>
+<li>bridge/bridge_status_util.py → import Literal（外部）</li>
+<li>bridge/bridge_status_util.py → import regex（外部）</li>
+<li>bridge/bridge_status_util.py → import wcwidth（外部）</li>
+<li>bridge/bridge_status_util.py → import format_duration（外部）</li>
+<li>bridge/capacity_wake.py → import annotations（外部）</li>
+<li>bridge/capacity_wake.py → import asyncio（外部）</li>
+<li>bridge/capacity_wake.py → import dataclass（外部）</li>
+<li>bridge/capacity_wake.py → import Callable（外部）</li>
+<li>bridge/close_codes.py → import annotations（外部）</li>
+<li>bridge/close_codes.py → import Final（外部）</li>
+<li>bridge/code_session_api.py → import annotations（外部）</li>
+<li>bridge/code_session_api.py → import logging（外部）</li>
+<li>bridge/code_session_api.py → import dataclass（外部）</li>
+<li>bridge/code_session_api.py → import Any（外部）</li>
+<li>bridge/code_session_api.py → import httpx（外部）</li>
+<li>bridge/code_session_api.py → import coerce_int64（外部）</li>
+<li>bridge/debug_utils.py → import annotations（外部）</li>
+<li>bridge/debug_utils.py → import json（外部）</li>
+<li>bridge/debug_utils.py → import logging（外部）</li>
+<li>bridge/debug_utils.py → import re（外部）</li>
+<li>bridge/debug_utils.py → import Any（外部）</li>
+<li>bridge/env_less_bridge_config.py → import annotations（外部）</li>
+<li>bridge/env_less_bridge_config.py → import BaseModel（外部）</li>
+<li>bridge/env_less_bridge_config.py → import ConfigDict（外部）</li>
+<li>bridge/env_less_bridge_config.py → import Field（外部）</li>
+<li>bridge/env_less_bridge_config.py → import ValidationError（外部）</li>
+<li>bridge/env_less_bridge_config.py → import is_env_less_bridge_enabled（外部）</li>
+<li>bridge/exceptions.py → import annotations（外部）</li>
+<li>bridge/flush_gate.py → import annotations（外部）</li>
+<li>bridge/flush_gate.py → import Generic（外部）</li>
+<li>bridge/flush_gate.py → import TypeVar（外部）</li>
+<li>bridge/inbound_attachments.py → import annotations（外部）</li>
+<li>bridge/inbound_attachments.py → import base64（外部）</li>
+<li>bridge/inbound_attachments.py → import logging（外部）</li>
+<li>bridge/inbound_attachments.py → import os（外部）</li>
+<li>bridge/inbound_attachments.py → import re（外部）</li>
+<li>bridge/inbound_attachments.py → import uuid（外部）</li>
+<li>bridge/inbound_attachments.py → import Path（外部）</li>
+<li>bridge/inbound_attachments.py → import Any（外部）</li>
+<li>bridge/inbound_attachments.py → import httpx（外部）</li>
+<li>bridge/inbound_attachments.py → import get_session_id（外部）</li>
+<li>bridge/inbound_attachments.py → import get_bridge_access_token（外部）</li>
+<li>bridge/inbound_attachments.py → import get_bridge_base_url（外部）</li>
+<li>bridge/inbound_messages.py → import annotations（外部）</li>
+<li>bridge/inbound_messages.py → import base64（外部）</li>
+<li>bridge/inbound_messages.py → import Any（外部）</li>
+<li>bridge/init_repl_bridge.py → import annotations（外部）</li>
+<li>bridge/init_repl_bridge.py → import logging（外部）</li>
+<li>bridge/init_repl_bridge.py → import re（外部）</li>
+<li>bridge/init_repl_bridge.py → import Awaitable（外部）</li>
+<li>bridge/init_repl_bridge.py → import Callable（外部）</li>
+<li>bridge/init_repl_bridge.py → import dataclass（外部）</li>
+<li>bridge/init_repl_bridge.py → import field（外部）</li>
+<li>bridge/init_repl_bridge.py → import Any（外部）</li>
+<li>bridge/init_repl_bridge.py → import check_and_refresh_oauth_token_if_needed（外部）</li>
+<li>bridge/init_repl_bridge.py → import has_profile_scope（外部）</li>
+<li>bridge/init_repl_bridge.py → import is_claude_ai_subscriber（外部）</li>
+<li>bridge/init_repl_bridge.py → import get_bridge_access_token（外部）</li>
+<li>bridge/init_repl_bridge.py → import get_bridge_base_url（外部）</li>
+<li>bridge/init_repl_bridge.py → import check_bridge_min_version（外部）</li>
+<li>bridge/init_repl_bridge.py → import is_env_less_bridge_enabled（外部）</li>
+<li>bridge/init_repl_bridge.py → import log_bridge_skip（外部）</li>
+<li>bridge/init_repl_bridge.py → import check_env_less_bridge_min_version（外部）</li>
+<li>bridge/init_repl_bridge.py → import EnvLessBridgeParams（外部）</li>
+<li>bridge/init_repl_bridge.py → import init_env_less_bridge_core（外部）</li>
+<li>bridge/init_repl_bridge.py → import BridgeCoreParams（外部）</li>
+<li>bridge/init_repl_bridge.py → import ReplBridgeHandle（外部）</li>
+<li>bridge/init_repl_bridge.py → import init_bridge_core（外部）</li>
+<li>bridge/init_repl_bridge.py → import get_organization_uuid（外部）</li>
+<li>bridge/jwt_utils.py → import annotations（外部）</li>
+<li>bridge/jwt_utils.py → import asyncio（外部）</li>
+<li>bridge/jwt_utils.py → import base64（外部）</li>
+<li>bridge/jwt_utils.py → import json（外部）</li>
+<li>bridge/jwt_utils.py → import logging（外部）</li>
+<li>bridge/jwt_utils.py → import time（外部）</li>
+<li>bridge/jwt_utils.py → import Awaitable（外部）</li>
+<li>bridge/jwt_utils.py → import Callable（外部）</li>
+<li>bridge/jwt_utils.py → import Any（外部）</li>
+<li>bridge/jwt_utils.py → import Mapping（外部）</li>
+<li>bridge/jwt_utils.py → import Union（外部）</li>
+<li>bridge/messaging.py → import annotations（外部）</li>
+<li>bridge/messaging.py → import asyncio（外部）</li>
+<li>bridge/messaging.py → import inspect（外部）</li>
+<li>bridge/messaging.py → import json（外部）</li>
+<li>bridge/messaging.py → import logging（外部）</li>
+<li>bridge/messaging.py → import re（外部）</li>
+<li>bridge/messaging.py → import uuid（外部）</li>
+<li>bridge/messaging.py → import Awaitable（外部）</li>
+<li>bridge/messaging.py → import Callable（外部）</li>
+<li>bridge/messaging.py → import dataclass（外部）</li>
+<li>bridge/messaging.py → import field（外部）</li>
+<li>bridge/messaging.py → import Any（外部）</li>
+<li>bridge/messaging.py → import Union（外部）</li>
+<li>bridge/messaging.py → import BoundedUUIDSet（外部）</li>
+<li>bridge/messaging.py → import SDKControlRequest（外部）</li>
+<li>bridge/messaging.py → import SDKControlResponse（外部）</li>
+<li>bridge/messaging.py → import SDKMessage（外部）</li>
+<li>bridge/messaging.py → import SDKResultSuccess（外部）</li>
+<li>bridge/messaging_handlers.py → import annotations（外部）</li>
+<li>bridge/messaging_handlers.py → import asyncio（外部）</li>
+<li>bridge/messaging_handlers.py → import inspect（外部）</li>
+<li>bridge/messaging_handlers.py → import logging（外部）</li>
+<li>bridge/messaging_handlers.py → import os（外部）</li>
+<li>bridge/messaging_handlers.py → import Callable（外部）</li>
+<li>bridge/messaging_handlers.py → import dataclass（外部）</li>
+<li>bridge/messaging_handlers.py → import Any（外部）</li>
+<li>bridge/messaging_handlers.py → import Protocol（外部）</li>
+<li>bridge/messaging_handlers.py → import Union（外部）</li>
+<li>bridge/no_proxy.py → import annotations（外部）</li>
+<li>bridge/poll_config.py → import annotations（外部）</li>
+<li>bridge/poll_config.py → import BaseModel（外部）</li>
+<li>bridge/poll_config.py → import ConfigDict（外部）</li>
+<li>bridge/poll_config.py → import Field（外部）</li>
+<li>bridge/poll_config.py → import ValidationError（外部）</li>
+<li>bridge/poll_config.py → import model_validator（外部）</li>
+<li>bridge/poll_config.py → import DEFAULT_POLL_CONFIG（外部）</li>
+<li>bridge/poll_config.py → import PollIntervalConfig（外部）</li>
+<li>bridge/poll_config_defaults.py → import annotations（外部）</li>
+<li>bridge/poll_config_defaults.py → import dataclass（外部）</li>
+<li>bridge/protojson.py → import annotations（外部）</li>
+<li>bridge/remote_bridge_core.py → import annotations（外部）</li>
+<li>bridge/remote_bridge_core.py → import asyncio（外部）</li>
+<li>bridge/remote_bridge_core.py → import logging（外部）</li>
+<li>bridge/remote_bridge_core.py → import random（外部）</li>
+<li>bridge/remote_bridge_core.py → import dataclass（外部）</li>
+<li>bridge/remote_bridge_core.py → import field（外部）</li>
+<li>bridge/remote_bridge_core.py → import Any（外部）</li>
+<li>bridge/remote_bridge_core.py → import Awaitable（外部）</li>
+<li>bridge/remote_bridge_core.py → import Callable（外部）</li>
+<li>bridge/remote_bridge_core.py → import httpx（外部）</li>
+<li>bridge/remote_bridge_core.py → import BoundedUUIDSet（外部）</li>
+<li>bridge/remote_bridge_core.py → import RemoteCredentials（外部）</li>
+<li>bridge/remote_bridge_core.py → import create_code_session（外部）</li>
+<li>bridge/remote_bridge_core.py → import fetch_remote_credentials（外部）</li>
+<li>bridge/remote_bridge_core.py → import DEFAULT_ENV_LESS_BRIDGE_CONFIG（外部）</li>
+<li>bridge/remote_bridge_core.py → import EnvLessBridgeConfig（外部）</li>
+<li>bridge/remote_bridge_core.py → import get_env_less_bridge_config（外部）</li>
+<li>bridge/remote_bridge_core.py → import FlushGate（外部）</li>
+<li>bridge/remote_bridge_core.py → import TokenRefreshScheduler（外部）</li>
+<li>bridge/remote_bridge_core.py → import extract_title_text（外部）</li>
+<li>bridge/remote_bridge_core.py → import handle_ingress_message（外部）</li>
+<li>bridge/remote_bridge_core.py → import is_eligible_bridge_message（外部）</li>
+<li>bridge/remote_bridge_core.py → import make_result_message（外部）</li>
+<li>bridge/remote_bridge_core.py → import ServerControlRequestHandlers（外部）</li>
+<li>bridge/remote_bridge_core.py → import handle_server_control_request（外部）</li>
+<li>bridge/remote_bridge_core.py → import ReplBridgeTransport（外部）</li>
+<li>bridge/remote_bridge_core.py → import V2TransportOptions（外部）</li>
+<li>bridge/remote_bridge_core.py → import create_v2_repl_transport（外部）</li>
+<li>bridge/remote_bridge_core.py → import to_compat_session_id（外部）</li>
+<li>bridge/remote_bridge_core.py → import build_ccr_v2_sdk_url（外部）</li>
+<li>bridge/remote_bridge_core.py → import Message（外部）</li>
+<li>bridge/remote_bridge_core.py → import to_sdk_messages（外部）</li>
+<li>bridge/repl_bridge.py → import annotations（外部）</li>
+<li>bridge/repl_bridge.py → import asyncio（外部）</li>
+<li>bridge/repl_bridge.py → import logging（外部）</li>
+<li>bridge/repl_bridge.py → import time（外部）</li>
+<li>bridge/repl_bridge.py → import uuid（外部）</li>
+<li>bridge/repl_bridge.py → import Awaitable（外部）</li>
+<li>bridge/repl_bridge.py → import Callable（外部）</li>
+<li>bridge/repl_bridge.py → import dataclass（外部）</li>
+<li>bridge/repl_bridge.py → import field（外部）</li>
+<li>bridge/repl_bridge.py → import Any（外部）</li>
+<li>bridge/repl_bridge.py → import httpx（外部）</li>
+<li>bridge/repl_bridge.py → import BridgeFatalError（外部）</li>
+<li>bridge/repl_bridge.py → import create_bridge_api_client（外部）</li>
+<li>bridge/repl_bridge.py → import is_expired_error_type（外部）</li>
+<li>bridge/repl_bridge.py → import BridgePointer（外部）</li>
+<li>bridge/repl_bridge.py → import clear_pointer（外部）</li>
+<li>bridge/repl_bridge.py → import read_pointer（外部）</li>
+<li>bridge/repl_bridge.py → import write_pointer（外部）</li>
+<li>bridge/repl_bridge.py → import TokenRefreshScheduler（外部）</li>
+<li>bridge/repl_bridge.py → import DEFAULT_POLL_CONFIG（外部）</li>
+<li>bridge/repl_bridge.py → import PollIntervalConfig（外部）</li>
+<li>bridge/repl_bridge.py → import to_compat_session_id（外部）</li>
+<li>bridge/repl_bridge.py → import to_infra_session_id（外部）</li>
+<li>bridge/repl_bridge.py → import PermissionRequest（外部）</li>
+<li>bridge/repl_bridge.py → import SessionSpawnerDeps（外部）</li>
+<li>bridge/repl_bridge.py → import create_session_spawner（外部）</li>
+<li>bridge/repl_bridge.py → import BridgeApiClient（外部）</li>
+<li>bridge/repl_bridge.py → import BridgeConfig（外部）</li>
+<li>bridge/repl_bridge.py → import SessionActivity（外部）</li>
+<li>bridge/repl_bridge.py → import SessionHandle（外部）</li>
+<li>bridge/repl_bridge.py → import SessionSpawnOpts（外部）</li>
+<li>bridge/repl_bridge.py → import SessionSpawner（外部）</li>
+<li>bridge/repl_bridge.py → import build_ccr_v2_sdk_url（外部）</li>
+<li>bridge/repl_bridge.py → import build_sdk_url（外部）</li>
+<li>bridge/repl_bridge.py → import decode_work_secret（外部）</li>
+<li>bridge/repl_bridge_handle.py → import annotations（外部）</li>
+<li>bridge/repl_bridge_handle.py → import logging（外部）</li>
+<li>bridge/repl_bridge_handle.py → import to_compat_session_id（外部）</li>
+<li>bridge/repl_bridge_handle.py → import ReplBridgeHandle（外部）</li>
+<li>bridge/repl_bridge_transport.py → import annotations（外部）</li>
+<li>bridge/repl_bridge_transport.py → import asyncio（外部）</li>
+<li>bridge/repl_bridge_transport.py → import logging（外部）</li>
+<li>bridge/repl_bridge_transport.py → import Awaitable（外部）</li>
+<li>bridge/repl_bridge_transport.py → import Callable（外部）</li>
+<li>bridge/repl_bridge_transport.py → import dataclass（外部）</li>
+<li>bridge/repl_bridge_transport.py → import field（外部）</li>
+<li>bridge/repl_bridge_transport.py → import Any（外部）</li>
+<li>bridge/repl_bridge_transport.py → import Protocol（外部）</li>
+<li>bridge/repl_bridge_transport.py → import WS_CLOSE_EPOCH_MISMATCH（外部）</li>
+<li>bridge/repl_bridge_transport.py → import WS_CLOSE_INIT_FAILURE（外部）</li>
+<li>bridge/repl_bridge_transport.py → import EpochSupersededError（外部）</li>
+<li>bridge/repl_bridge_transport.py → import CCRClient（外部）</li>
+<li>bridge/repl_bridge_transport.py → import CCRClientOptions（外部）</li>
+<li>bridge/repl_bridge_transport.py → import HybridTransport（外部）</li>
+<li>bridge/repl_bridge_transport.py → import SSEEvent（外部）</li>
+<li>bridge/repl_bridge_transport.py → import SSETransport（外部）</li>
+<li>bridge/sdk_types.py → import annotations（外部）</li>
+<li>bridge/sdk_types.py → import Any（外部）</li>
+<li>bridge/sdk_types.py → import Literal（外部）</li>
+<li>bridge/sdk_types.py → import TypedDict（外部）</li>
+<li>bridge/sdk_types.py → import Union（外部）</li>
+<li>bridge/session_id_compat.py → import annotations（外部）</li>
+<li>bridge/session_id_compat.py → import Callable（外部）</li>
+<li>bridge/session_runner.py → import annotations（外部）</li>
+<li>bridge/session_runner.py → import asyncio（外部）</li>
+<li>bridge/session_runner.py → import json（外部）</li>
+<li>bridge/session_runner.py → import logging（外部）</li>
+<li>bridge/session_runner.py → import os（外部）</li>
+<li>bridge/session_runner.py → import signal（外部）</li>
+<li>bridge/session_runner.py → import sys（外部）</li>
+<li>bridge/session_runner.py → import tempfile（外部）</li>
+<li>bridge/session_runner.py → import time（外部）</li>
+<li>bridge/session_runner.py → import deque（外部）</li>
+<li>bridge/session_runner.py → import Callable（外部）</li>
+<li>bridge/session_runner.py → import dataclass（外部）</li>
+<li>bridge/session_runner.py → import field（外部）</li>
+<li>bridge/session_runner.py → import Path（外部）</li>
+<li>bridge/session_runner.py → import Any（外部）</li>
+<li>bridge/session_runner.py → import debug_truncate（外部）</li>
+<li>bridge/session_runner.py → import SessionActivity（外部）</li>
+<li>bridge/session_runner.py → import SessionDoneStatus（外部）</li>
+<li>bridge/session_runner.py → import SessionHandle（外部）</li>
+<li>bridge/session_runner.py → import SessionSpawner（外部）</li>
+<li>bridge/session_runner.py → import SessionSpawnOpts（外部）</li>
+<li>bridge/trusted_device.py → import annotations（外部）</li>
+<li>bridge/trusted_device.py → import logging（外部）</li>
+<li>bridge/trusted_device.py → import os（外部）</li>
+<li>bridge/types.py → import annotations（外部）</li>
+<li>bridge/types.py → import dataclass（外部）</li>
+<li>bridge/types.py → import field（外部）</li>
+<li>bridge/types.py → import Any（外部）</li>
+<li>bridge/types.py → import Awaitable（外部）</li>
+<li>bridge/types.py → import Callable（外部）</li>
+<li>bridge/types.py → import Literal（外部）</li>
+<li>bridge/types.py → import Protocol（外部）</li>
+<li>bridge/types.py → import TypedDict（外部）</li>
+<li>bridge/types.py → import Union（外部）</li>
+<li>bridge/work_secret.py → import annotations（外部）</li>
+<li>bridge/work_secret.py → import base64（外部）</li>
+<li>bridge/work_secret.py → import json（外部）</li>
+<li>bridge/work_secret.py → import dataclass（外部）</li>
+<li>bridge/work_secret.py → import field（外部）</li>
+<li>bridge/work_secret.py → import Any（外部）</li>
+<li>bridge/work_secret.py → import urlparse（外部）</li>
+<li>bridge/worktree.py → import annotations（外部）</li>
+<li>bridge/worktree.py → import asyncio（外部）</li>
+<li>bridge/worktree.py → import logging（外部）</li>
+<li>bridge/worktree.py → import os（外部）</li>
+<li>bridge/worktree.py → import re（外部）</li>
+<li>bridge/worktree.py → import dataclass（外部）</li>
+</ol>
+<h2 id="5-r7-r5-ccr-14-映射-启发式初版">5. R7/R5/CCR-14 映射（启发式初版）</h2>
+<ol>
+<li>R7-02 Interfaces — 候选（启发式），状态 UNVERIFIED</li>
+<li>R5-01 Surface Layer — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-14 Runtime Config / Feature Gate Control Plane — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-文件级映射细分">6. 文件级映射细分</h2>
+<ol>
+<li><code class="inline-code">__init__.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">bounded_uuid_set.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">bridge_api.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">bridge_config.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">bridge_enabled.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">bridge_main.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">bridge_permission_callbacks.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">bridge_pointer.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">bridge_status_util.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">capacity_wake.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">close_codes.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">code_session_api.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">debug_utils.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">env_less_bridge_config.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">exceptions.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">flush_gate.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">inbound_attachments.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">inbound_messages.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">init_repl_bridge.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">jwt_utils.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">messaging.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">messaging_handlers.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">no_proxy.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">poll_config.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">poll_config_defaults.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">protojson.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">remote_bridge_core.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">repl_bridge.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">repl_bridge_handle.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">repl_bridge_transport.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">sdk_types.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">session_id_compat.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">session_runner.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">trusted_device.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">types.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">work_secret.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">worktree.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+</ol>
+<h2 id="7-未确认项与待核实项">7. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ reference 侧对应文件/symbol 映射待核实</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 reference source</li>
+<li>☐ 本模块 R7/R5/CCR 归属的 UNVERIFIED 状态待升级或降级</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-bridge-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

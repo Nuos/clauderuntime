@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>core-single-files 源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-r7-r5-ccr-14-映射-启发式初版" data-nav>5. R7/R5/CCR-14 映射（启发式初版）</a></li>
+<li><a href="#6-文件级映射细分" data-nav>6. 文件级映射细分</a></li>
+<li><a href="#7-未确认项与待核实项" data-nav>7. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>core-single-files 源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">16</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2304</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">group（core 单文件组）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="core-single-files-源码盘点">core-single-files 源码盘点</h1>
+<blockquote>
+<p>编号: 16</p>
+<p>时间戳: 20260811_2304</p>
+<p>基线: def709361a86</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>类型: group（core 单文件组）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: core-single-files</li>
+<li>类型: group（core 单文件组）</li>
+<li>Python 文件数: 13</li>
+<li>总行数: 3343</li>
+<li>依赖的 src 内部模块: cost_tracker, tasks_core</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">cli.py</code> — 1014 行（类 0，函数 15）</li>
+<li><code class="inline-code">config.py</code> — 550 行（类 1，函数 28）</li>
+<li><code class="inline-code">costHook.py</code> — 8 行（类 0，函数 1）</li>
+<li><code class="inline-code">cost_tracker.py</code> — 126 行（类 1，函数 1）</li>
+<li><code class="inline-code">deferred_init.py</code> — 133 行（类 1，函数 3）</li>
+<li><code class="inline-code">history.py</code> — 22 行（类 2，函数 0）</li>
+<li><code class="inline-code">init.py</code> — 217 行（类 0，函数 7）</li>
+<li><code class="inline-code">prefetch.py</code> — 244 行（类 1，函数 8）</li>
+<li><code class="inline-code">projectOnboardingState.py</code> — 10 行（类 1，函数 0）</li>
+<li><code class="inline-code">secret_store.py</code> — 142 行（类 0，函数 6）</li>
+<li><code class="inline-code">task_registry.py</code> — 225 行（类 2，函数 3）</li>
+<li><code class="inline-code">tasks_core.py</code> — 168 行（类 1，函数 3）</li>
+<li><code class="inline-code">token_estimation.py</code> — 484 行（类 1，函数 28）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">cli.py</code></li>
+<li>函数 main — L28</li>
+<li>函数 _maybe_create_worktree — L254</li>
+<li>函数 _gate_folder_trust — L283</li>
+<li>函数 _run_tui_subcommand — L307</li>
+<li>函数 _prompt_folder_trust — L352</li>
+<li>函数 _build_parser — L393</li>
+<li>函数 _resolve_permission_state — L584</li>
+<li>函数 _run_print_mode — L653</li>
+<li>函数 _split_csv — L718</li>
+<li>函数 _show_provider_defaults_table — L724</li>
+<li>函数 handle_login — L748</li>
+<li>函数 _handle_anthropic_subscription_login — L819</li>
+<li>函数 _handle_openai_subscription_login — L856</li>
+<li>函数 handle_logout — L930</li>
+<li>函数 show_config — L952</li>
+<li>文件 <code class="inline-code">config.py</code></li>
+<li>类 ConfigManager — L209</li>
+<li>函数 _find_git_root — L38</li>
+<li>函数 get_global_config_path — L55</li>
+<li>函数 get_project_config_path — L59</li>
+<li>函数 get_local_config_path — L66</li>
+<li>函数 _deep_merge — L77</li>
+<li>函数 _read_json — L92</li>
+<li>函数 _atomic_write_json — L111</li>
+<li>函数 get_default_config — L134</li>
+<li>函数 _session_trusted — L166</li>
+<li>函数 _strip_untrusted_keys — L196</li>
+<li>函数 _global_config_file — L316</li>
+<li>函数 normalize_path_for_config_key — L322</li>
+<li>函数 get_project_path_for_config — L328</li>
+<li>函数 get_project_entry — L338</li>
+<li>函数 update_project_entry — L349</li>
+<li>函数 append_history_entry — L387</li>
+<li>函数 read_history_entries — L395</li>
+<li>函数 _get_default_manager — L421</li>
+<li>函数 get_config_path — L428</li>
+<li>函数 load_config — L433</li>
+<li>函数 save_config — L438</li>
+<li>函数 get_provider_config — L443</li>
+<li>函数 set_api_key — L467</li>
+<li>函数 set_default_provider — L488</li>
+<li>函数 get_default_provider — L496</li>
+<li>函数 set_theme — L501</li>
+<li>函数 set_logo_color — L513</li>
+<li>函数 set_effort — L525</li>
+<li>文件 <code class="inline-code">costHook.py</code></li>
+<li>函数 apply_cost_hook — L6</li>
+<li>文件 <code class="inline-code">cost_tracker.py</code></li>
+<li>类 CostTracker — L87</li>
+<li>函数 record_api_usage — L32</li>
+<li>文件 <code class="inline-code">deferred_init.py</code></li>
+<li>类 DeferredPrefetchHandle — L44</li>
+<li>函数 _system_context_allowed — L57</li>
+<li>函数 _warm — L72</li>
+<li>函数 start_deferred_prefetches — L93</li>
+<li>文件 <code class="inline-code">history.py</code></li>
+<li>类 HistoryEvent — L7</li>
+<li>类 HistoryLog — L13</li>
+<li>文件 <code class="inline-code">init.py</code></li>
+<li>函数 init — L63</li>
+<li>函数 _placeholder_initialize_remote_managed_settings — L115</li>
+<li>函数 _placeholder_initialize_policy_limits — L119</li>
+<li>函数 run_pre_action — L123</li>
+<li>函数 _determine_is_interactive — L176</li>
+<li>函数 _determine_client_type — L198</li>
+<li>函数 reset_init_for_test_only — L206</li>
+<li>文件 <code class="inline-code">prefetch.py</code></li>
+<li>类 PrefetchHandle — L40</li>
+<li>函数 _register_atexit_drain — L87</li>
+<li>函数 start_keychain_prefetch — L112</li>
+<li>函数 get_or_start_keychain_prefetch — L145</li>
+<li>函数 wait_and_read_keychain — L164</li>
+<li>函数 start_mdm_raw_read — L186</li>
+<li>函数 get_or_start_mdm_raw_read — L212</li>
+<li>函数 wait_and_read_mdm — L223</li>
+<li>函数 start_project_scan — L238</li>
+<li>文件 <code class="inline-code">projectOnboardingState.py</code></li>
+<li>类 ProjectOnboardingState — L7</li>
+<li>文件 <code class="inline-code">secret_store.py</code></li>
+<li>函数 _coerce_env_map — L46</li>
+<li>函数 _config_env — L66</li>
+<li>函数 get_secret — L83</li>
+<li>函数 list_secret_names — L98</li>
+<li>函数 set_secret — L103</li>
+<li>函数 delete_secret — L125</li>
+<li>文件 <code class="inline-code">task_registry.py</code></li>
+<li>类 Task — L45</li>
+<li>类 RuntimeTaskRegistry — L72</li>
+<li>函数 register_task — L190</li>
+<li>函数 get_all_tasks — L202</li>
+<li>函数 get_task_by_type — L211</li>
+<li>文件 <code class="inline-code">tasks_core.py</code></li>
+<li>类 TaskStateBase — L105</li>
+<li>函数 is_terminal_task_status — L52</li>
+<li>函数 generate_task_id — L85</li>
+<li>函数 create_task_state_base — L140</li>
+<li>文件 <code class="inline-code">token_estimation.py</code></li>
+<li>类 _TokenCountCache — L56</li>
+<li>函数 _load_tiktoken — L32</li>
+<li>函数 _get_encoder — L40</li>
+<li>函数 get_token_cache_stats — L128</li>
+<li>函数 reset_token_cache — L144</li>
+<li>函数 count_tokens — L150</li>
+<li>函数 rough_token_count_estimation — L169</li>
+<li>函数 bytes_per_token_for_file_type — L173</li>
+<li>函数 rough_token_count_estimation_for_file_type — L179</li>
+<li>函数 rough_token_count_estimation_for_messages — L187</li>
+<li>函数 rough_token_count_estimation_for_message — L196</li>
+<li>函数 rough_token_count_estimation_for_content — L216</li>
+<li>函数 _block_cache_key — L229</li>
+<li>函数 _rough_token_count_estimation_for_block_impl — L258</li>
+<li>函数 rough_token_count_estimation_for_block — L291</li>
+<li>函数 count_messages_tokens — L303</li>
+<li>函数 count_tokens_with_api — L335</li>
+<li>函数 count_messages_tokens_with_api — L343</li>
+<li>函数 _get_type — L370</li>
+<li>函数 _get_content — L376</li>
+<li>函数 _get_block_type — L388</li>
+<li>函数 _json_stringify — L394</li>
+<li>函数 _estimate_attachment_tokens — L401</li>
+<li>函数 estimate_tool_schema_tokens — L418</li>
+<li>函数 estimate_system_prompt_tokens — L428</li>
+<li>函数 estimate_system_prompt_sections_tokens — L433</li>
+<li>函数 estimate_image_tokens — L438</li>
+<li>函数 estimate_cache_aware_tokens — L451</li>
+<li>函数 rough_token_count_estimation_per_block_type — L475</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>cli.py → import __future__（外部）</li>
+<li>cli.py → import argparse（外部）</li>
+<li>cli.py → import os（外部）</li>
+<li>cli.py → import sys（外部）</li>
+<li>cli.py → import pathlib（外部）</li>
+<li>cli.py → import src（外部）</li>
+<li>config.py → import __future__（外部）</li>
+<li>config.py → import json（外部）</li>
+<li>config.py → import logging（外部）</li>
+<li>config.py → import os（外部）</li>
+<li>config.py → import subprocess（外部）</li>
+<li>config.py → import tempfile（外部）</li>
+<li>config.py → import time（外部）</li>
+<li>config.py → import dataclasses（外部）</li>
+<li>config.py → import pathlib（外部）</li>
+<li>config.py → import typing（外部）</li>
+<li>costHook.py → import __future__（外部）</li>
+<li>costHook.py → import cost_tracker（内部）</li>
+<li>cost_tracker.py → import __future__（外部）</li>
+<li>cost_tracker.py → import dataclasses（外部）</li>
+<li>cost_tracker.py → import typing（外部）</li>
+<li>cost_tracker.py → import src（外部）</li>
+<li>deferred_init.py → import __future__（外部）</li>
+<li>deferred_init.py → import asyncio（外部）</li>
+<li>deferred_init.py → import logging（外部）</li>
+<li>deferred_init.py → import threading（外部）</li>
+<li>deferred_init.py → import dataclasses（外部）</li>
+<li>history.py → import __future__（外部）</li>
+<li>history.py → import dataclasses（外部）</li>
+<li>init.py → import __future__（外部）</li>
+<li>init.py → import logging（外部）</li>
+<li>init.py → import os（外部）</li>
+<li>init.py → import sys（外部）</li>
+<li>init.py → import functools（外部）</li>
+<li>init.py → import src（外部）</li>
+<li>prefetch.py → import __future__（外部）</li>
+<li>prefetch.py → import atexit（外部）</li>
+<li>prefetch.py → import subprocess（外部）</li>
+<li>prefetch.py → import sys（外部）</li>
+<li>prefetch.py → import threading（外部）</li>
+<li>prefetch.py → import dataclasses（外部）</li>
+<li>prefetch.py → import pathlib（外部）</li>
+<li>projectOnboardingState.py → import __future__（外部）</li>
+<li>projectOnboardingState.py → import dataclasses（外部）</li>
+<li>secret_store.py → import __future__（外部）</li>
+<li>secret_store.py → import logging（外部）</li>
+<li>secret_store.py → import os（外部）</li>
+<li>secret_store.py → import typing（外部）</li>
+<li>task_registry.py → import __future__（外部）</li>
+<li>task_registry.py → import inspect（外部）</li>
+<li>task_registry.py → import threading（外部）</li>
+<li>task_registry.py → import typing（外部）</li>
+<li>task_registry.py → import tasks_core（内部）</li>
+<li>tasks_core.py → import __future__（外部）</li>
+<li>tasks_core.py → import secrets（外部）</li>
+<li>tasks_core.py → import time（外部）</li>
+<li>tasks_core.py → import dataclasses（外部）</li>
+<li>tasks_core.py → import typing（外部）</li>
+<li>token_estimation.py → import __future__（外部）</li>
+<li>token_estimation.py → import json（外部）</li>
+<li>token_estimation.py → import logging（外部）</li>
+<li>token_estimation.py → import collections（外部）</li>
+<li>token_estimation.py → import typing（外部）</li>
+</ol>
+<h2 id="5-r7-r5-ccr-14-映射-启发式初版">5. R7/R5/CCR-14 映射（启发式初版）</h2>
+<ol>
+<li>R7-02 Interfaces — 候选（启发式），状态 UNVERIFIED</li>
+<li>R5-01 Surface Layer — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-14 Runtime Config / Feature Gate Control Plane — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-文件级映射细分">6. 文件级映射细分</h2>
+<ol>
+<li><code class="inline-code">cli.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">config.py</code> → CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">costHook.py</code> → CCR-01（UNVERIFIED）</li>
+<li><code class="inline-code">cost_tracker.py</code> → CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">deferred_init.py</code> → CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">history.py</code> → CCR-10（UNVERIFIED）</li>
+<li><code class="inline-code">init.py</code> → R7-03, R5-02（UNVERIFIED）</li>
+<li><code class="inline-code">prefetch.py</code> → CCR-07（UNVERIFIED）</li>
+<li><code class="inline-code">projectOnboardingState.py</code> → CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">secret_store.py</code> → CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">task_registry.py</code> → CCR-06（UNVERIFIED）</li>
+<li><code class="inline-code">tasks_core.py</code> → CCR-06（UNVERIFIED）</li>
+<li><code class="inline-code">token_estimation.py</code> → CCR-03（UNVERIFIED）</li>
+</ol>
+<h2 id="7-未确认项与待核实项">7. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ reference 侧对应文件/symbol 映射待核实</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 reference source</li>
+<li>☐ 本模块 R7/R5/CCR 归属的 UNVERIFIED 状态待升级或降级</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-core-single-files-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

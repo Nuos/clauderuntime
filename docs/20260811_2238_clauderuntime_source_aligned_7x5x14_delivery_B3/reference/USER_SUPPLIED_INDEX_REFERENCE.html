@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Claude Code 论文源码：横切机制与分类体系完整归档</title>
+<style>
+:root{
+  --bg:#f5f7fb; --paper:#fff; --ink:#172033; --muted:#667085;
+  --blue:#0b4da2; --blue2:#153b75; --teal:#0b7f77; --orange:#d97706;
+  --purple:#6d4bc3; --line:#d7deea; --soft:#eef4ff; --soft2:#f4fbf9;
+  --warn:#fff7e8; --danger:#fff1f1;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",Arial,sans-serif;line-height:1.72}
+a{color:var(--blue);text-decoration:none}
+.layout{display:grid;grid-template-columns:290px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow:auto;background:#0d2346;color:#eaf2ff;padding:22px 18px;border-right:1px solid #193968}
+.brand{font-size:18px;font-weight:800;line-height:1.35;margin:0 0 8px}
+.subbrand{font-size:12px;color:#bcd0ef;margin-bottom:20px}
+.nav-title{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#83a8df;margin:18px 8px 8px}
+nav a{display:block;color:#e7effc;padding:8px 10px;border-radius:8px;font-size:13px;margin:2px 0}
+nav a:hover{background:#173865}
+main{padding:34px 42px 70px;max-width:1500px;width:100%}
+.hero{background:linear-gradient(135deg,#0f356f,#0b4da2 58%,#0b7f77);color:#fff;border-radius:18px;padding:34px 38px;margin-bottom:24px;box-shadow:0 10px 30px rgba(24,53,101,.16)}
+.hero h1{font-size:32px;line-height:1.25;margin:0 0 10px}
+.hero p{margin:0;color:#e4efff;max-width:1050px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:26px 30px;margin:18px 0;box-shadow:0 4px 18px rgba(29,48,84,.05)}
+.card h2{font-size:25px;margin:0 0 16px;color:#0f2f61}
+.card h3{font-size:19px;color:#174d91;margin:25px 0 8px}
+.card h4{font-size:16px;color:#315681;margin:20px 0 8px}
+blockquote{margin:18px 0;padding:14px 18px;border-left:4px solid var(--teal);background:#f1fbf9;border-radius:0 10px 10px 0}
+.start-marker{border:2px solid #26a69a;background:#f0fbf8}
+.callout{padding:14px 16px;border-radius:11px;margin:14px 0}
+.callout.info{background:var(--soft);border:1px solid #c9dcff}
+.callout.warn{background:var(--warn);border:1px solid #f3d49a}
+.callout.danger{background:var(--danger);border:1px solid #efb9b9}
+.callout.purple{background:#f6f1ff;border:1px solid #ddcef8}
+code,.code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace}
+pre{white-space:pre-wrap;background:#0f1e34;color:#e7f0ff;padding:17px 19px;border-radius:12px;overflow:auto;font-size:13px;line-height:1.55}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:12px 0 20px}
+th,td{border:1px solid #d8dfeb;padding:10px 12px;vertical-align:top}
+th{background:#edf4ff;text-align:left;color:#153b75}
+.figure{background:#f9fbff;border:1px solid #d7e2f2;padding:14px;border-radius:14px;margin:16px 0 8px}
+.figure img{display:block;width:100%;height:auto;border-radius:8px;background:#fff}
+.figcap{font-size:13px;color:#586b87;margin-top:9px}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;margin-right:5px}
+.badge.blue{color:#0a478d;background:#e7f1ff}
+.badge.teal{color:#076c64;background:#e9f8f5}
+.badge.orange{color:#a45a00;background:#fff1dc}
+.badge.purple{color:#5935a3;background:#f0eaff}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.mini{border:1px solid #dbe3ee;border-radius:12px;padding:14px;background:#fbfcfe}
+.mini h4{margin:0 0 7px}
+.eq{font-size:20px;text-align:center;padding:12px;background:#f4f7fb;border-radius:10px;margin:12px 0;font-family:Georgia,"Times New Roman",serif}
+hr{border:0;border-top:1px solid #e3e8ef;margin:30px 0}
+.small{font-size:13px;color:var(--muted)}
+.source{font-size:12px;color:#667085;background:#f8fafc;padding:9px 12px;border-radius:8px;border:1px dashed #d5dde8}
+.timeline{border-left:3px solid #b9cdf2;padding-left:18px}
+.timeline .turn{margin:18px 0}
+.timeline .who{font-size:12px;font-weight:800;color:#315681;text-transform:uppercase;letter-spacing:.08em}
+.footer{color:#667085;font-size:12px;margin:28px 0;text-align:center}
+@media(max-width:980px){
+ .layout{grid-template-columns:1fr}
+ aside{position:relative;height:auto}
+ main{padding:22px 14px 50px}
+ .grid2,.grid3{grid-template-columns:1fr}
+}
+@media print{
+ aside{display:none}.layout{display:block}main{padding:0}.card{box-shadow:none;break-inside:avoid}
+ .hero{box-shadow:none}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+<div class="brand">Claude Code<br>论文 × 源码完整归档</div>
+<div class="subbrand">Cross-Cutting Harness / Runtime Architecture</div>
+<div class="nav-title">导航</div>
+<nav>
+  <a href="#scope">0. 引用起点与范围</a>
+  <a href="#crosscut">1. 14 类横切机制</a>
+  <a href="#diagram-v1">2. 初版架构图</a>
+  <a href="#feedback">3. 用户反馈</a>
+  <a href="#diagram-v2">4. 修订版架构图</a>
+  <a href="#paper-more">5. 论文其它分类体系</a>
+  <a href="#map">6. 八层分类地图</a>
+  <a href="#assets">7. 图表资产归档</a>
+  <a href="#sources">8. 来源与术语</a>
+</nav>
+</aside>
+  <main>
+<div class="hero">
+  <h1>Claude Code 论文与源码：横切机制、架构图与分类体系完整归档</h1>
+  <p>归档范围：从用户指定的引用起点“Cross-Cutting Harness / Runtime Mechanisms（横切式运行机制）”开始，按对话发生顺序一直记录到最新的论文分类总结。中间的两版架构阐释图、用户反馈与修订结果一并收录。</p>
+</div>
+
+<section id="scope" class="card start-marker">
+  <h2>0. 引用起点与归档范围</h2>
+  <blockquote>
+    <strong>引用起点：</strong><br>
+    有，而且如果沿用你现在这套七核心模块：<br><br>
+    <strong>LLM / Context / AgentLoop / ToolRuntime / Policy / State / Execution Environment</strong><br><br>
+    那么 Claude Code 真正值得继续拆的，恰恰不是再增加几个“同级核心模块”，而是研究一批<strong>横跨这些模块边界的 Cross-Cutting Harness / Runtime Mechanisms（横切式运行机制）</strong>。<br><br>
+    论文最新版 v2 也把重点说得很清楚：核心 loop 只是简单的 model → tools → repeat；大量工程复杂度存在于外围的权限、五层 compaction、扩展机制、subagent orchestration、session storage 等系统。论文项目进一步直接称 hooks、classifier、compaction、isolation 为难以复刻的 <strong>cross-cutting harness</strong>。<br><br>
+    我建议把它们整理成下面 <strong>14 类关键辅助机制</strong>。
+  </blockquote>
+  <div class="source">主要研究依据：论文《Dive into Claude Code: The Design Space of Today's and Future AI Agent Systems》（arXiv:2604.14228）及 Claude Code 源码镜像仓库 Nuos/claude-code-claude-code-source-code-full。</div>
+</section>
+
+<section id="crosscut" class="card">
+  <h2>1. 七大核心模块之外：Cross-Cutting Runtime Mechanisms</h2>
+  <p>如果沿用七核心模块：</p>
+  <pre>LLM / Context / AgentLoop / ToolRuntime / Policy / State / Execution Environment</pre>
+  <p>那么真正值得继续拆的，不是再增加几个“同级核心模块”，而是一批横跨模块边界、控制数据流 / 权限流 / 状态流 / 执行流的横切机制。</p>
+
+  <h3>1.1 更准确的体系：骨骼与“神经 / 血管 / 关节 / 反馈回路”</h3>
+  <pre>                 ┌──────── LLM ────────┐
+                 │                     │
+          Context Shaping         Model Routing
+                 │                     │
+                 ▼                     │
+              Context ◄───────────────┘
+                 │
+        Context Assembly
+        Memory / Skill Prefetch
+                 │
+                 ▼
+              AgentLoop
+        ┌────────┼────────┐
+        │        │        │
+      Hooks   Recovery   Queue
+        │        │        │
+        ▼        ▼        ▼
+             ToolRuntime
+         Tool Orchestration
+         Streaming Executor
+                 │
+         Authorization Pipeline
+                 │
+                 ▼
+              Policy
+                 │
+      Sandbox / Trust / Scope
+                 │
+                 ▼
+       Execution Environment
+                 │
+                 ▼
+              State
+          Transcript / Checkpoint
+          Sidechain / Persistence
+                 │
+                 └────────► Context</pre>
+  <p>七大模块是“骨骼”；横切机制更像神经、血管、关节、免疫系统和反馈回路，它们才决定 Agent Runtime 是否真正运转起来。</p>
+
+  <h3>1.2 机制一：Hook Runtime — Lifecycle Cross-Cutting Extension</h3>
+  <p>Hook Runtime 不属于 LLM、Context、AgentLoop、ToolRuntime、Policy、State、Execution Environment 中任何一个单一模块，它横切整个 Runtime 生命周期：</p>
+  <pre>SessionStart
+     │
+UserPromptSubmit
+     │
+LLM
+     │
+PreToolUse
+     │
+PermissionRequest
+     │
+Tool Execution
+     │
+PostToolUse
+     │
+Context
+     │
+Stop
+     │
+SessionEnd</pre>
+  <p>它把生命周期位置、事件协议、handler 注册、匹配、执行、聚合、timeout、async、blocking 结果等统一起来。因此 Hook Runtime 是第一类典型 Cross-Cutting Runtime。</p>
+
+  <h3>1.3 机制二：Authorization Pipeline — 授权决策流水线</h3>
+  <p><strong>Policy</strong> 回答“规则是什么”；<strong>Authorization Pipeline</strong> 回答“一次真实 Tool Action 到底经过哪些检查、以什么顺序形成最终执行决策”。</p>
+  <pre>Tool Pre-filter
+      ↓
+PreToolUse Hook
+      ↓
+Deny-first Rule Evaluation
+      ↓
+Permission Handler
+      ↓
+Execution</pre>
+  <div class="eq">Policy = Rules<br>Authorization Pipeline = Policy Evaluation Runtime</div>
+  <p>它真正位于 ToolRuntime ↔ Policy ↔ Execution Environment 之间。</p>
+
+  <h3>1.4 机制三：Context Shaping Pipeline — 上下文整形流水线</h3>
+  <p>Claude Code 的 Context 管理不是一个压缩函数，而是五层渐进式流水：</p>
+  <pre>Budget Reduction
+      ↓
+Snip
+      ↓
+Microcompact
+      ↓
+Context Collapse
+      ↓
+Auto-Compact</pre>
+  <p>源码 <span class="code">query.ts</span> 中对应 <span class="code">applyToolResultBudget → snipCompactIfNeeded → microcompact → contextCollapse → autocompact → LLM API</span>。它决定“上下文过长时，系统如何仍能持续推理”。</p>
+
+  <h3>1.5 机制四：Context Assembly / Injection — 上下文组装与注入</h3>
+  <p>Context Shaping 回答“太多了怎么办”；Context Assembly 回答“这次究竟给 LLM 看什么”。典型 Context Sources：</p>
+  <pre>System Prompt
+Environment
+CLAUDE.md
+Path Rules
+Auto-memory
+Tool Metadata
+Conversation History
+Tool Results
+Compact Summary</pre>
+  <pre>State ───────┐
+Memory ──────┤
+Tools ───────┤
+Skills ──────┤
+Environment ─┤
+Hooks ───────┤
+             ▼
+       Context Assembly
+             │
+             ▼
+          Context
+             │
+             ▼
+            LLM</pre>
+  <p>本质上是一层 <strong>Context Composition Runtime</strong>。</p>
+
+  <h3>1.6 机制五：Tool Pool Assembly / Capability Registry — 能力装配机制</h3>
+  <p>ToolRuntime 回答“tool 怎么执行”；但 LLM 调用前还有一个问题：本轮模型到底看得到哪些工具？</p>
+  <pre>Base Tools
+   ↓
+Mode Filtering
+   ↓
+Deny Pre-filtering
+   ↓
+MCP Integration
+   ↓
+Deduplication</pre>
+  <pre>Built-in Tools ──┐
+MCP Tools ───────┤
+Plugin Tools ────┤
+Policy ──────────┤
+Permission Mode ─┤
+                 ▼
+          Tool Pool Assembly
+                 │
+                 ▼
+          Model-visible Tools
+                 │
+                 ▼
+                LLM</pre>
+  <p>这是 <strong>Capability Registry + Capability Projection</strong>。</p>
+
+  <h3>1.7 机制六：Tool Orchestration — 工具编排机制</h3>
+  <p>Tool Runtime 更偏“一个工具如何执行”，而 Tool Orchestration 负责“多个 tool call 如何安排顺序、并发、互斥和上下文更新”。</p>
+  <pre>LLM
+ │
+ │ tool A / tool B / tool C
+ ▼
+AgentLoop
+ │
+ ▼
+Tool Orchestrator
+ │
+ ├─ classify concurrency
+ ├─ partition
+ ├─ schedule
+ ├─ context modifiers
+ └─ completion tracking
+ │
+ ▼
+ToolRuntime</pre>
+  <div class="eq">ToolRuntime = Executor &nbsp;&nbsp;&nbsp; ToolOrchestrator = Scheduler</div>
+
+  <h3>1.8 机制七：Streaming Tool Execution — 流式工具执行</h3>
+  <p>Claude Code 支持在 tool call 仍由模型 stream 逐步生成时，就进入工具调度；同时也保留非 streaming 的 <span class="code">runTools()</span> 路径。</p>
+  <pre>LLM Streaming
+     │
+     │ partial tool_use
+     ▼
+Streaming Parser
+     │
+     ▼
+StreamingToolExecutor
+     │
+     ├── Queue
+     ├── Scheduler
+     ├── Abort
+     └── Result Buffer
+     │
+     ▼
+ToolRuntime</pre>
+  <p>源码中 StreamingToolExecutor 维护 queued / executing / completed / yielded，并处理 sibling abort、user interrupt、streaming fallback、ordered yield。</p>
+
+  <h3>1.9 机制八：Recovery / Resilience Controller — 故障恢复</h3>
+  <p>这不是 AgentLoop 里的零散 try/catch，而是一套 Runtime Fault Tolerance：</p>
+  <pre>             ┌── LLM failure
+             │
+             ├── context overflow
+             │
+             ├── stream failure
+             │
+AgentLoop ───┤
+             ├── max tokens
+             │
+             └── tool interruption
+                   │
+                   ▼
+            Recovery Controller
+                   │
+       ┌───────────┼───────────┐
+       ▼           ▼           ▼
+   retry       compact      fallback</pre>
+  <p>典型策略包括：max-output-token escalation、reactive compaction、prompt-too-long recovery、streaming fallback、fallback model。</p>
+
+  <h3>1.10 机制九：Result Normalization / Result Budget — 工具结果整形</h3>
+  <pre>Tool Output
+    ↓
+Normalization
+    ↓
+Budget
+    ↓
+Replacement / Truncation
+    ↓
+Persistence
+    ↓
+Context</pre>
+  <p>它解决“工具世界输出如何转译为模型世界可以安全消费的 Observation”。源码中 <span class="code">applyToolResultBudget()</span> 与 <span class="code">recordContentReplacement()</span> 体现了这层。</p>
+
+  <h3>1.11 机制十：Session / Transcript Runtime — 会话持久化与链重建</h3>
+  <p>State 只是“有哪些状态”；Session Runtime 回答“状态如何持久化、恢复、重建和审计”。</p>
+  <pre>AgentLoop
+    │
+    ▼
+State
+    │
+    ▼
+Session Runtime
+    │
+    ├── JSONL
+    ├── UUID chain
+    ├── Sidechain
+    ├── Compact boundary
+    └── Resume reconstruction
+    │
+    ▼
+Context</pre>
+  <p>源码还区分 transcript message 与 ephemeral progress，后者不参与 parentUuid chain；同时分别处理主 session、subagent transcript、content replacement、compact boundary、worktree session。</p>
+
+  <h3>1.12 机制十一：Subagent Orchestration — 子 Agent 委托、隔离与汇聚</h3>
+  <pre>Parent Agent
+      │
+      ▼
+Delegation
+      │
+      ├── model
+      ├── tools
+      ├── permissions
+      ├── skills
+      ├── hooks
+      └── maxTurns
+      │
+      ▼
+Isolated Subagent Context
+      │
+      ▼
+Sidechain Transcript
+      │
+      ▼
+Summary
+      │
+      ▼
+Parent Context</pre>
+  <p>它横跨 AgentLoop、Context、Policy、State、Execution Environment 五个核心模块。</p>
+
+  <h3>1.13 机制十二：Isolation Runtime — Sandbox / Worktree / Process Boundary</h3>
+  <pre>Policy
+    │
+    ▼
+Isolation Controller
+    │
+    ├── filesystem scope
+    ├── network scope
+    ├── worktree
+    ├── subprocess
+    ├── remote
+    └── credentials
+    │
+    ▼
+Execution Environment</pre>
+  <p><strong>Execution Environment ≠ Isolation</strong>：前者提供能力，后者决定可见边界和副作用边界。</p>
+
+  <h3>1.14 机制十三：Trust Runtime — 信任生命周期</h3>
+  <p>Claude Code 的 permission / trust 并不是简单永久状态；会话恢复时不把 session trust 直接当作永久可信状态。</p>
+  <pre>State
+ │
+ │ previous session
+ ▼
+Resume
+ │
+ X   不恢复 permission trust
+ │
+ ▼
+Trust Re-establishment
+ │
+ ▼
+Policy</pre>
+  <p>因此 Trust 是 State 与 Policy 之间的生命周期语义，可单独称为 <strong>Trust Lifecycle Manager</strong>。</p>
+
+  <h3>1.15 机制十四：Runtime Config / Feature Gate — 运行时配置控制面</h3>
+  <p>源码在 query 入口通过 <span class="code">buildQueryConfig()</span> 快照本轮不可变配置，包含 sessionId、streamingToolExecution、emitToolUseSummaries、fastMode 等 runtime gates。</p>
+  <pre>Settings
+Environment
+Feature Flags
+Experiment Gates
+Session Mode
+       │
+       ▼
+Runtime Config
+       │
+ ┌─────┼─────┬─────┬─────┐
+ ▼     ▼     ▼     ▼     ▼
+LLM Context Loop Tools Policy</pre>
+  <p>它等价于一层 <strong>Runtime Control Plane</strong>。</p>
+
+  <h3>1.16 第二梯队：Observability / Async Queue / Prefetch</h3>
+  <div class="grid3">
+    <div class="mini"><h4>Observability / Telemetry / Profiler</h4><p>logEvent、logError、logForDebugging、queryCheckpoint、headlessProfilerCheckpoint 横切全部模块。</p></div>
+    <div class="mini"><h4>Async Queue / Abort / Cancellation</h4><p>Queue、AbortController、sibling cancellation、interrupt behavior、result ordering，可视为 Concurrency / Cancellation Runtime。</p></div>
+    <div class="mini"><h4>Prefetch / Speculative Work</h4><p>Memory Prefetch、Skill Discovery Prefetch 与模型 streaming / tool execution 重叠执行，用以隐藏延迟。</p></div>
+  </div>
+
+  <h3>1.17 三层架构整理</h3>
+  <p><strong>第一层：7 个 Core Components</strong></p>
+  <pre>LLM
+Context
+AgentLoop
+ToolRuntime
+Policy
+State
+Execution Environment</pre>
+  <p><strong>第二层：14 个 Cross-Cutting Runtime Mechanisms</strong></p>
+  <table>
+    <thead><tr><th>#</th><th>横切机制</th><th>主要连接</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Hook Runtime</td><td>全生命周期</td></tr>
+      <tr><td>2</td><td>Authorization Pipeline</td><td>ToolRuntime ↔ Policy ↔ ExecEnv</td></tr>
+      <tr><td>3</td><td>Context Shaping Pipeline</td><td>State / Context → LLM</td></tr>
+      <tr><td>4</td><td>Context Assembly / Injection</td><td>State / Memory / Tools → Context</td></tr>
+      <tr><td>5</td><td>Tool Pool / Capability Assembly</td><td>Policy / Extensions → LLM / Tools</td></tr>
+      <tr><td>6</td><td>Tool Orchestration</td><td>AgentLoop → ToolRuntime</td></tr>
+      <tr><td>7</td><td>Streaming Tool Executor</td><td>LLM Stream → ToolRuntime</td></tr>
+      <tr><td>8</td><td>Recovery / Resilience</td><td>LLM / Context / Loop / Tools</td></tr>
+      <tr><td>9</td><td>Result Normalization / Budget</td><td>ToolRuntime → Context</td></tr>
+      <tr><td>10</td><td>Session / Transcript Runtime</td><td>State ↔ Context</td></tr>
+      <tr><td>11</td><td>Subagent Orchestration</td><td>Loop / Context / State / ExecEnv</td></tr>
+      <tr><td>12</td><td>Isolation Runtime</td><td>Policy → Execution Environment</td></tr>
+      <tr><td>13</td><td>Trust Lifecycle</td><td>State ↔ Policy</td></tr>
+      <tr><td>14</td><td>Runtime Config / Feature Gate</td><td>全系统</td></tr>
+    </tbody>
+  </table>
+
+  <h3>1.18 关键程度排序</h3>
+  <pre>第一梯队
+────────────────────────
+1 Hook Runtime
+2 Authorization Pipeline
+3 Context Shaping Runtime
+4 Tool Orchestration
+5 Recovery Runtime
+
+第二梯队
+────────────────────────
+6 Tool Pool / Capability Registry
+7 Session / Transcript Runtime
+8 Result Processing Runtime
+9 Isolation Runtime
+10 Subagent Runtime
+
+第三梯队
+────────────────────────
+11 Context Assembly
+12 Trust Lifecycle
+13 Runtime Config
+14 Observability / Prefetch</pre>
+
+  <p>其中最值得注意的是：<strong>Hook Runtime、Context Shaping、Authorization Pipeline、Tool Orchestration、Recovery Runtime</strong> 这五个机制，本质上就是七大核心模块之间最重要的“关节”。</p>
+  <div class="eq">Core Components + Cross-Cutting Harness + Lifecycle / Control Plane = Production Agent Runtime</div>
+</section>
+
+<section id="diagram-v1" class="card">
+  <h2>2. 图表设计：Claude Code Agent Runtime 初版全景架构图</h2>
+  <div class="timeline">
+    <div class="turn">
+      <div class="who">用户要求</div>
+      <p>“@创建图片 绘制阐释图。以图中图表为核心框架结构，每个环节要展开其系统结构，进行阐释。”</p>
+    </div>
+    <div class="turn">
+      <div class="who">生成结果</div>
+      <p>以下为当时生成的初版信息图。该版本随后被用户判定为“不合格”，因此在本归档中保留为<strong>设计迭代记录</strong>，不视作最终推荐结构。</p>
+    </div>
+  </div>
+  <div class="figure">
+    <img src="assets/01_claude_code_agent_runtime_初版全景架构图.png" alt="Claude Code Agent Runtime 初版全景架构图">
+    <div class="figcap">图 1：初版《Claude Code Agent Runtime：核心模块与横切机制全景图》。</div>
+  </div>
+</section>
+
+<section id="feedback" class="card">
+  <h2>3. 用户对初版图的明确反馈</h2>
+  <div class="callout danger">
+    <strong>用户原始反馈：</strong><br>
+    “非常不合格！！（1）图中 Policy与 Authorization 有什么区别，是不是重复、重叠了？？？（2）模块一、四、毫无意义而且重复！（3）中间的大循环是什么含义？阐释图的原要求是什么？？（4）怎么才9种机制”
+  </div>
+  <p>该反馈实际提出了四个必须修正的架构表达问题：</p>
+  <ol>
+    <li><strong>Policy 与 Authorization Pipeline 必须严格区分：</strong>Policy 是规则本体 / 决策语义；Authorization Pipeline 是把 tool intent 经过过滤、hook、permission evaluation、policy decision 最终落地为执行决策的 Runtime 流水线。</li>
+    <li><strong>核心模块展开不能重复：</strong>每一个展开框必须说明内部结构、作用、输入 / 输出，而不是把中央主轴内容换一种说法再重复一遍。</li>
+    <li><strong>“大循环”必须命名和解释：</strong>它不是一个业务模块，而是跨轮反馈回路：结果沉淀 → 状态持久化 → 上下文重建 / 整形 → 下一轮模型推理。</li>
+    <li><strong>横切机制必须完整：</strong>不能只在图上选 9 种；需要明确呈现 14 类横切机制总表。</li>
+  </ol>
+</section>
+
+<section id="diagram-v2" class="card">
+  <h2>4. 图表修订：7 大核心模块 × 14 种横切机制</h2>
+  <p>修订版以“中央唯一主轴 + 14 种横切机制总表 + Policy/Authorization 对照 + 跨轮反馈回路”为核心，取消无意义重复板块。</p>
+  <div class="figure">
+    <img src="assets/02_claude_code_agent_runtime_修订版架构全景图.png" alt="Claude Code Agent Runtime 修订版架构全景图">
+    <div class="figcap">图 2：修订版《Claude Code Agent Runtime：核心模块 × 14种横切机制》。</div>
+  </div>
+
+  <h3>4.1 修订版强调的四个结构</h3>
+  <div class="grid2">
+    <div class="mini">
+      <h4>中央唯一主轴</h4>
+      <pre>LLM
+ ↓
+Context
+ ↓
+AgentLoop
+ ↓
+ToolRuntime
+ ↓
+Policy
+ ↓
+Execution Environment
+ ↓
+State</pre>
+    </div>
+    <div class="mini">
+      <h4>Policy ≠ Authorization Pipeline</h4>
+      <p><strong>Policy：</strong>规则本体 / 决策语义，回答“规则是什么”。<br>
+      <strong>Authorization Pipeline：</strong>运行时执行流水，回答“一次 tool intent 如何落地为具体决策”。</p>
+    </div>
+    <div class="mini">
+      <h4>跨轮反馈回路</h4>
+      <p>ToolRuntime / assistant result → State / Session Runtime → Context Assembly + Context Shaping → Context → LLM 下一轮。</p>
+    </div>
+    <div class="mini">
+      <h4>14 种横切机制完整呈现</h4>
+      <p>Hook、Authorization、Context Shaping、Context Assembly、Capability Registry、Orchestration、Streaming Execution、Recovery、Result Budget、Session Runtime、Subagent、Isolation、Trust、Runtime Config。</p>
+    </div>
+  </div>
+</section>
+
+<section id="paper-more" class="card">
+  <h2>5. 论文除“7 个核心功能组件、5 层结构、14 种横切机制”之外，还有哪些总结或分类？</h2>
+  <div class="callout info">
+    <strong>重要校正：</strong>论文正式提出的是“7 个高层功能组件”和“5 层 subsystem architecture”；“14 种横切机制”是基于论文 + Claude Code 源码做出的二次架构归纳，不是论文原文中一个编号为 14 的正式 taxonomy。
+  </div>
+
+  <h3>5.1 五个 Human Values / Philosophies</h3>
+  <ol>
+    <li><strong>Human Decision Authority</strong> —— 人类最终决策权</li>
+    <li><strong>Safety, Security, Privacy</strong> —— 安全、安全性与隐私</li>
+    <li><strong>Reliable Execution</strong> —— 可靠执行</li>
+    <li><strong>Capability Amplification</strong> —— 能力放大</li>
+    <li><strong>Contextual Adaptability</strong> —— 上下文适应性</li>
+  </ol>
+  <pre>Human Values
+     ↓
+Design Principles
+     ↓
+Architectural Decisions
+     ↓
+Source Implementation</pre>
+
+  <h3>5.2 十三个 Design Principles</h3>
+  <table>
+    <thead><tr><th>#</th><th>Design Principle</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Deny-first with human escalation</td></tr>
+      <tr><td>2</td><td>Graduated trust spectrum</td></tr>
+      <tr><td>3</td><td>Defense in depth with layered mechanisms</td></tr>
+      <tr><td>4</td><td>Externalized programmable policy</td></tr>
+      <tr><td>5</td><td>Context as scarce resource with progressive management</td></tr>
+      <tr><td>6</td><td>Append-only durable state</td></tr>
+      <tr><td>7</td><td>Minimal scaffolding, maximal operational harness</td></tr>
+      <tr><td>8</td><td>Values over rules</td></tr>
+      <tr><td>9</td><td>Composable multi-mechanism extensibility</td></tr>
+      <tr><td>10</td><td>Reversibility-weighted risk assessment</td></tr>
+      <tr><td>11</td><td>Transparent file-based configuration and memory</td></tr>
+      <tr><td>12</td><td>Isolated subagent boundaries</td></tr>
+      <tr><td>13</td><td>Graceful recovery and resilience</td></tr>
+    </tbody>
+  </table>
+
+  <h3>5.3 七个 Broad Design-Space Questions</h3>
+  <pre>1. Where reasoning lives
+   推理放在哪里？
+
+2. How the iteration loop is structured
+   迭代循环怎样组织？
+
+3. What safety posture to adopt
+   默认安全姿态是什么？
+
+4. How the extension surface is partitioned
+   扩展面如何划分？
+
+5. How context is managed
+   Context 如何管理？
+
+6. How work is delegated across subagents
+   工作怎样委派给 Subagent？
+
+7. How sessions persist
+   Session 如何持久化？</pre>
+
+  <h3>5.4 四个 Core Architecture Questions</h3>
+  <pre>① Where does reasoning live?
+   Model 还是 Harness？
+
+② How many execution engines?
+   一个统一 queryLoop，还是多个 Runtime？
+
+③ What is the default safety posture?
+   Allow-first / Ask / Deny-first？
+
+④ What is the binding resource constraint?
+   Context / compute / tool budget / memory？</pre>
+  <p>Claude Code 的答案可概括为：</p>
+  <pre>Model reasons; Harness enforces
+One shared queryLoop
+Deny-first
+Context window is the binding resource</pre>
+
+  <h3>5.5 第六个横切问题：Long-term Developer Capability</h3>
+  <p>论文在五个 Values 之外，还提出一个横穿全部价值的评估问题：长期使用 Agent 后，人类开发者自身是否仍理解代码、能够监督 Agent、维护系统一致性。</p>
+  <pre>          Human Authority
+               │
+Safety ─────────┼──────── Reliability
+               │
+Capability ─────┼──────── Adaptability
+               │
+               ▼
+     Long-term Developer
+          Capability</pre>
+
+  <h3>5.6 一次 Agent Turn 的 9 步运行流水线</h3>
+  <pre>1. Settings Resolution
+        ↓
+2. Mutable State Initialization
+        ↓
+3. Context Assembly
+        ↓
+4. Pre-model Context Shapers
+        ↓
+5. Model Call
+        ↓
+6. Tool-use Dispatch
+        ↓
+7. Permission Gate
+        ↓
+8. Tool Execution + Result Collection
+        ↓
+9. Stop / Continue Decision</pre>
+  <p>这与“7 Components / 5 Layers / 14 Harness”回答的是不同问题：7 Components = 有什么；5 Layers = 在哪里；14 Harness = 模块间靠什么机制连接；9 Steps = 一次 Turn 怎么运动。</p>
+
+  <h3>5.7 Tool 执行的 2 条路径</h3>
+  <div class="grid2">
+    <div class="mini"><h4>Path A：StreamingToolExecutor</h4><pre>LLM still streaming
+       ↓
+tool_use 逐渐形成
+       ↓
+立刻进入 Tool Executor</pre><p>重点是降低延迟。</p></div>
+    <div class="mini"><h4>Path B：runTools()</h4><pre>模型完成 tool calls
+       ↓
+分类 concurrency-safe
+       ↓
+parallel / serial execution</pre><p>重点是安全并发与顺序控制。</p></div>
+  </div>
+
+  <h3>5.8 五类 Recovery Mechanisms</h3>
+  <ol>
+    <li>Max-output-token escalation</li>
+    <li>Reactive compaction</li>
+    <li>Prompt-too-long recovery</li>
+    <li>Streaming fallback</li>
+    <li>Fallback model</li>
+  </ol>
+
+  <h3>5.9 五类 Stop Conditions</h3>
+  <ol>
+    <li>No tool use</li>
+    <li>Max turns</li>
+    <li>Context overflow</li>
+    <li>Hook intervention</li>
+    <li>Explicit abort</li>
+  </ol>
+  <pre>             AgentLoop
+                 │
+        ┌────────┴────────┐
+        ▼                 ▼
+Continue Logic       Termination Logic
+        │                 │
+Recovery           5 Stop Conditions</pre>
+
+  <h3>5.10 七层 Safety Architecture</h3>
+  <pre>1 Tool Pre-filtering
+        ↓
+2 Deny-first Rule Evaluation
+        ↓
+3 Permission Mode Constraints
+        ↓
+4 Auto-mode Classifier
+        ↓
+5 Shell Sandboxing
+        ↓
+6 Permission Non-restoration on Resume
+        ↓
+7 Hook-based Interception</pre>
+  <div class="callout warn"><strong>必须区分：</strong>Policy = 规则与决策语义；Authorization Pipeline = 一次 tool action 的决策执行流程；Safety Architecture = 更大的纵深防御系统。</div>
+
+  <h3>5.11 Permission：Mode 与 Behavior 两套分类</h3>
+  <p>源码外部 permission modes：</p>
+  <pre>acceptEdits
+bypassPermissions
+default
+dontAsk
+plan</pre>
+  <p>内部还存在：</p>
+  <pre>auto
+bubble</pre>
+  <p>而单次 Action 的 Permission Behavior 则是：</p>
+  <pre>allow
+deny
+ask</pre>
+  <p><strong>Permission Mode</strong> = 系统所处的信任 / 自治工作模式；<strong>Permission Behavior</strong> = 某一个具体 Action 的最终裁决。</p>
+
+  <h3>5.12 Policy 的 3 类组成机制</h3>
+  <pre>Composable Policy
+        │
+        ├── Declarative Rules
+        │
+        ├── Global Trust Modes
+        │
+        └── Programmable Hooks</pre>
+  <div class="eq">Policy = Rules + Modes + Hooks</div>
+
+  <h3>5.13 Tool Pool 的 5 步 Assembly Pipeline</h3>
+  <pre>1 Base Tool Enumeration
+       ↓
+2 Mode Filtering
+       ↓
+3 Deny-rule Pre-filtering
+       ↓
+4 MCP Tool Integration
+       ↓
+5 Deduplication</pre>
+  <p>因此：Tool Registry ≠ Tool Pool Assembly ≠ Tool Orchestration ≠ Tool Execution。</p>
+
+  <h3>5.14 Extension：4 类机制 + 3 个比较维度</h3>
+  <p>论文正式列出：</p>
+  <pre>MCP
+Plugin
+Skill
+Hook</pre>
+  <p>但作者更重要的比较轴是：</p>
+  <pre>Context Cost
+Insertion Point
+Unique Capability</pre>
+  <p>这是一套 Graduated Extensibility Taxonomy，而不是普通插件清单。</p>
+
+  <h3>5.15 Plugin：10 类 Component</h3>
+  <ol>
+    <li>commands</li><li>agents</li><li>skills</li><li>hooks</li><li>MCP servers</li>
+    <li>LSP servers</li><li>output styles</li><li>channels</li><li>settings</li><li>user configuration</li>
+  </ol>
+  <p>因此 Plugin 不是“一种能力”，而是一个 Packaging / Distribution Container。</p>
+
+  <h3>5.16 Hook：27 个事件，可归成 7 类 Event Families</h3>
+  <div class="grid2">
+    <div class="mini"><h4>① Tool Authorization</h4><p>PreToolUse / PostToolUse / PostToolUseFailure / PermissionRequest / PermissionDenied</p></div>
+    <div class="mini"><h4>② Session Lifecycle</h4><p>SessionStart / SessionEnd / Setup / Stop / StopFailure</p></div>
+    <div class="mini"><h4>③ User Interaction</h4><p>UserPromptSubmit / Elicitation / ElicitationResult</p></div>
+    <div class="mini"><h4>④ Subagent Coordination</h4><p>SubagentStart / SubagentStop / TeammateIdle / TaskCreated / TaskCompleted</p></div>
+    <div class="mini"><h4>⑤ Context Management</h4><p>PreCompact / PostCompact / InstructionsLoaded / ConfigChange</p></div>
+    <div class="mini"><h4>⑥ Workspace Events</h4><p>CwdChanged / FileChanged / WorktreeCreate / WorktreeRemove</p></div>
+    <div class="mini"><h4>⑦ Notifications</h4><p>通知类 lifecycle / UI 事件。</p></div>
+  </div>
+  <p>论文还指出：27 events；其中一部分有 event-specific output schema；部分直接进入 permission flow；持久化 Hook 类型包含 command / prompt / http / agent；Runtime 另外支持 callback / function。</p>
+
+  <h3>5.17 Context 的 9 类来源</h3>
+  <ol>
+    <li>System Prompt</li>
+    <li>Environment Info</li>
+    <li>CLAUDE.md Hierarchy</li>
+    <li>Path-scoped Rules</li>
+    <li>Auto Memory</li>
+    <li>Tool Metadata</li>
+    <li>Conversation History</li>
+    <li>Tool Results</li>
+    <li>Compact Summaries</li>
+  </ol>
+  <p><strong>9 Context Sources</strong> 回答“信息从哪里来”；<strong>5 Compaction Layers</strong> 回答“信息太多后怎么办”。</p>
+
+  <h3>5.18 CLAUDE.md 的 4 层 Memory / Instruction Hierarchy</h3>
+  <pre>1 Managed Memory
+   OS / 企业级
+
+2 User Memory
+   ~/.claude/CLAUDE.md
+
+3 Project Memory
+   CLAUDE.md
+   .claude/CLAUDE.md
+   .claude/rules/*.md
+
+4 Local Memory
+   CLAUDE.local.md</pre>
+  <p>这是一套 Instruction Scope / Memory Scope Taxonomy。</p>
+
+  <h3>5.19 跨系统比较的 6 个 Design Dimensions</h3>
+  <ol>
+    <li>System Scope / Deployment Model</li>
+    <li>Trust Model</li>
+    <li>Agent Runtime</li>
+    <li>Extension Architecture</li>
+    <li>Memory & Context</li>
+    <li>Multi-agent & Routing</li>
+  </ol>
+
+  <h3>5.20 跨系统比较后的 3 个观察</h3>
+  <h4>观察 1：问题稳定，答案随部署环境变化</h4>
+  <pre>Design Questions = stable
+Architectural Answers = context-dependent</pre>
+  <h4>观察 2：不同系统选择不同 Architecture Center</h4>
+  <pre>Claude Code → Agent Loop 为中心
+OpenClaw → Gateway Control Plane 为中心
+Hermes → 单进程、多 Surface Runtime</pre>
+  <h4>观察 3：Agent design space 不是平面 taxonomy，而是 layered</h4>
+  <pre>Gateway-level Agent
+        │
+        └── host
+              ↓
+        Coding Harness
+              │
+              └── host
+                    ↓
+                Subagent</pre>
+
+  <h3>5.21 四类 Coding Agent（按自主行动程度）</h3>
+  <ol>
+    <li>Inline Completion — Copilot / Tabnine</li>
+    <li>Chat-integrated — Cursor / Windsurf</li>
+    <li>Agentic CLI — Claude Code / Codex CLI / Aider</li>
+    <li>Fully Autonomous — Devin / SWE-Agent / OpenHands</li>
+  </ol>
+
+  <h3>5.22 Safety Architecture 的 3 个轴</h3>
+  <pre>              Safety Architecture
+                     │
+       ┌─────────────┼─────────────┐
+       ▼             ▼             ▼
+ Approval Model  Isolation      Recovery
+                Boundary       Mechanism</pre>
+  <p><strong>Approval Model：</strong>per-action prompting / classifier-mediated automation / post-hoc review。</p>
+  <p><strong>Isolation Boundary：</strong>OS container / filesystem sandbox / permission-scoped tool pool / none。</p>
+  <p><strong>Recovery：</strong>version-control rollback / session permission reset / checkpoint rewind。</p>
+
+  <h3>5.23 三个替代架构家族</h3>
+  <ol>
+    <li><strong>Rule-based Orchestration</strong> — LangGraph 式显式 State Graph</li>
+    <li><strong>Container-isolated Execution</strong> — SWE-Agent / OpenHands</li>
+    <li><strong>Version-control-as-Safety</strong> — Aider / Git rollback</li>
+  </ol>
+  <p>Claude Code 更接近：</p>
+  <div class="eq">Minimal Reasoning Scaffolding + Layered Runtime Harness</div>
+
+  <h3>5.24 三个 Cross-Cutting Design Commitments</h3>
+  <h4>1. Graduated Layering over Monolithic Mechanisms</h4>
+  <pre>Safety        → 7 layers
+Context       → 5 compaction stages
+Extensibility → 4 mechanisms</pre>
+  <h4>2. Append-only Designs Favor Auditability</h4>
+  <pre>Transcript → append-oriented
+Compaction → read-time projection
+Permissions → resume 不恢复 session trust</pre>
+  <p>它优先 Auditability、Reconstruction、Fork、Resume，而不是单纯追求查询便利。</p>
+  <h4>3. Model Judgment within a Deterministic Harness</h4>
+  <pre>Model decides
+Harness constrains / executes / recovers</pre>
+
+  <h3>5.25 六个 Future Directions</h3>
+  <ol>
+    <li>Silent Failure & Observability–Evaluation Gap</li>
+    <li>Cross-session Persistence / Longitudinal Memory</li>
+    <li>Harness Boundary Evolution</li>
+    <li>Horizon Scaling</li>
+    <li>Governance & Oversight at Scale</li>
+    <li>Long-term Developer Capability</li>
+  </ol>
+
+  <h3>5.26 Harness Boundary Evolution 的 4 个坐标轴</h3>
+  <pre>Where
+Harness 在哪里运行？
+
+When
+Agent 什么时候主动行动？
+
+What
+Agent 能作用于什么——文本、GUI、物理世界？
+
+With Whom
+Agent 与谁协作——人、Subagent、Agent Team？</pre>
+  <div class="eq">Where × When × What × With Whom</div>
+</section>
+
+<section id="map" class="card">
+  <h2>6. 论文完整分类地图：8 个层次</h2>
+  <p>不同“数字分类”不能放在同一平面。更合理的是按抽象层级组织：</p>
+  <pre>L0 价值层
+│
+├─ 5 Human Values
+└─ 第六横切问题：Long-term Developer Capability
+
+            ↓
+
+L1 原则层
+│
+└─ 13 Design Principles
+
+            ↓
+
+L2 设计空间层
+│
+├─ 7 Broad Design-Space Questions
+└─ 4 Core Architecture Questions
+
+            ↓
+
+L3 静态架构层
+│
+├─ 7 Functional Components
+└─ 5 Subsystem Layers
+
+            ↓
+
+L4 Runtime 运行结构
+│
+├─ 9-step Query Pipeline
+├─ 2 Tool Execution Paths
+├─ 5 Recovery Mechanisms
+└─ 5 Stop Conditions
+
+            ↓
+
+L5 子系统 Taxonomy
+│
+├─ 7 Safety Layers
+├─ 7 Permission Modes
+├─ 3 Policy Mechanisms
+├─ 5 Tool-Pool Assembly Stages
+├─ 4 Extension Mechanisms
+├─ 27 Hook Events / 7 Event Families
+├─ 9 Context Sources
+├─ 4 CLAUDE.md Levels
+└─ 5 Context Compaction Stages
+
+            ↓
+
+L6 横切 Runtime
+│
+└─ 14 Cross-Cutting Mechanisms（论文 + 源码二次归纳）
+
+            ↓
+
+L7 比较 / 演化层
+│
+├─ 6 Cross-System Comparison Dimensions
+├─ 3 Cross-System Observations
+├─ 4 Coding-Agent Autonomy Categories
+├─ 3 Safety Architecture Axes
+├─ 3 Alternative Architecture Families
+└─ 3 Cross-Cutting Design Commitments
+
+            ↓
+
+L8 Future Agent Design
+│
+├─ 6 Future Directions
+└─ 4 Harness-Boundary Axes
+   Where / When / What / With Whom</pre>
+
+  <h3>6.1 每套分类到底回答什么问题</h3>
+  <table>
+    <thead><tr><th>分类</th><th>回答什么问题</th></tr></thead>
+    <tbody>
+      <tr><td>5 Values</td><td>为什么这样设计</td></tr>
+      <tr><td>13 Principles</td><td>按什么原则设计</td></tr>
+      <tr><td>Design Questions</td><td>设计者必须做哪些选择</td></tr>
+      <tr><td>7 Components</td><td>系统由什么组成</td></tr>
+      <tr><td>5 Layers</td><td>这些组件位于什么架构层</td></tr>
+      <tr><td>14 Cross-Cutting Mechanisms</td><td>核心组件之间靠什么运行机制连接</td></tr>
+      <tr><td>9-step Pipeline</td><td>一次 Turn 实际怎样运动</td></tr>
+      <tr><td>Safety / Context / Hook 等 Taxonomy</td><td>各子系统内部又怎样细分</td></tr>
+      <tr><td>6 Comparison Dimensions</td><td>不同 Agent 如何横向比较</td></tr>
+      <tr><td>3 Cross-cutting Commitments</td><td>Claude Code 整体反复遵循什么架构模式</td></tr>
+      <tr><td>6 Future Directions</td><td>下一代 Agent 还缺什么</td></tr>
+    </tbody>
+  </table>
+
+  <h3>6.2 总体逻辑</h3>
+  <div class="eq">
+    Values → Principles → Design Questions → Architecture → Runtime → Subsystem Taxonomies → Cross-cutting Harness → Comparison → Future Directions
+  </div>
+  <p>因此，从论文完整性来说，“7 + 5 + 14”远远不够描述整篇论文。完整知识框架应覆盖从<strong>哲学动机 → 架构原则 → 设计问题 → 源码实现 → 横切机制 → 横向比较 → 下一代 Agent 设计空间</strong>的完整链路。</p>
+</section>
+
+<section id="assets" class="card">
+  <h2>7. 图表资产归档</h2>
+  <table>
+    <thead><tr><th>文件</th><th>状态</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>assets/01_claude_code_agent_runtime_初版全景架构图.png</td><td><span class="badge orange">迭代稿</span></td><td>对应首次“以图中图表为核心框架结构”的生成版本；后续被用户指出结构存在重叠、重复和缺项。</td></tr>
+      <tr><td>assets/02_claude_code_agent_runtime_修订版架构全景图.png</td><td><span class="badge teal">修订稿</span></td><td>按用户四项反馈修订：Policy/Authorization 明确区分、去掉重复模块、解释跨轮反馈回路、完整呈现 14 种横切机制。</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="sources" class="card">
+  <h2>8. 来源与术语说明</h2>
+  <p><strong>论文：</strong>《Dive into Claude Code: The Design Space of Today's and Future AI Agent Systems》，arXiv:2604.14228。</p>
+  <p><strong>源码：</strong>Nuos/claude-code-claude-code-source-code-full，重点涉及 <span class="code">src/query.ts</span>、<span class="code">src/services/tools/toolOrchestration.ts</span>、<span class="code">src/services/tools/StreamingToolExecutor.ts</span>、<span class="code">src/utils/hooks.ts</span>、<span class="code">src/utils/sessionStorage.ts</span>、<span class="code">src/types/permissions.ts</span>、<span class="code">src/query/config.ts</span> 等。</p>
+  <div class="callout purple">
+    <strong>术语层级提醒：</strong><br>
+    “7 个核心功能组件 / 5 层 subsystem architecture”属于论文正式架构总结；“14 种 Cross-Cutting Runtime Mechanisms”是基于论文与源码的二次工程化归纳。二者必须在知识框架中明确区分。
+  </div>
+</section>
+
+<div class="footer">本文件用于完整归档指定引用位置之后的对话知识内容与图表设计迭代。</div>
+</main>
+</div>
+</body>
+</html>

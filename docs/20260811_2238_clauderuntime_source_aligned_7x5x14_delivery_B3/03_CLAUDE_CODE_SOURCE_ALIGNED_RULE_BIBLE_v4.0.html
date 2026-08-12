@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Claude Code Source-Aligned 7×5×14 规则圣经 v4.0</title>
+<style>
+:root{
+ --bg:#f5f7fb;--paper:#fff;--ink:#172033;--muted:#667085;--blue:#0b4da2;
+ --blue2:#153b75;--teal:#0b7f77;--line:#d7deea;--soft:#eef4ff;
+ --warn:#fff7e8;--danger:#fff1f1;--code:#0f1e34;
+}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;line-height:1.72;font-size:14px}
+.layout{display:grid;grid-template-columns:300px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow:auto;background:#0d2346;color:#eaf2ff;padding:22px 18px;border-right:1px solid #193968}
+.brand{font-size:18px;font-weight:800;line-height:1.35;margin:0 0 8px}.subbrand{font-size:12px;color:#bcd0ef;margin-bottom:18px}
+nav a{display:block;color:#e7effc;padding:7px 9px;border-radius:8px;font-size:12px;margin:1px 0;text-decoration:none}
+nav a.l2{padding-left:18px;color:#cfe0fa}nav a.l3{padding-left:30px;color:#aec6e8;font-size:11px}nav a:hover{background:#173865}
+main{padding:34px 42px 70px;max-width:1500px;width:100%}
+.hero{background:linear-gradient(135deg,#0f356f,#0b4da2 58%,#0b7f77);color:#fff;border-radius:18px;padding:32px 36px;margin-bottom:22px;box-shadow:0 10px 30px rgba(24,53,101,.16)}
+.hero h1{margin:0 0 8px;font-size:30px}.hero p{margin:0;color:#e4efff}
+article{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:28px 34px;box-shadow:0 4px 18px rgba(29,48,84,.05)}
+h1{font-size:29px;color:#0f2f61}h2{font-size:23px;color:#0f2f61;margin-top:34px;padding-top:8px;border-top:1px solid #edf0f4}
+h3{font-size:18px;color:#174d91;margin-top:25px}h4{font-size:15px;color:#315681}
+a{color:var(--blue)}blockquote{margin:16px 0;padding:13px 17px;border-left:4px solid var(--teal);background:#f1fbf9}
+pre{white-space:pre-wrap;background:var(--code);color:#e7f0ff;padding:16px 18px;border-radius:12px;overflow:auto;font-size:13px;line-height:1.55}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#f0f3f8;padding:1px 5px;border-radius:4px}
+pre code{background:transparent;padding:0}
+table{border-collapse:collapse;width:100%;margin:12px 0 22px;font-size:13px}th,td{border:1px solid #d8dfeb;padding:9px 11px;vertical-align:top}th{background:#edf4ff;text-align:left;color:#153b75}
+strong{color:#112d55}.meta{font-size:12px;color:#e4efff}.footer{font-size:12px;color:#667085;text-align:center;margin-top:22px}
+.notice{background:#fff7e8;border:1px solid #f3d49a;padding:12px 15px;border-radius:10px;margin-bottom:18px}
+@media(max-width:980px){.layout{grid-template-columns:1fr}aside{position:relative;height:auto}main{padding:18px 12px 40px}article{padding:22px 18px}.hero{padding:24px 20px}}
+@media print{aside{display:none}.layout{display:block}main{padding:0}article{box-shadow:none;border:0}.hero{box-shadow:none}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <div class="brand">Claude Code Source-Aligned 7×5×14 规则圣经 v4.0</div>
+  <div class="subbrand">Supreme Active Development Constitution</div>
+  <nav><a class="" href="#claude-code-source-aligned-7-5-14-规则圣经-v4-0">Claude Code Source-Aligned 7×5×14 规则圣经 v4.0</a>
+<a class="" href="#0-最高命令">0. 最高命令</a>
+<a class="" href="#1-source-aligned-的定义">1. Source-Aligned 的定义</a>
+<a class="" href="#2-分类宪法-永久禁止混用">2. 分类宪法：永久禁止混用</a>
+<a class="l2" href="#2-1-reference-7-系统由什么核心功能组成">2.1 Reference-7：系统由什么核心功能组成</a>
+<a class="l2" href="#2-2-reference-5-这些系统能力位于什么架构层">2.2 Reference-5：这些系统能力位于什么架构层</a>
+<a class="l2" href="#2-3-ccr-14-核心模块之间靠什么-runtime-harness-连接">2.3 CCR-14：核心模块之间靠什么 Runtime Harness 连接</a>
+<a class="" href="#3-总体设计哲学">3. 总体设计哲学</a>
+<a class="l2" href="#p01-human-decision-authority">P01 Human Decision Authority</a>
+<a class="l2" href="#p02-deny-first-with-human-escalation">P02 Deny-first with Human Escalation</a>
+<a class="l2" href="#p03-graduated-trust-spectrum">P03 Graduated Trust Spectrum</a>
+<a class="l2" href="#p04-defense-in-depth">P04 Defense in Depth</a>
+<a class="l2" href="#p05-externalized-programmable-policy">P05 Externalized Programmable Policy</a>
+<a class="l2" href="#p06-context-is-scarce">P06 Context Is Scarce</a>
+<a class="l2" href="#p07-append-oriented-durable-state">P07 Append-oriented Durable State</a>
+<a class="l2" href="#p08-minimal-reasoning-scaffolding-maximal-harness">P08 Minimal Reasoning Scaffolding, Maximal Harness</a>
+<a class="l2" href="#p09-values-over-ad-hoc-rules">P09 Values over Ad-hoc Rules</a>
+<a class="l2" href="#p10-composable-extensibility">P10 Composable Extensibility</a>
+<a class="l2" href="#p11-reversibility-weighted-risk">P11 Reversibility-weighted Risk</a>
+<a class="l2" href="#p12-transparent-file-based-configuration-and-memory">P12 Transparent File-based Configuration and Memory</a>
+<a class="l2" href="#p13-isolated-subagent-boundaries">P13 Isolated Subagent Boundaries</a>
+<a class="l2" href="#p14-graceful-recovery-and-resilience">P14 Graceful Recovery and Resilience</a>
+<a class="" href="#4-reference-7-行为圣经">4. Reference-7 行为圣经</a>
+<a class="l2" href="#r7-01-user">R7-01 User</a>
+<a class="l2" href="#r7-02-interfaces">R7-02 Interfaces</a>
+<a class="l2" href="#r7-03-agent-loop">R7-03 Agent Loop</a>
+<a class="l2" href="#r7-04-permission-system">R7-04 Permission System</a>
+<a class="l2" href="#r7-05-tools">R7-05 Tools</a>
+<a class="l2" href="#r7-06-state-persistence">R7-06 State &amp; Persistence</a>
+<a class="l2" href="#r7-07-execution-environment">R7-07 Execution Environment</a>
+<a class="" href="#5-reference-5-系统架构圣经">5. Reference-5 系统架构圣经</a>
+<a class="l2" href="#r5-01-surface-layer">R5-01 Surface Layer</a>
+<a class="l2" href="#r5-02-core-layer">R5-02 Core Layer</a>
+<a class="l2" href="#r5-03-safety-action-layer">R5-03 Safety / Action Layer</a>
+<a class="l2" href="#r5-04-state-layer">R5-04 State Layer</a>
+<a class="l2" href="#r5-05-backend-layer">R5-05 Backend Layer</a>
+<a class="" href="#6-ccr-14-runtime-横切机制行为圣经">6. CCR-14 Runtime 横切机制行为圣经</a>
+<a class="l2" href="#ccr-01-hook-runtime">CCR-01 Hook Runtime</a>
+<a class="l2" href="#ccr-02-authorization-pipeline">CCR-02 Authorization Pipeline</a>
+<a class="l2" href="#ccr-03-context-shaping-pipeline">CCR-03 Context Shaping Pipeline</a>
+<a class="l2" href="#ccr-04-context-assembly-injection">CCR-04 Context Assembly / Injection</a>
+<a class="l2" href="#ccr-05-tool-pool-capability-assembly">CCR-05 Tool Pool / Capability Assembly</a>
+<a class="l2" href="#ccr-06-tool-orchestration">CCR-06 Tool Orchestration</a>
+<a class="l2" href="#ccr-07-streaming-tool-execution">CCR-07 Streaming Tool Execution</a>
+<a class="l2" href="#ccr-08-recovery-resilience-controller">CCR-08 Recovery / Resilience Controller</a>
+<a class="l2" href="#ccr-09-result-normalization-result-budget">CCR-09 Result Normalization / Result Budget</a>
+<a class="l2" href="#ccr-10-session-transcript-runtime">CCR-10 Session / Transcript Runtime</a>
+<a class="l2" href="#ccr-11-subagent-orchestration">CCR-11 Subagent Orchestration</a>
+<a class="l2" href="#ccr-12-isolation-runtime">CCR-12 Isolation Runtime</a>
+<a class="l2" href="#ccr-13-trust-lifecycle">CCR-13 Trust Lifecycle</a>
+<a class="l2" href="#ccr-14-runtime-config-feature-gate-control-plane">CCR-14 Runtime Config / Feature Gate Control Plane</a>
+<a class="" href="#7-一次-agent-turn-的强制-9-step-trace">7. 一次 Agent Turn 的强制 9-step Trace</a>
+<a class="" href="#8-tool-execution-的双路径规则">8. Tool Execution 的双路径规则</a>
+<a class="l2" href="#path-a-streaming-tool-executor">Path A — Streaming Tool Executor</a>
+<a class="l2" href="#path-b-batched-runtools-style">Path B — Batched / runTools-style</a>
+<a class="" href="#9-stop-continue-规则">9. Stop / Continue 规则</a>
+<a class="" href="#10-safety-architecture-规则">10. Safety Architecture 规则</a>
+<a class="" href="#11-permission-分类规则">11. Permission 分类规则</a>
+<a class="l2" href="#mode">Mode</a>
+<a class="l2" href="#behavior">Behavior</a>
+<a class="" href="#12-context-与-memory-规则">12. Context 与 Memory 规则</a>
+<a class="l2" href="#context-sources">Context Sources</a>
+<a class="l2" href="#instruction-memory-scope">Instruction / Memory Scope</a>
+<a class="" href="#13-extension-规则">13. Extension 规则</a>
+<a class="" href="#14-lifecycle-obligations-旧-aux-全部保留">14. Lifecycle Obligations：旧 AUX 全部保留</a>
+<a class="" href="#15-pr-commit-强制-gate">15. PR / Commit 强制 Gate</a>
+<a class="" href="#16-完成状态">16. 完成状态</a>
+<a class="" href="#17-绝对禁止">17. 绝对禁止</a>
+<a class="" href="#18-最终-exit-gate">18. 最终 Exit Gate</a></nav>
+</aside>
+<main>
+  <div class="hero">
+    <h1>Claude Code Source-Aligned 7×5×14 规则圣经 v4.0</h1>
+    <p>Supreme Active Development Constitution</p>
+  </div>
+  <div class="notice"><strong>离线可查看：</strong>本文件 CSS 全部内联，不依赖图片、CDN 或外部脚本。直接双击即可打开。</div>
+  <article><h1 id="claude-code-source-aligned-7-5-14-规则圣经-v4-0">Claude Code Source-Aligned 7×5×14 规则圣经 v4.0</h1>
+<blockquote>
+<p>文档编号：<code>CR-SOURCE-ALIGNED-RULE-BIBLE-v4.0</code><br />
+状态：<strong>SUPREME ACTIVE DEVELOPMENT CONSTITUTION</strong><br />
+生效：2026-08-11<br />
+ClaudeRuntime baseline：<code>def709361a86900920bf1d6b75134fdc9bc59def</code><br />
+Claude Code recovered source baseline：<code>a8a678cb6244e6770e1e421767ff0987a1d95549</code> / <code>2.1.88</code><br />
+论文基线：arXiv <code>2604.14228v2</code><br />
+本版依据：上一版 B2 + 用户提供的《Claude Code 论文源码：横切机制与分类体系完整归档》<code>index.html</code></p>
+</blockquote>
+<h1 id="0-最高命令">0. 最高命令</h1>
+<blockquote>
+<p><strong>所有行为、目标、设计、实现、测试、验收、文档和研发资源分配，必须服务于唯一目标：完整实现并验证 Reference-7 七个核心功能组件、Reference-5 五层系统架构、CCR-14 十四个 Runtime 横切机制，并使其关键语义与 Claude Code 2.1.88 recovered source 的可确认行为一致。</strong></p>
+</blockquote>
+<p>任何不能证明是该目标直接依赖的工作，默认延期。</p>
+<h1 id="1-source-aligned-的定义">1. Source-Aligned 的定义</h1>
+<p>“与源码一致”不是“看起来相似”，而是至少满足：</p>
+<ul>
+<li>control-flow equivalent；</li>
+<li>state-transition equivalent；</li>
+<li>event ordering equivalent；</li>
+<li>permission precedence equivalent；</li>
+<li>tool scheduling/result ordering equivalent；</li>
+<li>context shaping order equivalent；</li>
+<li>retry/recovery/terminal equivalent；</li>
+<li>persistence/resume/fork/rewind semantics equivalent；</li>
+<li>trust lifecycle equivalent；</li>
+<li>sandbox/isolation safety invariant equivalent；</li>
+<li>subagent isolation/return contract equivalent；</li>
+<li>abort/interrupt propagation equivalent；</li>
+<li>surface-independent core semantics equivalent。</li>
+</ul>
+<p>允许 Python / OS 适配，但必须能证明 <code>PYTHON_ADAPTATION_VERIFIED</code>。</p>
+<h1 id="2-分类宪法-永久禁止混用">2. 分类宪法：永久禁止混用</h1>
+<h2 id="2-1-reference-7-系统由什么核心功能组成">2.1 Reference-7：系统由什么核心功能组成</h2>
+<p>正式目标只使用论文口径：</p>
+<ol>
+<li>User</li>
+<li>Interfaces</li>
+<li>Agent Loop</li>
+<li>Permission System</li>
+<li>Tools</li>
+<li>State &amp; Persistence</li>
+<li>Execution Environment</li>
+</ol>
+<p>附件中早期分析的：</p>
+<pre><code class="language-text">LLM / Context / AgentLoop / ToolRuntime / Policy / State / Execution Environment
+</code></pre>
+<p>作为“运行概念视图”可保留，但不是正式 7/7 closure taxonomy。</p>
+<h2 id="2-2-reference-5-这些系统能力位于什么架构层">2.2 Reference-5：这些系统能力位于什么架构层</h2>
+<ol>
+<li>Surface Layer</li>
+<li>Core Layer</li>
+<li>Safety / Action Layer</li>
+<li>State Layer</li>
+<li>Backend Layer</li>
+</ol>
+<h2 id="2-3-ccr-14-核心模块之间靠什么-runtime-harness-连接">2.3 CCR-14：核心模块之间靠什么 Runtime Harness 连接</h2>
+<ol>
+<li>Hook Runtime</li>
+<li>Authorization Pipeline</li>
+<li>Context Shaping Pipeline</li>
+<li>Context Assembly / Injection</li>
+<li>Tool Pool / Capability Assembly</li>
+<li>Tool Orchestration</li>
+<li>Streaming Tool Execution</li>
+<li>Recovery / Resilience Controller</li>
+<li>Result Normalization / Result Budget</li>
+<li>Session / Transcript Runtime</li>
+<li>Subagent Orchestration</li>
+<li>Isolation Runtime</li>
+<li>Trust Lifecycle</li>
+<li>Runtime Config / Feature Gate Control Plane</li>
+</ol>
+<p><strong>CCR-14 是论文 + recovered source 的工程化归纳，不宣称是论文官方“14 项 taxonomy”。</strong></p>
+<h1 id="3-总体设计哲学">3. 总体设计哲学</h1>
+<p>本项目的 source-aligned core 必须遵守以下设计原则。</p>
+<h2 id="p01-human-decision-authority">P01 Human Decision Authority</h2>
+<p>用户是 authority actor，不是输入字符串。风险动作、权限升级、停止/继续、session 控制必须保持可观察和可干预。</p>
+<h2 id="p02-deny-first-with-human-escalation">P02 Deny-first with Human Escalation</h2>
+<p>默认安全姿态是：</p>
+<pre><code class="language-text">deny &gt; ask &gt; allow
+</code></pre>
+<p>未知风险动作不能因便利性静默扩大权限。</p>
+<h2 id="p03-graduated-trust-spectrum">P03 Graduated Trust Spectrum</h2>
+<p>Trust 是有 scope、有生命周期、有来源的状态，不是全局布尔值。resume 后临时 trust 不自动恢复。</p>
+<h2 id="p04-defense-in-depth">P04 Defense in Depth</h2>
+<pre><code class="language-text">Permission != Hook != Workspace Guard != Sandbox != Network Policy != Process Policy
+</code></pre>
+<p>任何一层成功都不能被解释为其他层可省略。</p>
+<h2 id="p05-externalized-programmable-policy">P05 Externalized Programmable Policy</h2>
+<p>规则、模式、hooks、project/user/managed settings 必须可追踪来源，并有确定 precedence。</p>
+<h2 id="p06-context-is-scarce">P06 Context Is Scarce</h2>
+<p>Context window 是绑定资源之一。必须 progressive management，而不是粗暴删除 durable history。</p>
+<h2 id="p07-append-oriented-durable-state">P07 Append-oriented Durable State</h2>
+<p>持久化事实源优先 append-oriented、可审计、可重建。Context projection/compaction 不得伪造 transcript。</p>
+<h2 id="p08-minimal-reasoning-scaffolding-maximal-harness">P08 Minimal Reasoning Scaffolding, Maximal Harness</h2>
+<p>核心 reasoning loop 保持简单；复杂度放在可测试的 harness：permission、context、tool、state、isolation、recovery。</p>
+<h2 id="p09-values-over-ad-hoc-rules">P09 Values over Ad-hoc Rules</h2>
+<p>单个 workaround 不得破坏上层安全、可恢复、可审计原则。</p>
+<h2 id="p10-composable-extensibility">P10 Composable Extensibility</h2>
+<p>MCP、Plugin、Skill、Hook 等扩展机制必须进入统一 capability/policy/runtime boundary，不得形成旁路。</p>
+<h2 id="p11-reversibility-weighted-risk">P11 Reversibility-weighted Risk</h2>
+<p>不可逆或高副作用动作需要更严格 gate / isolation / audit。</p>
+<h2 id="p12-transparent-file-based-configuration-and-memory">P12 Transparent File-based Configuration and Memory</h2>
+<p>配置、instruction/memory source 必须可追溯 scope、source、load order。</p>
+<h2 id="p13-isolated-subagent-boundaries">P13 Isolated Subagent Boundaries</h2>
+<p>Subagent 复用核心 loop，但 context/state/permission/transcript 必须有隔离边界。</p>
+<h2 id="p14-graceful-recovery-and-resilience">P14 Graceful Recovery and Resilience</h2>
+<p>Recovery 必须是显式状态机，不是散落 try/except。</p>
+<h1 id="4-reference-7-行为圣经">4. Reference-7 行为圣经</h1>
+<h2 id="r7-01-user">R7-01 User</h2>
+<p>必须支持：</p>
+<ul>
+<li>prompt / command；</li>
+<li>permission allow/deny/ask；</li>
+<li>interrupt/abort；</li>
+<li>tool/assistant/result/error 可见性；</li>
+<li>resume/fork/rewind/session control；</li>
+<li>headless 无交互时的明确 fail-closed；</li>
+<li>不允许 UI 伪造工具已执行、权限已允许、session 已恢复。</li>
+</ul>
+<p><strong>验收不变量</strong>：同一用户动作通过不同支持 surface，进入相同核心 decision/state/terminal 语义。</p>
+<h2 id="r7-02-interfaces">R7-02 Interfaces</h2>
+<p>Surface 只允许承担：</p>
+<ul>
+<li>input adapter；</li>
+<li>event/render adapter；</li>
+<li>permission interaction；</li>
+<li>progress display；</li>
+<li>interrupt bridge。</li>
+</ul>
+<p>禁止：</p>
+<ul>
+<li>第二套 permission engine；</li>
+<li>第二套 tool scheduler；</li>
+<li>第二套 retry/compact semantics；</li>
+<li>surface 自己决定 terminal outcome。</li>
+</ul>
+<p>所有入口最终汇入 shared core path。</p>
+<h2 id="r7-03-agent-loop">R7-03 Agent Loop</h2>
+<p>canonical pattern：</p>
+<pre><code class="language-text">model
+  ↓
+tool intent
+  ↓
+permission/action
+  ↓
+tool result
+  ↓
+model
+  ↓
+...
+</code></pre>
+<p>必须：</p>
+<ol>
+<li>一个 authoritative reactive loop；</li>
+<li>model-call 前统一 context shaping；</li>
+<li>streaming response；</li>
+<li>tool-use dispatch；</li>
+<li>action boundary；</li>
+<li>result 回写下一轮；</li>
+<li>stop/continue 显式；</li>
+<li>retry/recovery 作为同一 loop 的 transition；</li>
+<li>terminal reasons 唯一事实源；</li>
+<li>abort/throw/generator-close 有可解释 cleanup。</li>
+</ol>
+<p>禁止 central DAG planner 替代 reference reactive loop。</p>
+<h2 id="r7-04-permission-system">R7-04 Permission System</h2>
+<p>必须区分：</p>
+<pre><code class="language-text">Permission Mode = 会话/agent 所处信任工作模式
+Permission Behavior = 单次 action 的 allow / deny / ask
+</code></pre>
+<p>必须覆盖：</p>
+<ul>
+<li>rules；</li>
+<li>modes；</li>
+<li>tool-specific check；</li>
+<li>hooks；</li>
+<li>classifier/auto；</li>
+<li>interactive ask；</li>
+<li>headless fail-closed；</li>
+<li>subagent/bubble semantics；</li>
+<li>sandbox override reason；</li>
+<li>trust reset。</li>
+</ul>
+<p>任何 reference gated risk-bearing action，在 source-aligned core mode 不能因本地 UX preference silent allow。</p>
+<h2 id="r7-05-tools">R7-05 Tools</h2>
+<p>Tool contract 至少包含：</p>
+<ul>
+<li>name / aliases；</li>
+<li>input schema；</li>
+<li>validation；</li>
+<li>permission check；</li>
+<li>concurrency-safe；</li>
+<li>read-only/destructive/open-world；</li>
+<li>interrupt behavior；</li>
+<li>result mapping；</li>
+<li>result-size policy；</li>
+<li>progress/activity metadata；</li>
+<li>MCP identity；</li>
+<li>optional permission matcher / observable input。</li>
+</ul>
+<p>必须永久区分：</p>
+<pre><code class="language-text">Tool Registry
+Tool Pool Assembly
+Tool Orchestration
+Tool Execution
+Result Processing
+</code></pre>
+<p>它们不是同一个模块。</p>
+<h2 id="r7-06-state-persistence">R7-06 State &amp; Persistence</h2>
+<p>必须区分：</p>
+<pre><code class="language-text">Durable Transcript
+Runtime Mutable State
+Working Context
+Projected Context
+Compacted Summary
+Instructions / Memory
+Sidechain Transcript
+Externalized Tool Payload
+</code></pre>
+<p>强制：</p>
+<ul>
+<li>append-oriented；</li>
+<li>schema/version；</li>
+<li>partial-tail tolerance；</li>
+<li>resume reconstruction；</li>
+<li>fork lineage；</li>
+<li>rewind semantics；</li>
+<li>sidechain；</li>
+<li>content replacement；</li>
+<li>trust non-restoration；</li>
+<li>terminal/state consistency。</li>
+</ul>
+<h2 id="r7-07-execution-environment">R7-07 Execution Environment</h2>
+<p>必须提供：</p>
+<ul>
+<li>canonical workspace/path；</li>
+<li>real-target/symlink second check；</li>
+<li>process lifecycle；</li>
+<li>env/secret policy；</li>
+<li>network policy；</li>
+<li>real sandbox isolation；</li>
+<li>timeout/kill-tree/abort；</li>
+<li>worktree/remote/MCP backend required path；</li>
+<li>capability detection + fail policy。</li>
+</ul>
+<h1 id="5-reference-5-系统架构圣经">5. Reference-5 系统架构圣经</h1>
+<h2 id="r5-01-surface-layer">R5-01 Surface Layer</h2>
+<p><strong>职责</strong>：entrypoint、render、interaction。</p>
+<p>禁止承载 core decision。</p>
+<h2 id="r5-02-core-layer">R5-02 Core Layer</h2>
+<p><strong>职责</strong>：Agent Loop + Context/Compaction core。</p>
+<p>Pre-model Context Shaping 顺序必须保持：</p>
+<pre><code class="language-text">1 Result Budget
+2 Snip
+3 Microcompact
+4 Context Collapse
+5 Auto-Compact
+</code></pre>
+<h2 id="r5-03-safety-action-layer">R5-03 Safety / Action Layer</h2>
+<p>包括：</p>
+<ul>
+<li>Permission；</li>
+<li>Hooks；</li>
+<li>Tool/Capability；</li>
+<li>Extensibility；</li>
+<li>Sandbox policy/invocation；</li>
+<li>Subagent action spawning。</li>
+</ul>
+<p>原则：defense in depth、deny-first、无旁路。</p>
+<h2 id="r5-04-state-layer">R5-04 State Layer</h2>
+<p>包括：</p>
+<ul>
+<li>Context Assembly；</li>
+<li>Mutable State；</li>
+<li>Transcript；</li>
+<li>Memory / instructions；</li>
+<li>Sidechains；</li>
+<li>Resume/Fork/Rewind。</li>
+</ul>
+<h2 id="r5-05-backend-layer">R5-05 Backend Layer</h2>
+<p>包括：</p>
+<ul>
+<li>local shell/process；</li>
+<li>sandbox backend；</li>
+<li>MCP transports；</li>
+<li>remote/worktree required backend；</li>
+<li>filesystem/network/external resources。</li>
+</ul>
+<h1 id="6-ccr-14-runtime-横切机制行为圣经">6. CCR-14 Runtime 横切机制行为圣经</h1>
+<h2 id="ccr-01-hook-runtime">CCR-01 Hook Runtime</h2>
+<p>Hook 是 lifecycle extension runtime，不是普通 callback 集合。</p>
+<p>必须定义并验证：</p>
+<ul>
+<li>event vocabulary；</li>
+<li>event → matching → handler selection；</li>
+<li>command/prompt/http/agent/function/callback 等 supported execution forms；</li>
+<li>blocking vs non-blocking；</li>
+<li>timeout；</li>
+<li>error aggregation；</li>
+<li>allow/deny/ask/continue/stop 等 event-specific result；</li>
+<li>SessionStart/End、UserPrompt、Pre/PostTool、Permission、Pre/PostCompact、Subagent、Stop 等关键 lifecycle；</li>
+<li>hook failure 不得隐式绕过 permission/safety。</li>
+</ul>
+<p><strong>Stop Hook</strong> 是 CCR-01 + R7-03 的 lifecycle obligation。</p>
+<h2 id="ccr-02-authorization-pipeline">CCR-02 Authorization Pipeline</h2>
+<p><code>Policy/Permission</code> 是规则与决策语义；<code>Authorization Pipeline</code> 是一次 action 如何从 intent 变为最终执行决策。</p>
+<p>目标流水：</p>
+<pre><code class="language-text">Tool Intent
+  ↓
+Tool visibility / prefilter
+  ↓
+PreToolUse Hook
+  ↓
+deny rules
+  ↓
+ask rules
+  ↓
+tool-specific permission check
+  ↓
+mode / classifier / user escalation
+  ↓
+sandbox override / execution decision
+  ↓
+Execution Boundary
+</code></pre>
+<p>必须保证：</p>
+<ul>
+<li>deny-first；</li>
+<li>ask 不被 silent allow；</li>
+<li>classifier outage fail-safe；</li>
+<li>headless no-prompt fail-closed；</li>
+<li>hook allow 不能覆盖 deny/safety；</li>
+<li>user-updated input 的传播可追踪。</li>
+</ul>
+<h2 id="ccr-03-context-shaping-pipeline">CCR-03 Context Shaping Pipeline</h2>
+<p>回答：“上下文太多时怎么办”。</p>
+<p>强制 Compact-5：</p>
+<pre><code class="language-text">Result Budget
+  ↓
+Snip
+  ↓
+Microcompact
+  ↓
+Context Collapse
+  ↓
+Auto-Compact
+</code></pre>
+<p>每阶段必须有：</p>
+<ul>
+<li>trigger；</li>
+<li>input/output contract；</li>
+<li>token accounting；</li>
+<li>durable-state interaction；</li>
+<li>no-op semantics；</li>
+<li>error behavior；</li>
+<li>trace evidence。</li>
+</ul>
+<p>Context Collapse 必须保持 read-time projection / equivalent semantics，不得被实现为 destructive transcript deletion。</p>
+<h2 id="ccr-04-context-assembly-injection">CCR-04 Context Assembly / Injection</h2>
+<p>回答：“这一轮模型究竟看到什么”。</p>
+<p>至少跟踪 9 类 source：</p>
+<ol>
+<li>System Prompt</li>
+<li>Environment</li>
+<li>CLAUDE.md / Instructions</li>
+<li>Path-scoped Rules</li>
+<li>Auto Memory</li>
+<li>Tool Metadata</li>
+<li>Conversation History</li>
+<li>Tool Results</li>
+<li>Compact Summaries</li>
+</ol>
+<p>必须规定：</p>
+<ul>
+<li>source scope；</li>
+<li>precedence；</li>
+<li>insertion point；</li>
+<li>dedupe；</li>
+<li>provenance；</li>
+<li>security filtering；</li>
+<li>compact boundary behavior。</li>
+</ul>
+<h2 id="ccr-05-tool-pool-capability-assembly">CCR-05 Tool Pool / Capability Assembly</h2>
+<p>模型可见能力必须是运行时投影，不是 registry 全量暴露。</p>
+<p>目标 stages：</p>
+<pre><code class="language-text">1 Base Tool Enumeration
+2 Mode Filtering
+3 Deny-rule Pre-filtering
+4 MCP / Extension Integration
+5 Deduplication
+</code></pre>
+<p>必须保证：</p>
+<ul>
+<li>denied capability 不进入 model-visible pool；</li>
+<li>MCP identity 不与 builtin 名称混淆；</li>
+<li>tool schema/metadata 与 runtime executor 同源；</li>
+<li>session/mode/tool availability changes 有确定生效点。</li>
+</ul>
+<h2 id="ccr-06-tool-orchestration">CCR-06 Tool Orchestration</h2>
+<p>负责多个 tool call 的调度：</p>
+<ul>
+<li>concurrency classification；</li>
+<li>parallel safe reads；</li>
+<li>serialized mutation；</li>
+<li>dependency/order；</li>
+<li>context modifiers；</li>
+<li>completion tracking；</li>
+<li>result ordering；</li>
+<li>sibling failure/abort semantics。</li>
+</ul>
+<p><code>ToolRuntime = executor</code>，<code>Tool Orchestrator = scheduler</code>，不得混淆。</p>
+<h2 id="ccr-07-streaming-tool-execution">CCR-07 Streaming Tool Execution</h2>
+<p>必须覆盖：</p>
+<pre><code class="language-text">model streaming
+  ↓ partial/complete tool_use
+queue
+  ↓
+executing
+  ↓
+completed
+  ↓
+ordered yield
+</code></pre>
+<p>必须验证：</p>
+<ul>
+<li>speculative/early execution；</li>
+<li>permission 在正确阶段；</li>
+<li>fallback to non-streaming path；</li>
+<li>sibling abort；</li>
+<li>user interrupt；</li>
+<li>completed result 的原 tool-use 顺序；</li>
+<li>stream failure 不泄漏重复 side effect。</li>
+</ul>
+<h2 id="ccr-08-recovery-resilience-controller">CCR-08 Recovery / Resilience Controller</h2>
+<p>至少覆盖五类：</p>
+<ol>
+<li>max-output-token escalation；</li>
+<li>reactive compaction；</li>
+<li>prompt-too-long recovery；</li>
+<li>streaming fallback；</li>
+<li>fallback model。</li>
+</ol>
+<p>另外统一 retry/backoff、429/5xx 等模型错误策略。</p>
+<p>每个 recovery 必须显式拥有：</p>
+<ul>
+<li>trigger；</li>
+<li>bounded retry count；</li>
+<li>state mutation；</li>
+<li>emitted/withheld intermediate error；</li>
+<li>continue reason；</li>
+<li>terminal reason；</li>
+<li>budget interaction。</li>
+</ul>
+<p>禁止无限 retry。</p>
+<h2 id="ccr-09-result-normalization-result-budget">CCR-09 Result Normalization / Result Budget</h2>
+<p>Tool world → Model observation 的转换必须显式：</p>
+<pre><code class="language-text">Raw Tool Output
+  ↓
+Normalization
+  ↓
+API Mapping
+  ↓
+Budget / Replacement / Externalization
+  ↓
+Persistence Record
+  ↓
+Context Projection
+</code></pre>
+<p>必须保证：</p>
+<ul>
+<li>tool_use_id 一致；</li>
+<li>error flag 一致；</li>
+<li>oversize payload 可重建；</li>
+<li>resume 后 replacement 不丢失；</li>
+<li>Read 等特殊工具的 persistence policy 与 reference 一致；</li>
+<li>truncation/externalization 不伪造完整结果。</li>
+</ul>
+<h2 id="ccr-10-session-transcript-runtime">CCR-10 Session / Transcript Runtime</h2>
+<p>必须覆盖：</p>
+<ul>
+<li>main session；</li>
+<li>sidechain/subagent transcript；</li>
+<li>UUID/parent lineage；</li>
+<li>append-oriented write；</li>
+<li>partial-tail recovery；</li>
+<li>compact boundary；</li>
+<li>content replacement；</li>
+<li>worktree/session metadata；</li>
+<li>resume reconstruction；</li>
+<li>fork lineage；</li>
+<li>rewind semantics。</li>
+</ul>
+<p><strong>Session state ≠ Context</strong>。Context 可以被重塑，durable transcript 是恢复事实源。</p>
+<h2 id="ccr-11-subagent-orchestration">CCR-11 Subagent Orchestration</h2>
+<p>必须明确 delegation contract：</p>
+<ul>
+<li>prompt；</li>
+<li>model；</li>
+<li>tool pool；</li>
+<li>permission mode；</li>
+<li>skills/hooks；</li>
+<li>max turns/budget；</li>
+<li>cwd/worktree；</li>
+<li>sidechain transcript。</li>
+</ul>
+<p>运行不变量：</p>
+<pre><code class="language-text">Parent
+  ↓ delegate
+Isolated Subagent Context
+  ↓ shared canonical query loop
+Sidechain Transcript
+  ↓ summary / result contract
+Parent Context
+</code></pre>
+<p>Background Agent lifecycle、pending messages、auto-resume、task stop 都是 CCR-11 的必要生命周期验证项。</p>
+<h2 id="ccr-12-isolation-runtime">CCR-12 Isolation Runtime</h2>
+<p>回答：“即使 action 被允许，它仍能看到/影响什么”。</p>
+<p>必须独立约束：</p>
+<ul>
+<li>filesystem；</li>
+<li>network；</li>
+<li>env/secrets；</li>
+<li>subprocess；</li>
+<li>worktree；</li>
+<li>remote；</li>
+<li>credentials。</li>
+</ul>
+<p>强制：</p>
+<pre><code class="language-text">Permission ≠ Isolation
+Execution Environment ≠ Isolation
+</code></pre>
+<p><code>NoSandboxBackend</code> 不可计为 source-aligned isolation complete。</p>
+<h2 id="ccr-13-trust-lifecycle">CCR-13 Trust Lifecycle</h2>
+<p>Trust 必须带 scope/source/time/lifecycle。</p>
+<p>必须验证：</p>
+<ul>
+<li>project config trust；</li>
+<li>hook source trust；</li>
+<li>MCP server trust；</li>
+<li>session permission grants；</li>
+<li>additional working directory grants；</li>
+<li>resume/fork 后哪些 trust 可恢复、哪些必须重新建立；</li>
+<li>managed policy 对 trust 的上限约束。</li>
+</ul>
+<p>核心原则：<strong>恢复历史 ≠ 恢复临时信任。</strong></p>
+<h2 id="ccr-14-runtime-config-feature-gate-control-plane">CCR-14 Runtime Config / Feature Gate Control Plane</h2>
+<p>必须在明确边界快照/解析：</p>
+<ul>
+<li>settings；</li>
+<li>environment；</li>
+<li>feature flags；</li>
+<li>experiment gates；</li>
+<li>permission/session mode；</li>
+<li>model/tool gates；</li>
+<li>surface mode。</li>
+</ul>
+<p>必须：</p>
+<ul>
+<li>query/turn 内不可出现无定义配置漂移；</li>
+<li>source of truth 明确；</li>
+<li>precedence 明确；</li>
+<li>disabled feature 必须完全退出相关 critical path；</li>
+<li>surface 不得私自覆写 core semantic gate。</li>
+</ul>
+<p>Scheduler/Cron、Background 模式、Streaming feature 等生命周期要求在此与各目标机制交叉验证。</p>
+<h1 id="7-一次-agent-turn-的强制-9-step-trace">7. 一次 Agent Turn 的强制 9-step Trace</h1>
+<p>每个 source-aligned differential test 应能映射到：</p>
+<pre><code class="language-text">1 Settings Resolution
+2 Mutable State Initialization
+3 Context Assembly
+4 Pre-model Context Shapers
+5 Model Call / Streaming
+6 Tool-use Dispatch
+7 Permission / Authorization Gate
+8 Tool Execution + Result Collection
+9 Stop / Continue Decision
+</code></pre>
+<p>如果某 surface 或优化路径跳过其中一步，必须能说明 reference source 的等价路径。</p>
+<h1 id="8-tool-execution-的双路径规则">8. Tool Execution 的双路径规则</h1>
+<h2 id="path-a-streaming-tool-executor">Path A — Streaming Tool Executor</h2>
+<p>目标：降低 latency，但不改变安全语义。</p>
+<pre><code class="language-text">LLM still streaming
+  ↓
+tool_use formed
+  ↓
+permission/action boundary
+  ↓
+early execution where safe
+</code></pre>
+<h2 id="path-b-batched-runtools-style">Path B — Batched / runTools-style</h2>
+<pre><code class="language-text">complete tool calls
+  ↓
+concurrency classification
+  ↓
+parallel safe / serialized unsafe
+  ↓
+ordered result yield
+</code></pre>
+<p>两路径必须在：</p>
+<ul>
+<li>permission；</li>
+<li>tool validation；</li>
+<li>result mapping；</li>
+<li>state update；</li>
+<li>abort；</li>
+<li>final ordering</li>
+</ul>
+<p>上保持语义一致。</p>
+<h1 id="9-stop-continue-规则">9. Stop / Continue 规则</h1>
+<p>至少覆盖五类终止条件：</p>
+<ol>
+<li>no tool use / natural completion；</li>
+<li>max turns/budget；</li>
+<li>context overflow unrecoverable；</li>
+<li>hook intervention；</li>
+<li>explicit abort。</li>
+</ol>
+<p>此外 Python-only terminal reason 可以保留，但必须登记为 adaptation/product extension，不得改变 reference-observable core semantics。</p>
+<h1 id="10-safety-architecture-规则">10. Safety Architecture 规则</h1>
+<p>按纵深防御验证至少七类 safety gate：</p>
+<pre><code class="language-text">1 Tool visibility / pre-filter
+2 Deny-first rules
+3 Permission mode constraints
+4 Auto/classifier decision
+5 Hook interception
+6 Workspace / Sandbox / Network / Process isolation
+7 Resume trust non-restoration
+</code></pre>
+<p>顺序若与具体 source path 不同，以 source callgraph 为准；但任何层不得被等价“折叠掉”。</p>
+<h1 id="11-permission-分类规则">11. Permission 分类规则</h1>
+<h2 id="mode">Mode</h2>
+<p>必须以 reference source 实际 mode vocabulary 和行为为准；当前实现中的外部/内部 modes 必须分别标注。</p>
+<h2 id="behavior">Behavior</h2>
+<p>单次 action 只有：</p>
+<pre><code class="language-text">allow
+deny
+ask
+</code></pre>
+<p>不得把 mode 与 behavior 混写。</p>
+<h1 id="12-context-与-memory-规则">12. Context 与 Memory 规则</h1>
+<h2 id="context-sources">Context Sources</h2>
+<p>使用 CCR-04 的 9 类来源。</p>
+<h2 id="instruction-memory-scope">Instruction / Memory Scope</h2>
+<p>对 CLAUDE.md / memory-like instructions 必须明确：</p>
+<ul>
+<li>managed；</li>
+<li>user；</li>
+<li>project；</li>
+<li>local/path-scoped；</li>
+<li>auto memory / generated memory（若 reference critical cone 存在）。</li>
+</ul>
+<p>加载层级、覆盖/合并、scope、trust 都必须有 source evidence。</p>
+<h1 id="13-extension-规则">13. Extension 规则</h1>
+<p>MCP / Plugin / Skill / Hook 等扩展不按“插件数量”验收，而按：</p>
+<ul>
+<li>context cost；</li>
+<li>insertion point；</li>
+<li>unique capability；</li>
+<li>permission/isolation boundary；</li>
+<li>lifecycle；</li>
+<li>source/trust provenance</li>
+</ul>
+<p>验收。</p>
+<p>任何 extension 不得绕开 CCR-02、CCR-05、CCR-06、CCR-12、CCR-13。</p>
+<h1 id="14-lifecycle-obligations-旧-aux-全部保留">14. Lifecycle Obligations：旧 AUX 全部保留</h1>
+<p>以下不是新的 peer taxonomy，但都是 7×5×14 completion 的强制验证：</p>
+<ul>
+<li>Main Query Loop；</li>
+<li>Tool Execution Loop；</li>
+<li>Permission Escalation；</li>
+<li>Retry/Recovery；</li>
+<li>Compaction；</li>
+<li>Stop Hook；</li>
+<li>Subagent Query；</li>
+<li>Background Agent；</li>
+<li>MCP Lifecycle；</li>
+<li>Scheduler/Cron；</li>
+<li>Resume/Fork/Rewind；</li>
+<li>Surface Streaming/Interrupt；</li>
+<li>Session Persistence/Recovery；</li>
+<li>Long-output Result Budgeting。</li>
+</ul>
+<p>任何一项没有 source trace + Python trace + tests，则相关 R7/R5/CCR 不能 complete。</p>
+<h1 id="15-pr-commit-强制-gate">15. PR / Commit 强制 Gate</h1>
+<p>每个 critical PR 必须回答：</p>
+<ol>
+<li>影响哪个 R7？</li>
+<li>影响哪个 R5？</li>
+<li>影响哪个 CCR？</li>
+<li>影响哪些 lifecycle obligations？</li>
+<li>reference source 文件/symbol/call-edge 是什么？</li>
+<li>Python owner 是什么？</li>
+<li>control-flow invariant？</li>
+<li>state invariant？</li>
+<li>safety invariant？</li>
+<li>failure/abort/retry invariant？</li>
+<li>tests？</li>
+<li>是否有 divergence？</li>
+<li>若是 Python adaptation，等价证据是什么？</li>
+<li>machine-readable maps 是否更新？</li>
+</ol>
+<p>缺一项，不得以“功能已能运行”宣告 source-aligned complete。</p>
+<h1 id="16-完成状态">16. 完成状态</h1>
+<p>只允许三种完成状态：</p>
+<pre><code class="language-text">EXACT
+SEMANTIC_EQUIVALENT
+PYTHON_ADAPTATION_VERIFIED
+</code></pre>
+<p>以下全部算未完成：</p>
+<pre><code class="language-text">PARTIAL
+UNKNOWN
+MISSING
+PRODUCT_EXTENSION
+INTENTIONAL_DIVERGENCE
+</code></pre>
+<p>产品 extension/divergence 可以存在，但必须在 source-aligned core path 外。</p>
+<h1 id="17-绝对禁止">17. 绝对禁止</h1>
+<ul>
+<li>禁止新增第二 Agent Loop；</li>
+<li>禁止用 DAG planner 取代 reference reactive loop；</li>
+<li>禁止 permission 代替 sandbox；</li>
+<li>禁止 sandbox 代替 permission；</li>
+<li>禁止 hook allow 覆盖 deny/safety；</li>
+<li>禁止 headless risky ask 静默 allow；</li>
+<li>禁止恢复 session-scoped temporary trust；</li>
+<li>禁止 compact 删除 durable history 以伪装节省 context；</li>
+<li>禁止 tool streaming 造成重复 side effect；</li>
+<li>禁止 surface 自己实现不同 core semantics；</li>
+<li>禁止为 TypeScript 目录外观破坏 Python 合理边界；</li>
+<li>禁止把“代码存在”“测试文件存在”“文档写了”当成 parity evidence；</li>
+<li>禁止为了完成率把 UNKNOWN 直接改 PARTIAL/COMPLETE；</li>
+<li>禁止外围产品需求抢占 7×5×14 critical cone。</li>
+</ul>
+<h1 id="18-最终-exit-gate">18. 最终 Exit Gate</h1>
+<p>只有以下全部成立，本圣经允许解除“外围研发默认延期”：</p>
+<pre><code class="language-text">R7:   7/7   complete
+R5:   5/5   complete
+CCR: 14/14  complete
+
+Lifecycle obligations: 14/14 covered and tested
+
+critical source owner = 100%
+critical symbol map = 100%
+critical callgraph = 100%
+critical state transitions = 100%
+critical runtime traces = 100%
+
+critical behavior tests = green
+critical safety tests = green
+critical state/recovery tests = green
+critical fault/abort tests = green
+cross-surface equivalence = green
+current HEAD validation = reproducible
+
+critical UNKNOWN = 0
+critical PARTIAL = 0
+critical MISSING = 0
+critical undocumented divergence = 0
+</code></pre>
+<p>在此之前，唯一正确的开发行为是继续完成 7×5×14。</p>
+</article>
+  <div class="footer">ClaudeRuntime Source-Aligned 7×5×14 — B3</div>
+</main>
+</div>
+</body>
+</html>

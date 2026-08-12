@@ -1,0 +1,1822 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>services（reference）源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-python-侧候选映射-启发式初版" data-nav>5. Python 侧候选映射（启发式初版）</a></li>
+<li><a href="#6-未确认项与待核实项" data-nav>6. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>services（reference）源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">26</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2337</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">来源</span><span class="meta-value">restored-src/src/services</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（reference 目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="services-reference-源码盘点">services（reference）源码盘点</h1>
+<blockquote>
+<p>编号: 26</p>
+<p>时间戳: 20260811_2337</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>来源: restored-src/src/services</p>
+<p>类型: package（reference 目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: services</li>
+<li>类型: package（reference 目录模块）</li>
+<li>TS/JS 文件数: 130</li>
+<li>总行数: 53680</li>
+<li>依赖的 reference 内部模块: Task, Tool, bootstrap, commands, components, constants, context, cost-tracker, entrypoints, hooks, ink, keybindings, memdir, plugins, skills, state, tasks, tools, types, utils</li>
+<li>Python 侧候选映射: services（UNVERIFIED）</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">services/AgentSummary/agentSummary.ts</code> — 179 行（类 0，函数 5）</li>
+<li><code class="inline-code">services/MagicDocs/magicDocs.ts</code> — 254 行（类 0，函数 6）</li>
+<li><code class="inline-code">services/MagicDocs/prompts.ts</code> — 127 行（类 0，函数 4）</li>
+<li><code class="inline-code">services/PromptSuggestion/promptSuggestion.ts</code> — 523 行（类 0，函数 11）</li>
+<li><code class="inline-code">services/PromptSuggestion/speculation.ts</code> — 991 行（类 0，函数 19）</li>
+<li><code class="inline-code">services/SessionMemory/prompts.ts</code> — 324 行（类 0，函数 11）</li>
+<li><code class="inline-code">services/SessionMemory/sessionMemory.ts</code> — 495 行（类 0，函数 10）</li>
+<li><code class="inline-code">services/SessionMemory/sessionMemoryUtils.ts</code> — 207 行（类 0，函数 16）</li>
+<li><code class="inline-code">services/analytics/config.ts</code> — 38 行（类 0，函数 2）</li>
+<li><code class="inline-code">services/analytics/datadog.ts</code> — 307 行（类 0，函数 7）</li>
+<li><code class="inline-code">services/analytics/firstPartyEventLogger.ts</code> — 449 行（类 0，函数 11）</li>
+<li><code class="inline-code">services/analytics/firstPartyEventLoggingExporter.ts</code> — 806 行（类 1，函数 2）</li>
+<li><code class="inline-code">services/analytics/growthbook.ts</code> — 1155 行（类 0，函数 30）</li>
+<li><code class="inline-code">services/analytics/index.ts</code> — 173 行（类 0，函数 5）</li>
+<li><code class="inline-code">services/analytics/metadata.ts</code> — 973 行（类 0，函数 14）</li>
+<li><code class="inline-code">services/analytics/sink.ts</code> — 114 行（类 0，函数 5）</li>
+<li><code class="inline-code">services/analytics/sinkKillswitch.ts</code> — 25 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/api/adminRequests.ts</code> — 119 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/api/bootstrap.ts</code> — 141 行（类 0，函数 2）</li>
+<li><code class="inline-code">services/api/claude.ts</code> — 3419 行（类 0，函数 32）</li>
+<li><code class="inline-code">services/api/client.ts</code> — 389 行（类 0，函数 6）</li>
+<li><code class="inline-code">services/api/dumpPrompts.ts</code> — 226 行（类 0，函数 11）</li>
+<li><code class="inline-code">services/api/emptyUsage.ts</code> — 22 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/api/errorUtils.ts</code> — 260 行（类 0，函数 7）</li>
+<li><code class="inline-code">services/api/errors.ts</code> — 1207 行（类 0，函数 35）</li>
+<li><code class="inline-code">services/api/filesApi.ts</code> — 748 行（类 1，函数 14）</li>
+<li><code class="inline-code">services/api/firstTokenDate.ts</code> — 60 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/api/grove.ts</code> — 357 行（类 0，函数 8）</li>
+<li><code class="inline-code">services/api/logging.ts</code> — 788 行（类 0，函数 8）</li>
+<li><code class="inline-code">services/api/metricsOptOut.ts</code> — 159 行（类 0，函数 5）</li>
+<li><code class="inline-code">services/api/overageCreditGrant.ts</code> — 137 行（类 0，函数 5）</li>
+<li><code class="inline-code">services/api/promptCacheBreakDetection.ts</code> — 727 行（类 0，函数 17）</li>
+<li><code class="inline-code">services/api/referral.ts</code> — 281 行（类 0，函数 10）</li>
+<li><code class="inline-code">services/api/sessionIngress.ts</code> — 514 行（类 0，函数 10）</li>
+<li><code class="inline-code">services/api/ultrareviewQuota.ts</code> — 38 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/api/usage.ts</code> — 63 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/api/withRetry.ts</code> — 822 行（类 2，函数 21）</li>
+<li><code class="inline-code">services/autoDream/autoDream.ts</code> — 324 行（类 0，函数 6）</li>
+<li><code class="inline-code">services/autoDream/config.ts</code> — 21 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/autoDream/consolidationLock.ts</code> — 140 行（类 0，函数 6）</li>
+<li><code class="inline-code">services/autoDream/consolidationPrompt.ts</code> — 65 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/awaySummary.ts</code> — 74 行（类 0，函数 2）</li>
+<li><code class="inline-code">services/claudeAiLimits.ts</code> — 515 行（类 0，函数 16）</li>
+<li><code class="inline-code">services/claudeAiLimitsHook.ts</code> — 23 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/compact/apiMicrocompact.ts</code> — 153 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/compact/autoCompact.ts</code> — 351 行（类 0，函数 10）</li>
+<li><code class="inline-code">services/compact/compact.ts</code> — 1705 行（类 0，函数 28）</li>
+<li><code class="inline-code">services/compact/compactWarningHook.ts</code> — 16 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/compact/compactWarningState.ts</code> — 18 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/compact/grouping.ts</code> — 63 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/compact/microCompact.ts</code> — 530 行（类 0，函数 16）</li>
+<li><code class="inline-code">services/compact/postCompactCleanup.ts</code> — 77 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/compact/prompt.ts</code> — 374 行（类 0，函数 4）</li>
+<li><code class="inline-code">services/compact/sessionMemoryCompact.ts</code> — 630 行（类 0，函数 13）</li>
+<li><code class="inline-code">services/compact/timeBasedMCConfig.ts</code> — 43 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/diagnosticTracking.ts</code> — 397 行（类 2，函数 1）</li>
+<li><code class="inline-code">services/extractMemories/extractMemories.ts</code> — 615 行（类 0，函数 12）</li>
+<li><code class="inline-code">services/extractMemories/prompts.ts</code> — 154 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/internalLogging.ts</code> — 90 行（类 0，函数 2）</li>
+<li><code class="inline-code">services/lsp/LSPClient.ts</code> — 447 行（类 0，函数 2）</li>
+<li><code class="inline-code">services/lsp/LSPDiagnosticRegistry.ts</code> — 386 行（类 0，函数 9）</li>
+<li><code class="inline-code">services/lsp/LSPServerInstance.ts</code> — 511 行（类 0，函数 10）</li>
+<li><code class="inline-code">services/lsp/LSPServerManager.ts</code> — 420 行（类 0，函数 12）</li>
+<li><code class="inline-code">services/lsp/config.ts</code> — 79 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/lsp/manager.ts</code> — 289 行（类 0，函数 8）</li>
+<li><code class="inline-code">services/lsp/passiveFeedback.ts</code> — 328 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/mcp/InProcessTransport.ts</code> — 63 行（类 1，函数 1）</li>
+<li><code class="inline-code">services/mcp/MCPConnectionManager.tsx</code> — 72 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/mcp/SdkControlTransport.ts</code> — 136 行（类 2，函数 0）</li>
+<li><code class="inline-code">services/mcp/auth.ts</code> — 2465 行（类 2，函数 17）</li>
+<li><code class="inline-code">services/mcp/channelAllowlist.ts</code> — 76 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/mcp/channelNotification.ts</code> — 316 行（类 0，函数 8）</li>
+<li><code class="inline-code">services/mcp/channelPermissions.ts</code> — 240 行（类 0，函数 7）</li>
+<li><code class="inline-code">services/mcp/claudeai.ts</code> — 164 行（类 0，函数 4）</li>
+<li><code class="inline-code">services/mcp/client.ts</code> — 3348 行（类 3，函数 41）</li>
+<li><code class="inline-code">services/mcp/config.ts</code> — 1578 行（类 0，函数 35）</li>
+<li><code class="inline-code">services/mcp/elicitationHandler.ts</code> — 313 行（类 0，函数 5）</li>
+<li><code class="inline-code">services/mcp/envExpansion.ts</code> — 38 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/mcp/headersHelper.ts</code> — 138 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/mcp/mcpStringUtils.ts</code> — 106 行（类 0，函数 6）</li>
+<li><code class="inline-code">services/mcp/normalization.ts</code> — 23 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/mcp/oauthPort.ts</code> — 78 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/mcp/officialRegistry.ts</code> — 72 行（类 0，函数 4）</li>
+<li><code class="inline-code">services/mcp/types.ts</code> — 258 行（类 0，函数 12）</li>
+<li><code class="inline-code">services/mcp/useManageMCPConnections.ts</code> — 1141 行（类 0，函数 6）</li>
+<li><code class="inline-code">services/mcp/utils.ts</code> — 575 行（类 0，函数 26）</li>
+<li><code class="inline-code">services/mcp/vscodeSdkMcp.ts</code> — 112 行（类 0，函数 4）</li>
+<li><code class="inline-code">services/mcp/xaa.ts</code> — 511 行（类 1，函数 8）</li>
+<li><code class="inline-code">services/mcp/xaaIdpLogin.ts</code> — 487 行（类 0，函数 14）</li>
+<li><code class="inline-code">services/mcpServerApproval.tsx</code> — 40 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/mockRateLimits.ts</code> — 882 行（类 0，函数 21）</li>
+<li><code class="inline-code">services/notifier.ts</code> — 156 行（类 0，函数 5）</li>
+<li><code class="inline-code">services/oauth/auth-code-listener.ts</code> — 211 行（类 1，函数 0）</li>
+<li><code class="inline-code">services/oauth/client.ts</code> — 566 行（类 0，函数 12）</li>
+<li><code class="inline-code">services/oauth/crypto.ts</code> — 23 行（类 0，函数 4）</li>
+<li><code class="inline-code">services/oauth/getOauthProfile.ts</code> — 53 行（类 0，函数 2）</li>
+<li><code class="inline-code">services/oauth/index.ts</code> — 198 行（类 1，函数 0）</li>
+<li><code class="inline-code">services/plugins/PluginInstallationManager.ts</code> — 184 行（类 0，函数 2）</li>
+<li><code class="inline-code">services/plugins/pluginCliCommands.ts</code> — 344 行（类 0，函数 7）</li>
+<li><code class="inline-code">services/plugins/pluginOperations.ts</code> — 1088 行（类 0，函数 18）</li>
+<li><code class="inline-code">services/policyLimits/index.ts</code> — 663 行（类 0，函数 23）</li>
+<li><code class="inline-code">services/policyLimits/types.ts</code> — 27 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/preventSleep.ts</code> — 165 行（类 0，函数 7）</li>
+<li><code class="inline-code">services/rateLimitMessages.ts</code> — 344 行（类 0，函数 10）</li>
+<li><code class="inline-code">services/rateLimitMocking.ts</code> — 144 行（类 0，函数 4）</li>
+<li><code class="inline-code">services/remoteManagedSettings/index.ts</code> — 638 行（类 0，函数 17）</li>
+<li><code class="inline-code">services/remoteManagedSettings/securityCheck.tsx</code> — 73 行（类 0，函数 2）</li>
+<li><code class="inline-code">services/remoteManagedSettings/syncCache.ts</code> — 112 行（类 0，函数 2）</li>
+<li><code class="inline-code">services/remoteManagedSettings/syncCacheState.ts</code> — 96 行（类 0，函数 6）</li>
+<li><code class="inline-code">services/remoteManagedSettings/types.ts</code> — 31 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/settingsSync/index.ts</code> — 581 行（类 0，函数 15）</li>
+<li><code class="inline-code">services/settingsSync/types.ts</code> — 67 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/teamMemorySync/index.ts</code> — 1256 行（类 0，函数 20）</li>
+<li><code class="inline-code">services/teamMemorySync/secretScanner.ts</code> — 324 行（类 0，函数 5）</li>
+<li><code class="inline-code">services/teamMemorySync/teamMemSecretGuard.ts</code> — 44 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/teamMemorySync/types.ts</code> — 156 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/teamMemorySync/watcher.ts</code> — 387 行（类 0，函数 9）</li>
+<li><code class="inline-code">services/tips/tipHistory.ts</code> — 17 行（类 0，函数 2）</li>
+<li><code class="inline-code">services/tips/tipRegistry.ts</code> — 686 行（类 0，函数 4）</li>
+<li><code class="inline-code">services/tips/tipScheduler.ts</code> — 58 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/tokenEstimation.ts</code> — 495 行（类 0，函数 13）</li>
+<li><code class="inline-code">services/toolUseSummary/toolUseSummaryGenerator.ts</code> — 112 行（类 0，函数 2）</li>
+<li><code class="inline-code">services/tools/StreamingToolExecutor.ts</code> — 530 行（类 1，函数 1）</li>
+<li><code class="inline-code">services/tools/toolExecution.ts</code> — 1745 行（类 0，函数 12）</li>
+<li><code class="inline-code">services/tools/toolHooks.ts</code> — 650 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/tools/toolOrchestration.ts</code> — 188 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/vcr.ts</code> — 406 行（类 0，函数 11）</li>
+<li><code class="inline-code">services/voice.ts</code> — 525 行（类 0，函数 14）</li>
+<li><code class="inline-code">services/voiceKeyterms.ts</code> — 106 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/voiceStreamSTT.ts</code> — 544 行（类 0，函数 3）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">services/AgentSummary/agentSummary.ts</code></li>
+<li>函数 buildSummaryPrompt — L27</li>
+<li>函数 startAgentSummarization — L45</li>
+<li>函数 runSummary — L60</li>
+<li>函数 scheduleNext — L156</li>
+<li>函数 stop — L161</li>
+<li>文件 <code class="inline-code">services/MagicDocs/magicDocs.ts</code></li>
+<li>函数 clearTrackedMagicDocs — L43</li>
+<li>函数 detectMagicDocHeader — L52</li>
+<li>函数 registerMagicDoc — L87</li>
+<li>函数 getMagicDocsAgent — L99</li>
+<li>函数 updateMagicDoc — L114</li>
+<li>函数 initMagicDocs — L241</li>
+<li>文件 <code class="inline-code">services/MagicDocs/prompts.ts</code></li>
+<li>函数 getUpdatePromptTemplate — L8</li>
+<li>函数 loadMagicDocsPrompt — L66</li>
+<li>函数 substituteVariables — L81</li>
+<li>函数 buildMagicDocsUpdatePrompt — L98</li>
+<li>文件 <code class="inline-code">services/PromptSuggestion/promptSuggestion.ts</code></li>
+<li>函数 getPromptVariant — L32</li>
+<li>函数 shouldEnablePromptSuggestion — L36</li>
+<li>函数 abortPromptSuggestion — L95</li>
+<li>函数 getSuggestionSuppressReason — L107</li>
+<li>函数 tryGenerateSuggestion — L125</li>
+<li>函数 executePromptSuggestion — L183</li>
+<li>函数 getParentCacheSuppressReason — L240</li>
+<li>函数 generateSuggestion — L293</li>
+<li>函数 shouldFilterSuggestion — L353</li>
+<li>函数 logSuggestionOutcome — L462</li>
+<li>函数 logSuggestionSuppressed — L498</li>
+<li>文件 <code class="inline-code">services/PromptSuggestion/speculation.ts</code></li>
+<li>函数 safeRemoveOverlay — L71</li>
+<li>函数 getOverlayPath — L79</li>
+<li>函数 denySpeculation — L83</li>
+<li>函数 copyOverlayToMain — L98</li>
+<li>函数 logSpeculation — L123</li>
+<li>函数 countToolsInMessages — L154</li>
+<li>函数 getBoundaryTool — L165</li>
+<li>函数 getBoundaryDetail — L180</li>
+<li>函数 isUserMessageWithArrayContent — L196</li>
+<li>函数 prepareMessagesForInjection — L202</li>
+<li>函数 createSpeculationFeedbackMessage — L272</li>
+<li>函数 updateActiveSpeculationState — L309</li>
+<li>函数 resetSpeculationState — L329</li>
+<li>函数 isSpeculationEnabled — L336</li>
+<li>函数 generatePipelinedSuggestion — L344</li>
+<li>函数 startSpeculation — L401</li>
+<li>函数 acceptSpeculation — L716</li>
+<li>函数 abortSpeculation — L801</li>
+<li>函数 handleSpeculationAccept — L834</li>
+<li>文件 <code class="inline-code">services/SessionMemory/prompts.ts</code></li>
+<li>函数 getDefaultUpdatePrompt — L42</li>
+<li>函数 loadSessionMemoryTemplate — L86</li>
+<li>函数 loadSessionMemoryPrompt — L111</li>
+<li>函数 analyzeSectionSizes — L134</li>
+<li>函数 generateSectionReminders — L164</li>
+<li>函数 substituteVariables — L201</li>
+<li>函数 isSessionMemoryEmpty — L220</li>
+<li>函数 buildSessionMemoryUpdatePrompt — L225</li>
+<li>函数 truncateSessionMemoryForCompact — L256</li>
+<li>函数 flushSessionSection — L297</li>
+<li>函数 DEFAULT_SESSION_MEMORY_TEMPLATE — L10</li>
+<li>文件 <code class="inline-code">services/SessionMemory/sessionMemory.ts</code></li>
+<li>函数 isSessionMemoryGateEnabled — L80</li>
+<li>函数 getSessionMemoryRemoteConfig — L88</li>
+<li>函数 resetLastMemoryMessageUuid — L104</li>
+<li>函数 countToolCallsSince — L107</li>
+<li>函数 shouldExtractMemory — L133</li>
+<li>函数 setupSessionMemoryFile — L182</li>
+<li>函数 initSessionMemory — L357</li>
+<li>函数 manuallyExtractSessionMemory — L387</li>
+<li>函数 createMemoryFileCanUseTool — L460</li>
+<li>函数 updateLastSummarizedMessageIdIfSafe — L488</li>
+<li>文件 <code class="inline-code">services/SessionMemory/sessionMemoryUtils.ts</code></li>
+<li>函数 getLastSummarizedMessageId — L58</li>
+<li>函数 setLastSummarizedMessageId — L65</li>
+<li>函数 markExtractionStarted — L74</li>
+<li>函数 markExtractionCompleted — L81</li>
+<li>函数 waitForSessionMemoryExtraction — L89</li>
+<li>函数 getSessionMemoryContent — L110</li>
+<li>函数 setSessionMemoryConfig — L131</li>
+<li>函数 getSessionMemoryConfig — L143</li>
+<li>函数 recordExtractionTokenCount — L151</li>
+<li>函数 isSessionMemoryInitialized — L158</li>
+<li>函数 markSessionMemoryInitialized — L165</li>
+<li>函数 hasMetInitializationThreshold — L173</li>
+<li>函数 hasMetUpdateThreshold — L184</li>
+<li>函数 getToolCallsBetweenUpdates — L194</li>
+<li>函数 resetSessionMemoryState — L201</li>
+<li>函数 DEFAULT_SESSION_MEMORY_CONFIG — L32</li>
+<li>文件 <code class="inline-code">services/analytics/config.ts</code></li>
+<li>函数 isAnalyticsDisabled — L19</li>
+<li>函数 isFeedbackSurveyDisabled — L36</li>
+<li>文件 <code class="inline-code">services/analytics/datadog.ts</code></li>
+<li>函数 camelToSnakeCase — L84</li>
+<li>函数 flushLogs — L101</li>
+<li>函数 scheduleFlush — L120</li>
+<li>函数 shutdownDatadog — L151</li>
+<li>函数 trackDatadogEvent — L160</li>
+<li>函数 getFlushIntervalMs — L300</li>
+<li>函数 initializeDatadog — L129</li>
+<li>文件 <code class="inline-code">services/analytics/firstPartyEventLogger.ts</code></li>
+<li>函数 getEventSamplingConfig — L43</li>
+<li>函数 shouldSampleEvent — L57</li>
+<li>函数 getBatchConfig — L97</li>
+<li>函数 shutdown1PEventLogging — L116</li>
+<li>函数 is1PEventLoggingEnabled — L141</li>
+<li>函数 logEventTo1PAsync — L156</li>
+<li>函数 logEventTo1P — L216</li>
+<li>函数 getEnvironmentForGrowthBook — L245</li>
+<li>函数 logGrowthBookExperimentTo1P — L255</li>
+<li>函数 initialize1PEventLogging — L312</li>
+<li>函数 reinitialize1PEventLoggingIfConfigChanged — L407</li>
+<li>文件 <code class="inline-code">services/analytics/firstPartyEventLoggingExporter.ts</code></li>
+<li>类 FirstPartyEventLoggingExporter — L73</li>
+<li>函数 getStorageDir — L44</li>
+<li>函数 getAxiosErrorContext — L780</li>
+<li>文件 <code class="inline-code">services/analytics/growthbook.ts</code></li>
+<li>函数 callSafe — L110</li>
+<li>函数 onGrowthBookRefresh — L139</li>
+<li>函数 getEnvOverrides — L169</li>
+<li>函数 hasGrowthBookEnvOverride — L199</li>
+<li>函数 getConfigOverrides — L211</li>
+<li>函数 getAllGrowthBookFeatures — L227</li>
+<li>函数 getGrowthBookConfigOverrides — L233</li>
+<li>函数 setGrowthBookConfigOverride — L245</li>
+<li>函数 clearGrowthBookConfigOverrides — L272</li>
+<li>函数 logExposureForFeature — L296</li>
+<li>函数 processRemoteEvalPayload — L327</li>
+<li>函数 syncRemoteEvalToDisk — L407</li>
+<li>函数 isGrowthBookEnabled — L422</li>
+<li>函数 getApiBaseUrlHost — L439</li>
+<li>函数 getUserAttributes — L454</li>
+<li>函数 getFeatureValueInternal — L670</li>
+<li>函数 getFeatureValue_DEPRECATED — L719</li>
+<li>函数 getFeatureValue_CACHED_MAY_BE_STALE — L734</li>
+<li>函数 getFeatureValue_CACHED_WITH_REFRESH — L783</li>
+<li>函数 checkStatsigFeatureGate_CACHED_MAY_BE_STALE — L804</li>
+<li>函数 checkSecurityRestrictionGate — L851</li>
+<li>函数 checkGate_CACHED_OR_BLOCKING — L904</li>
+<li>函数 refreshGrowthBookAfterAuthChange — L943</li>
+<li>函数 resetGrowthBook — L987</li>
+<li>函数 refreshGrowthBookFeatures — L1027</li>
+<li>函数 setupPeriodicGrowthBookRefresh — L1087</li>
+<li>函数 stopPeriodicGrowthBookRefresh — L1115</li>
+<li>函数 getDynamicConfig_BLOCKS_ON_INIT — L1136</li>
+<li>函数 getDynamicConfig_CACHED_MAY_BE_STALE — L1150</li>
+<li>函数 initializeGrowthBook — L622</li>
+<li>文件 <code class="inline-code">services/analytics/index.ts</code></li>
+<li>函数 stripProtoFields — L45</li>
+<li>函数 attachAnalyticsSink — L95</li>
+<li>函数 logEvent — L133</li>
+<li>函数 logEventAsync — L154</li>
+<li>函数 _resetForTesting — L170</li>
+<li>文件 <code class="inline-code">services/analytics/metadata.ts</code></li>
+<li>函数 sanitizeToolNameForAnalytics — L70</li>
+<li>函数 isToolDetailsLoggingEnabled — L86</li>
+<li>函数 isAnalyticsToolDetailsLoggingEnabled — L102</li>
+<li>函数 mcpToolDetailsForAnalytics — L145</li>
+<li>函数 extractMcpToolDetails — L176</li>
+<li>函数 extractSkillName — L215</li>
+<li>函数 truncateToolInputValue — L241</li>
+<li>函数 extractToolInputForTelemetry — L291</li>
+<li>函数 getFileExtensionForAnalytics — L323</li>
+<li>函数 getFileExtensionsFromBashCommand — L372</li>
+<li>函数 getAgentIdentification — L514</li>
+<li>函数 buildProcessMetrics — L648</li>
+<li>函数 getEventMetadata — L693</li>
+<li>函数 to1PEventFormat — L796</li>
+<li>文件 <code class="inline-code">services/analytics/sink.ts</code></li>
+<li>函数 shouldTrackDatadog — L29</li>
+<li>函数 logEventImpl — L48</li>
+<li>函数 logEventAsyncImpl — L80</li>
+<li>函数 initializeAnalyticsGates — L96</li>
+<li>函数 initializeAnalyticsSink — L109</li>
+<li>文件 <code class="inline-code">services/analytics/sinkKillswitch.ts</code></li>
+<li>函数 isSinkKilled — L18</li>
+<li>文件 <code class="inline-code">services/api/adminRequests.ts</code></li>
+<li>函数 createAdminRequest — L49</li>
+<li>函数 getMyAdminRequests — L71</li>
+<li>函数 checkAdminRequestEligibility — L102</li>
+<li>文件 <code class="inline-code">services/api/bootstrap.ts</code></li>
+<li>函数 fetchBootstrapAPI — L41</li>
+<li>函数 fetchBootstrapData — L114</li>
+<li>文件 <code class="inline-code">services/api/claude.ts</code></li>
+<li>函数 getExtraBodyParams — L272</li>
+<li>函数 getPromptCachingEnabled — L332</li>
+<li>函数 getCacheControl — L357</li>
+<li>函数 should1hCacheTTL — L393</li>
+<li>函数 configureEffortParams — L440</li>
+<li>函数 configureTaskBudgetParams — L478</li>
+<li>函数 getAPIMetadata — L502</li>
+<li>函数 verifyApiKey — L529</li>
+<li>函数 userMessageToMessageParam — L587</li>
+<li>函数 assistantMessageToMessageParam — L632</li>
+<li>函数 queryModelWithoutStreaming — L708</li>
+<li>函数 shouldDeferLspTool — L786</li>
+<li>函数 getNonstreamingFallbackTimeoutMs — L807</li>
+<li>函数 getPreviousRequestIdFromMessages — L928</li>
+<li>函数 isMedia — L939</li>
+<li>函数 isToolResult — L945</li>
+<li>函数 stripExcessMediaItems — L956</li>
+<li>函数 releaseStreamResources — L1519</li>
+<li>函数 clearStreamIdleTimers — L1885</li>
+<li>函数 resetStreamIdleTimer — L1895</li>
+<li>函数 cleanupStream — L2898</li>
+<li>函数 updateUsage — L2924</li>
+<li>函数 accumulateUsage — L2993</li>
+<li>函数 isToolResultBlock — L3039</li>
+<li>函数 addCacheBreakpoints — L3063</li>
+<li>函数 buildSystemPromptBlocks — L3212</li>
+<li>函数 queryHaiku — L3240</li>
+<li>函数 queryWithModel — L3300</li>
+<li>函数 adjustParamsForNonStreaming — L3364</li>
+<li>函数 isMaxTokensCapEnabled — L3393</li>
+<li>函数 getMaxOutputTokensForModel — L3398</li>
+<li>函数 MAX_NON_STREAMING_TOKENS — L3354</li>
+<li>文件 <code class="inline-code">services/api/client.ts</code></li>
+<li>函数 createStderrLogger — L72</li>
+<li>函数 getAnthropicClient — L87</li>
+<li>函数 configureApiKeyHeaders — L317</li>
+<li>函数 getCustomHeaders — L329</li>
+<li>函数 buildFetch — L357</li>
+<li>函数 CLIENT_REQUEST_ID_HEADER — L355</li>
+<li>文件 <code class="inline-code">services/api/dumpPrompts.ts</code></li>
+<li>函数 hashString — L8</li>
+<li>函数 getLastApiRequests — L28</li>
+<li>函数 clearApiRequestCache — L35</li>
+<li>函数 clearDumpState — L39</li>
+<li>函数 clearAllDumpState — L43</li>
+<li>函数 addApiRequestToCache — L47</li>
+<li>函数 getDumpPromptsPath — L58</li>
+<li>函数 appendToFile — L66</li>
+<li>函数 initFingerprint — L73</li>
+<li>函数 dumpRequest — L89</li>
+<li>函数 createDumpPromptsFetch — L145</li>
+<li>文件 <code class="inline-code">services/api/emptyUsage.ts</code></li>
+<li>函数 EMPTY_USAGE — L8</li>
+<li>文件 <code class="inline-code">services/api/errorUtils.ts</code></li>
+<li>函数 extractConnectionErrorDetails — L42</li>
+<li>函数 getSSLErrorHint — L94</li>
+<li>函数 sanitizeMessageHTML — L107</li>
+<li>函数 sanitizeAPIError — L122</li>
+<li>函数 hasNestedError — L150</li>
+<li>函数 extractNestedErrorMessage — L169</li>
+<li>函数 formatAPIError — L199</li>
+<li>文件 <code class="inline-code">services/api/errors.ts</code></li>
+<li>函数 startsWithApiErrorPrefix — L55</li>
+<li>函数 isPromptTooLongMessage — L63</li>
+<li>函数 parsePromptTooLongTokenCounts — L85</li>
+<li>函数 getPromptTooLongTokenGap — L104</li>
+<li>函数 isMediaSizeError — L133</li>
+<li>函数 isMediaSizeErrorMessage — L147</li>
+<li>函数 getPdfTooLargeErrorMessage — L170</li>
+<li>函数 getPdfPasswordProtectedErrorMessage — L176</li>
+<li>函数 getPdfInvalidErrorMessage — L181</li>
+<li>函数 getImageTooLargeErrorMessage — L186</li>
+<li>函数 getRequestTooLargeErrorMessage — L191</li>
+<li>函数 getTokenRevokedErrorMessage — L199</li>
+<li>函数 getOauthOrgNotAllowedErrorMessage — L205</li>
+<li>函数 isCCRMode — L217</li>
+<li>函数 logToolUseToolResultMismatch — L222</li>
+<li>函数 isValidAPIMessage — L387</li>
+<li>函数 extractUnknownErrorFormat — L411</li>
+<li>函数 getAssistantMessageFromError — L424</li>
+<li>函数 get3PModelFallbackSuggestion — L940</li>
+<li>函数 classifyAPIError — L965</li>
+<li>函数 categorizeRetryableAPIError — L1162</li>
+<li>函数 getErrorMessageIfRefusal — L1183</li>
+<li>函数 API_ERROR_MESSAGE_PREFIX — L53</li>
+<li>函数 PROMPT_TOO_LONG_ERROR_MESSAGE — L62</li>
+<li>函数 CREDIT_BALANCE_TOO_LOW_ERROR_MESSAGE — L154</li>
+<li>函数 INVALID_API_KEY_ERROR_MESSAGE — L155</li>
+<li>函数 INVALID_API_KEY_ERROR_MESSAGE_EXTERNAL — L156</li>
+<li>函数 ORG_DISABLED_ERROR_MESSAGE_ENV_KEY_WITH_OAUTH — L158</li>
+<li>函数 ORG_DISABLED_ERROR_MESSAGE_ENV_KEY — L160</li>
+<li>函数 TOKEN_REVOKED_ERROR_MESSAGE — L162</li>
+<li>函数 CCR_AUTH_ERROR_MESSAGE — L164</li>
+<li>函数 REPEATED_529_ERROR_MESSAGE — L166</li>
+<li>函数 CUSTOM_OFF_SWITCH_MESSAGE — L167</li>
+<li>函数 API_TIMEOUT_ERROR_MESSAGE — L169</li>
+<li>函数 OAUTH_ORG_NOT_ALLOWED_ERROR_MESSAGE — L197</li>
+<li>文件 <code class="inline-code">services/api/filesApi.ts</code></li>
+<li>类 UploadNonRetriableError — L555</li>
+<li>函数 getDefaultApiBaseUrl — L32</li>
+<li>函数 logDebugError — L39</li>
+<li>函数 logDebug — L43</li>
+<li>函数 retryWithBackoff — L97</li>
+<li>函数 downloadFile — L132</li>
+<li>函数 buildDownloadPath — L187</li>
+<li>函数 downloadAndSaveFile — L219</li>
+<li>函数 parallelWithLimit — L280</li>
+<li>函数 worker — L287</li>
+<li>函数 downloadSessionFiles — L317</li>
+<li>函数 uploadFile — L378</li>
+<li>函数 uploadSessionFiles — L570</li>
+<li>函数 listFilesCreatedAfter — L617</li>
+<li>函数 parseFileSpecs — L722</li>
+<li>文件 <code class="inline-code">services/api/firstTokenDate.ts</code></li>
+<li>函数 fetchAndStoreClaudeCodeFirstTokenDate — L12</li>
+<li>文件 <code class="inline-code">services/api/grove.ts</code></li>
+<li>函数 markGroveNoticeViewed — L90</li>
+<li>函数 updateGroveSettings — L120</li>
+<li>函数 isQualifiedForGrove — L157</li>
+<li>函数 fetchAndStoreGroveConfig — L198</li>
+<li>函数 calculateShouldShowGrove — L284</li>
+<li>函数 checkGroveForNonInteractive — L322</li>
+<li>函数 getGroveSettings — L52</li>
+<li>函数 getGroveNoticeConfig — L232</li>
+<li>文件 <code class="inline-code">services/api/logging.ts</code></li>
+<li>函数 getErrorMessage — L47</li>
+<li>函数 detectGateway — L106</li>
+<li>函数 getAnthropicEnvMetadata — L140</li>
+<li>函数 getBuildAgeMinutes — L163</li>
+<li>函数 logAPIQuery — L170</li>
+<li>函数 logAPIError — L234</li>
+<li>函数 logAPISuccess — L397</li>
+<li>函数 logAPISuccessAndDuration — L580</li>
+<li>文件 <code class="inline-code">services/api/metricsOptOut.ts</code></li>
+<li>函数 _fetchMetricsEnabled — L33</li>
+<li>函数 _checkMetricsEnabledAPI — L52</li>
+<li>函数 refreshMetricsStatus — L94</li>
+<li>函数 checkMetricsEnabled — L128</li>
+<li>函数 _clearMetricsEnabledCacheForTesting — L157</li>
+<li>文件 <code class="inline-code">services/api/overageCreditGrant.ts</code></li>
+<li>函数 fetchOverageCreditGrant — L29</li>
+<li>函数 getCachedOverageCreditGrant — L48</li>
+<li>函数 invalidateOverageCreditGrantCache — L61</li>
+<li>函数 refreshOverageCreditGrantCache — L77</li>
+<li>函数 formatGrantAmount — L127</li>
+<li>文件 <code class="inline-code">services/api/promptCacheBreakDetection.ts</code></li>
+<li>函数 getCacheBreakDiffPath — L18</li>
+<li>函数 isExcludedModel — L129</li>
+<li>函数 getTrackingKey — L149</li>
+<li>函数 stripCacheControl — L159</li>
+<li>函数 computeHash — L169</li>
+<li>函数 sanitizeToolName — L183</li>
+<li>函数 computePerToolHashes — L186</li>
+<li>函数 getSystemCharCount — L197</li>
+<li>函数 buildDiffableContent — L205</li>
+<li>函数 recordPromptState — L247</li>
+<li>函数 checkResponseForCacheBreak — L437</li>
+<li>函数 notifyCacheDeletion — L673</li>
+<li>函数 notifyCompaction — L689</li>
+<li>函数 cleanupAgentTracking — L699</li>
+<li>函数 resetPromptCacheBreakDetection — L703</li>
+<li>函数 writeCacheBreakDiff — L707</li>
+<li>函数 CACHE_TTL_1HOUR_MS — L126</li>
+<li>文件 <code class="inline-code">services/api/referral.ts</code></li>
+<li>函数 fetchReferralEligibility — L25</li>
+<li>函数 fetchReferralRedemptions — L46</li>
+<li>函数 shouldCheckForPasses — L71</li>
+<li>函数 checkCachedPassesEligibility — L83</li>
+<li>函数 formatCreditAmount — L138</li>
+<li>函数 getCachedReferrerReward — L150</li>
+<li>函数 getCachedRemainingPasses — L162</li>
+<li>函数 fetchAndStorePassesEligibility — L174</li>
+<li>函数 getCachedOrFetchPassesEligibility — L231</li>
+<li>函数 prefetchPassesEligibility — L274</li>
+<li>文件 <code class="inline-code">services/api/sessionIngress.ts</code></li>
+<li>函数 getOrCreateSequentialAppend — L42</li>
+<li>函数 appendSessionLogImpl — L63</li>
+<li>函数 appendSessionLog — L193</li>
+<li>函数 getSessionLogs — L217</li>
+<li>函数 getSessionLogsViaOAuth — L246</li>
+<li>函数 getTeleportEvents — L291</li>
+<li>函数 fetchSessionLogsFromUrl — L420</li>
+<li>函数 findLastUuid — L491</li>
+<li>函数 clearSession — L502</li>
+<li>函数 clearAllSessions — L511</li>
+<li>文件 <code class="inline-code">services/api/ultrareviewQuota.ts</code></li>
+<li>函数 fetchUltrareviewQuota — L19</li>
+<li>文件 <code class="inline-code">services/api/usage.ts</code></li>
+<li>函数 fetchUtilization — L32</li>
+<li>文件 <code class="inline-code">services/api/withRetry.ts</code></li>
+<li>类 CannotRetryError — L143</li>
+<li>类 FallbackTriggeredError — L159</li>
+<li>函数 shouldRetry529 — L83</li>
+<li>函数 isPersistentRetryEnabled — L99</li>
+<li>函数 isTransientCapacityError — L105</li>
+<li>函数 isStaleConnectionError — L111</li>
+<li>函数 getRetryAfter — L518</li>
+<li>函数 getRetryDelay — L529</li>
+<li>函数 parseMaxTokensContextOverflowError — L549</li>
+<li>函数 isFastModeNotEnabledError — L600</li>
+<li>函数 is529Error — L609</li>
+<li>函数 isOAuthTokenRevokedError — L622</li>
+<li>函数 isBedrockAuthError — L630</li>
+<li>函数 handleAwsCredentialError — L650</li>
+<li>函数 isGoogleAuthLibraryCredentialError — L660</li>
+<li>函数 isVertexAuthError — L669</li>
+<li>函数 handleGcpCredentialError — L688</li>
+<li>函数 shouldRetry — L695</li>
+<li>函数 getDefaultMaxRetries — L788</li>
+<li>函数 getMaxRetries — L795</li>
+<li>函数 getRetryAfterMs — L802</li>
+<li>函数 getRateLimitResetDelayMs — L813</li>
+<li>函数 BASE_DELAY_MS — L55</li>
+<li>文件 <code class="inline-code">services/autoDream/autoDream.ts</code></li>
+<li>函数 getConfig — L73</li>
+<li>函数 isGateOpen — L94</li>
+<li>函数 isForced — L105</li>
+<li>函数 initAutoDream — L122</li>
+<li>函数 makeDreamProgressWatcher — L281</li>
+<li>函数 executeAutoDream — L319</li>
+<li>文件 <code class="inline-code">services/autoDream/config.ts</code></li>
+<li>函数 isAutoDreamEnabled — L13</li>
+<li>文件 <code class="inline-code">services/autoDream/consolidationLock.ts</code></li>
+<li>函数 lockPath — L20</li>
+<li>函数 readLastConsolidatedAt — L29</li>
+<li>函数 tryAcquireConsolidationLock — L46</li>
+<li>函数 rollbackConsolidationLock — L91</li>
+<li>函数 listSessionsTouchedSince — L118</li>
+<li>函数 recordConsolidation — L130</li>
+<li>文件 <code class="inline-code">services/autoDream/consolidationPrompt.ts</code></li>
+<li>函数 buildConsolidationPrompt — L9</li>
+<li>文件 <code class="inline-code">services/awaySummary.ts</code></li>
+<li>函数 buildAwaySummaryPrompt — L17</li>
+<li>函数 generateAwaySummary — L29</li>
+<li>文件 <code class="inline-code">services/claudeAiLimits.ts</code></li>
+<li>函数 getRateLimitDisplayName — L86</li>
+<li>函数 computeTimeProgress — L98</li>
+<li>函数 getRawUtilization — L159</li>
+<li>函数 extractRawUtilization — L163</li>
+<li>函数 emitStatusChange — L183</li>
+<li>函数 makeTestQuery — L198</li>
+<li>函数 checkQuotaStatus — L219</li>
+<li>函数 getHeaderBasedEarlyWarning — L255</li>
+<li>函数 getTimeRelativeEarlyWarning — L301</li>
+<li>函数 getEarlyWarningFromHeaders — L347</li>
+<li>函数 computeNewLimitsFromHeaders — L375</li>
+<li>函数 cacheExtraUsageDisabledReason — L441</li>
+<li>函数 extractQuotaStatusFromHeaders — L453</li>
+<li>函数 extractQuotaStatusFromError — L486</li>
+<li>函数 currentLimits — L139</li>
+<li>函数 statusListeners — L182</li>
+<li>文件 <code class="inline-code">services/claudeAiLimitsHook.ts</code></li>
+<li>函数 useClaudeAiLimits — L7</li>
+<li>文件 <code class="inline-code">services/compact/apiMicrocompact.ts</code></li>
+<li>函数 getAPIContextManagement — L64</li>
+<li>文件 <code class="inline-code">services/compact/autoCompact.ts</code></li>
+<li>函数 getEffectiveContextWindowSize — L33</li>
+<li>函数 getAutoCompactThreshold — L71</li>
+<li>函数 calculateTokenWarningState — L92</li>
+<li>函数 isAutoCompactEnabled — L146</li>
+<li>函数 shouldAutoCompact — L159</li>
+<li>函数 autoCompactIfNeeded — L240</li>
+<li>函数 AUTOCOMPACT_BUFFER_TOKENS — L61</li>
+<li>函数 WARNING_THRESHOLD_BUFFER_TOKENS — L63</li>
+<li>函数 ERROR_THRESHOLD_BUFFER_TOKENS — L64</li>
+<li>函数 MANUAL_COMPACT_BUFFER_TOKENS — L65</li>
+<li>文件 <code class="inline-code">services/compact/compact.ts</code></li>
+<li>函数 stripImagesFromMessages — L145</li>
+<li>函数 stripReinjectedAttachments — L211</li>
+<li>函数 truncateHeadForPTLRetry — L243</li>
+<li>函数 buildPostCompactMessages — L330</li>
+<li>函数 annotateBoundaryWithPreservedSegment — L349</li>
+<li>函数 mergeHookInstructions — L374</li>
+<li>函数 compactConversation — L387</li>
+<li>函数 partialCompactConversation — L772</li>
+<li>函数 addErrorNotificationIfNeeded — L1107</li>
+<li>函数 createCompactCanUseTool — L1124</li>
+<li>函数 streamCompactSummary — L1135</li>
+<li>函数 createPostCompactFileAttachments — L1415</li>
+<li>函数 createPlanAttachmentIfNeeded — L1470</li>
+<li>函数 createSkillAttachmentIfNeeded — L1494</li>
+<li>函数 createPlanModeAttachmentIfNeeded — L1542</li>
+<li>函数 createAsyncAgentAttachmentsIfNeeded — L1568</li>
+<li>函数 collectReadToolFilePaths — L1610</li>
+<li>函数 truncateToTokens — L1666</li>
+<li>函数 shouldExcludeFromPostCompactRestore — L1673</li>
+<li>函数 POST_COMPACT_MAX_FILES_TO_RESTORE — L121</li>
+<li>函数 POST_COMPACT_TOKEN_BUDGET — L123</li>
+<li>函数 POST_COMPACT_MAX_TOKENS_PER_FILE — L124</li>
+<li>函数 POST_COMPACT_MAX_TOKENS_PER_SKILL — L129</li>
+<li>函数 POST_COMPACT_SKILLS_TOKEN_BUDGET — L130</li>
+<li>函数 ERROR_MESSAGE_NOT_ENOUGH_MESSAGES — L224</li>
+<li>函数 ERROR_MESSAGE_PROMPT_TOO_LONG — L292</li>
+<li>函数 ERROR_MESSAGE_USER_ABORT — L295</li>
+<li>函数 ERROR_MESSAGE_INCOMPLETE_RESPONSE — L296</li>
+<li>文件 <code class="inline-code">services/compact/compactWarningHook.ts</code></li>
+<li>函数 useCompactWarningSuppression — L11</li>
+<li>文件 <code class="inline-code">services/compact/compactWarningState.ts</code></li>
+<li>函数 suppressCompactWarning — L11</li>
+<li>函数 clearCompactWarningSuppression — L16</li>
+<li>函数 compactWarningStore — L8</li>
+<li>文件 <code class="inline-code">services/compact/grouping.ts</code></li>
+<li>函数 groupMessagesByApiRound — L22</li>
+<li>文件 <code class="inline-code">services/compact/microCompact.ts</code></li>
+<li>函数 getCachedMCModule — L61</li>
+<li>函数 ensureCachedMCState — L70</li>
+<li>函数 consumePendingCacheEdits — L88</li>
+<li>函数 getPinnedCacheEdits — L100</li>
+<li>函数 pinCacheEdits — L111</li>
+<li>函数 markToolsSentToAPIState — L124</li>
+<li>函数 resetMicrocompactState — L129</li>
+<li>函数 calculateToolResultTokens — L138</li>
+<li>函数 estimateMessageTokens — L164</li>
+<li>函数 collectCompactableToolIds — L226</li>
+<li>函数 isMainThreadSource — L249</li>
+<li>函数 microcompactMessages — L252</li>
+<li>函数 cachedMicrocompactPath — L305</li>
+<li>函数 evaluateTimeBasedTrigger — L422</li>
+<li>函数 maybeTimeBasedMicrocompact — L445</li>
+<li>函数 TIME_BASED_MC_CLEARED_MESSAGE — L36</li>
+<li>文件 <code class="inline-code">services/compact/postCompactCleanup.ts</code></li>
+<li>函数 runPostCompactCleanup — L31</li>
+<li>文件 <code class="inline-code">services/compact/prompt.ts</code></li>
+<li>函数 getPartialCompactPrompt — L273</li>
+<li>函数 getCompactPrompt — L292</li>
+<li>函数 formatCompactSummary — L311</li>
+<li>函数 getCompactUserSummaryMessage — L336</li>
+<li>文件 <code class="inline-code">services/compact/sessionMemoryCompact.ts</code></li>
+<li>函数 setSessionMemoryCompactConfig — L74</li>
+<li>函数 getSessionMemoryCompactConfig — L86</li>
+<li>函数 resetSessionMemoryCompactConfig — L93</li>
+<li>函数 initSessionMemoryCompactConfig — L102</li>
+<li>函数 hasTextBlocks — L135</li>
+<li>函数 getToolResultIds — L155</li>
+<li>函数 hasToolUseWithIds — L175</li>
+<li>函数 adjustIndexToPreserveAPIInvariants — L232</li>
+<li>函数 calculateMessagesToKeepIndex — L324</li>
+<li>函数 shouldUseSessionMemoryCompaction — L403</li>
+<li>函数 createCompactionResultFromSessionMemory — L437</li>
+<li>函数 trySessionMemoryCompaction — L514</li>
+<li>函数 DEFAULT_SM_COMPACT_CONFIG — L57</li>
+<li>文件 <code class="inline-code">services/compact/timeBasedMCConfig.ts</code></li>
+<li>函数 getTimeBasedMCConfig — L35</li>
+<li>文件 <code class="inline-code">services/diagnosticTracking.ts</code></li>
+<li>类 DiagnosticsTrackingError — L9</li>
+<li>类 DiagnosticTrackingService — L29</li>
+<li>函数 diagnosticTracker — L396</li>
+<li>文件 <code class="inline-code">services/extractMemories/extractMemories.ts</code></li>
+<li>函数 isModelVisibleMessage — L78</li>
+<li>函数 countModelVisibleMessagesSince — L81</li>
+<li>函数 hasMemoryWritesSince — L121</li>
+<li>函数 denyAutoMemTool — L153</li>
+<li>函数 createAutoMemCanUseTool — L171</li>
+<li>函数 getWrittenFilePath — L232</li>
+<li>函数 extractWrittenPaths — L250</li>
+<li>函数 initExtractMemories — L296</li>
+<li>函数 runExtraction — L328</li>
+<li>函数 executeExtractMemoriesImpl — L526</li>
+<li>函数 executeExtractMemories — L598</li>
+<li>函数 drainPendingExtraction — L611</li>
+<li>文件 <code class="inline-code">services/extractMemories/prompts.ts</code></li>
+<li>函数 opener — L29</li>
+<li>函数 buildExtractAutoOnlyPrompt — L50</li>
+<li>函数 buildExtractCombinedPrompt — L101</li>
+<li>文件 <code class="inline-code">services/internalLogging.ts</code></li>
+<li>函数 logPermissionContextForAnts — L71</li>
+<li>函数 getContainerId — L35</li>
+<li>文件 <code class="inline-code">services/lsp/LSPClient.ts</code></li>
+<li>函数 createLSPClient — L51</li>
+<li>函数 checkStartFailed — L72</li>
+<li>文件 <code class="inline-code">services/lsp/LSPDiagnosticRegistry.ts</code></li>
+<li>函数 registerPendingLSPDiagnostic — L65</li>
+<li>函数 severityToNumber — L91</li>
+<li>函数 createDiagnosticKey — L110</li>
+<li>函数 deduplicateDiagnosticFiles — L136</li>
+<li>函数 checkForLSPDiagnostics — L193</li>
+<li>函数 clearAllLSPDiagnostics — L346</li>
+<li>函数 resetAllLSPDiagnosticState — L357</li>
+<li>函数 clearDeliveredDiagnosticsForFile — L372</li>
+<li>函数 getPendingLSPDiagnosticCount — L384</li>
+<li>文件 <code class="inline-code">services/lsp/LSPServerInstance.ts</code></li>
+<li>函数 createLSPServerInstance — L90</li>
+<li>函数 start — L135</li>
+<li>函数 stop — L274</li>
+<li>函数 restart — L300</li>
+<li>函数 isHealthy — L338</li>
+<li>函数 sendRequest — L355</li>
+<li>函数 sendNotification — L416</li>
+<li>函数 onNotification — L445</li>
+<li>函数 onRequest — L461</li>
+<li>函数 withTimeout — L499</li>
+<li>文件 <code class="inline-code">services/lsp/LSPServerManager.ts</code></li>
+<li>函数 createLSPServerManager — L59</li>
+<li>函数 initialize — L71</li>
+<li>函数 shutdown — L157</li>
+<li>函数 getServerForFile — L192</li>
+<li>函数 ensureServerStarted — L215</li>
+<li>函数 sendRequest — L244</li>
+<li>函数 getAllServers — L266</li>
+<li>函数 openFile — L269</li>
+<li>函数 changeFile — L311</li>
+<li>函数 saveFile — L349</li>
+<li>函数 closeFile — L377</li>
+<li>函数 isFileOpen — L401</li>
+<li>文件 <code class="inline-code">services/lsp/config.ts</code></li>
+<li>函数 getAllLspServers — L15</li>
+<li>文件 <code class="inline-code">services/lsp/manager.ts</code></li>
+<li>函数 _resetLspManagerForTesting — L48</li>
+<li>函数 getLspServerManager — L63</li>
+<li>函数 getInitializationStatus — L76</li>
+<li>函数 isLspConnected — L100</li>
+<li>函数 waitForInitialization — L121</li>
+<li>函数 initializeLspServerManager — L145</li>
+<li>函数 reinitializeLspServerManager — L226</li>
+<li>函数 shutdownLspServerManager — L267</li>
+<li>文件 <code class="inline-code">services/lsp/passiveFeedback.ts</code></li>
+<li>函数 mapLSPSeverity — L18</li>
+<li>函数 formatDiagnosticsForAttachment — L43</li>
+<li>函数 registerLSPNotificationHandlers — L125</li>
+<li>文件 <code class="inline-code">services/mcp/InProcessTransport.ts</code></li>
+<li>类 InProcessTransport — L11</li>
+<li>函数 createLinkedTransportPair — L57</li>
+<li>文件 <code class="inline-code">services/mcp/MCPConnectionManager.tsx</code></li>
+<li>函数 useMcpReconnect — L17</li>
+<li>函数 useMcpToggleEnabled — L24</li>
+<li>函数 MCPConnectionManager — L38</li>
+<li>文件 <code class="inline-code">services/mcp/SdkControlTransport.ts</code></li>
+<li>类 SdkControlClientTransport — L60</li>
+<li>类 SdkControlServerTransport — L109</li>
+<li>文件 <code class="inline-code">services/mcp/auth.ts</code></li>
+<li>类 AuthenticationCancelledError — L312</li>
+<li>类 ClaudeAuthProvider — L1375</li>
+<li>函数 redactSensitiveUrlParams — L112</li>
+<li>函数 normalizeOAuthErrorBody — L157</li>
+<li>函数 createAuthFetch — L198</li>
+<li>函数 fetchAuthServerMetadata — L256</li>
+<li>函数 getServerKey — L325</li>
+<li>函数 hasMcpDiscoveryButNoToken — L349</li>
+<li>函数 revokeToken — L381</li>
+<li>函数 revokeServerTokens — L467</li>
+<li>函数 clearServerTokensFromLocalStorage — L619</li>
+<li>函数 performMCPXaaAuth — L664</li>
+<li>函数 performMCPOAuthFlow — L846</li>
+<li>函数 wrapFetchWithStepUpDetection — L1354</li>
+<li>函数 readClientSecret — L2361</li>
+<li>函数 saveMcpClientSecret — L2398</li>
+<li>函数 clearMcpClientConfig — L2415</li>
+<li>函数 getMcpClientConfig — L2429</li>
+<li>函数 getScopeFromMetadata — L2445</li>
+<li>文件 <code class="inline-code">services/mcp/channelAllowlist.ts</code></li>
+<li>函数 getChannelAllowlist — L36</li>
+<li>函数 isChannelsEnabled — L51</li>
+<li>函数 isChannelAllowlisted — L67</li>
+<li>文件 <code class="inline-code">services/mcp/channelNotification.ts</code></li>
+<li>函数 wrapChannelMessage — L105</li>
+<li>函数 getEffectiveChannelAllowlist — L127</li>
+<li>函数 findChannelEntry — L161</li>
+<li>函数 gateChannelServer — L191</li>
+<li>函数 ChannelMessageNotificationSchema — L36</li>
+<li>函数 CHANNEL_PERMISSION_METHOD — L62</li>
+<li>函数 ChannelPermissionNotificationSchema — L64</li>
+<li>函数 CHANNEL_PERMISSION_REQUEST_METHOD — L85</li>
+<li>文件 <code class="inline-code">services/mcp/channelPermissions.ts</code></li>
+<li>函数 isChannelPermissionRelayEnabled — L36</li>
+<li>函数 hashToId — L111</li>
+<li>函数 shortRequestId — L140</li>
+<li>函数 truncateForPreview — L160</li>
+<li>函数 filterPermissionRelayClients — L177</li>
+<li>函数 createChannelPermissionCallbacks — L209</li>
+<li>函数 PERMISSION_REPLY_RE — L75</li>
+<li>文件 <code class="inline-code">services/mcp/claudeai.ts</code></li>
+<li>函数 clearClaudeAIMcpConfigsCache — L140</li>
+<li>函数 markClaudeAiMcpConnected — L154</li>
+<li>函数 hasClaudeAiMcpEverConnected — L161</li>
+<li>函数 fetchClaudeAIMcpConfigsIfEligible — L39</li>
+<li>文件 <code class="inline-code">services/mcp/client.ts</code></li>
+<li>类 McpAuthError — L152</li>
+<li>类 McpSessionExpiredError — L165</li>
+<li>类 McpToolCallError_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS — L177</li>
+<li>函数 isMcpSessionExpiredError — L193</li>
+<li>函数 getMcpToolTimeoutMs — L224</li>
+<li>函数 getMcpAuthCachePath — L260</li>
+<li>函数 getMcpAuthCache — L270</li>
+<li>函数 isMcpAuthCached — L279</li>
+<li>函数 setMcpAuthCacheEntry — L292</li>
+<li>函数 clearMcpAuthCache — L310</li>
+<li>函数 mcpBaseUrlAnalytics — L323</li>
+<li>函数 handleRemoteAuthFailure — L340</li>
+<li>函数 createClaudeAiProxyFetch — L372</li>
+<li>函数 createNodeWsClient — L436</li>
+<li>函数 getConnectionTimeoutMs — L455</li>
+<li>函数 wrapFetchWithTimeout — L492</li>
+<li>函数 getMcpServerConnectionBatchSize — L551</li>
+<li>函数 getRemoteMcpServerConnectionBatchSize — L555</li>
+<li>函数 isLocalMcpServer — L562</li>
+<li>函数 isIncludedMcpTool — L569</li>
+<li>函数 getServerCacheKey — L581</li>
+<li>函数 clearServerCache — L1648</li>
+<li>函数 ensureConnectedClient — L1688</li>
+<li>函数 areMcpConfigsEqual — L1710</li>
+<li>函数 mcpToolInputToAutoClassifierInput — L1733</li>
+<li>函数 callIdeRpc — L2116</li>
+<li>函数 reconnectMcpServerImpl — L2137</li>
+<li>函数 processBatched — L2218</li>
+<li>函数 getMcpToolsCommandsAndResources — L2225</li>
+<li>函数 prefetchAllMcpResources — L2408</li>
+<li>函数 transformResultContent — L2478</li>
+<li>函数 persistBlobToTextBlock — L2598</li>
+<li>函数 inferCompactSchema — L2644</li>
+<li>函数 transformMCPResult — L2661</li>
+<li>函数 contentContainsImages — L2713</li>
+<li>函数 processMCPResult — L2719</li>
+<li>函数 callMCPToolWithUrlElicitationRetry — L2813</li>
+<li>函数 callMCPTool — L3028</li>
+<li>函数 extractToolUseId — L3246</li>
+<li>函数 setupSdkMcpClients — L3262</li>
+<li>函数 connectToServer — L595</li>
+<li>函数 fetchToolsForClient — L1742</li>
+<li>函数 fetchResourcesForClient — L1999</li>
+<li>函数 fetchCommandsForClient — L2032</li>
+<li>文件 <code class="inline-code">services/mcp/config.ts</code></li>
+<li>函数 getEnterpriseMcpFilePath — L62</li>
+<li>函数 addScopeToServers — L69</li>
+<li>函数 writeMcpjsonFile — L88</li>
+<li>函数 getServerCommandArray — L137</li>
+<li>函数 commandArraysMatch — L149</li>
+<li>函数 getServerUrl — L160</li>
+<li>函数 unwrapCcrProxyUrl — L182</li>
+<li>函数 getMcpServerSignature — L202</li>
+<li>函数 dedupPluginMcpServers — L223</li>
+<li>函数 dedupClaudeAiMcpServers — L281</li>
+<li>函数 urlPatternToRegex — L320</li>
+<li>函数 urlMatchesPattern — L331</li>
+<li>函数 getMcpAllowlistSettings — L341</li>
+<li>函数 getMcpDenylistSettings — L353</li>
+<li>函数 isMcpServerDenied — L364</li>
+<li>函数 isMcpServerAllowedByPolicy — L417</li>
+<li>函数 filterMcpServersByPolicy — L536</li>
+<li>函数 expandEnvVars — L556</li>
+<li>函数 expandString — L561</li>
+<li>函数 addMcpConfig — L625</li>
+<li>函数 removeMcpConfig — L769</li>
+<li>函数 getProjectMcpConfigsFromCwd — L843</li>
+<li>函数 getMcpConfigsByScope — L888</li>
+<li>函数 getMcpConfigByName — L1033</li>
+<li>函数 getClaudeCodeMcpConfigs — L1071</li>
+<li>函数 getAllMcpConfigs — L1258</li>
+<li>函数 parseMcpConfig — L1297</li>
+<li>函数 parseMcpConfigFromFilePath — L1384</li>
+<li>函数 shouldAllowManagedMcpServersOnly — L1485</li>
+<li>函数 areMcpConfigsAllowedWithEnterpriseMcpConfig — L1494</li>
+<li>函数 isDefaultDisabledBuiltin — L1518</li>
+<li>函数 isMcpServerDisabled — L1528</li>
+<li>函数 toggleMembership — L1537</li>
+<li>函数 setMcpServerEnabled — L1553</li>
+<li>函数 doesEnterpriseMcpConfigExist — L1469</li>
+<li>文件 <code class="inline-code">services/mcp/elicitationHandler.ts</code></li>
+<li>函数 getElicitationMode — L48</li>
+<li>函数 findElicitationInQueue — L54</li>
+<li>函数 registerElicitationHandler — L67</li>
+<li>函数 runElicitationHooks — L213</li>
+<li>函数 runElicitationResultHooks — L264</li>
+<li>文件 <code class="inline-code">services/mcp/envExpansion.ts</code></li>
+<li>函数 expandEnvVarsInString — L10</li>
+<li>文件 <code class="inline-code">services/mcp/headersHelper.ts</code></li>
+<li>函数 isMcpServerFromProjectOrLocalSettings — L20</li>
+<li>函数 getMcpHeadersFromHelper — L32</li>
+<li>函数 getMcpServerHeaders — L125</li>
+<li>文件 <code class="inline-code">services/mcp/mcpStringUtils.ts</code></li>
+<li>函数 mcpInfoFromString — L19</li>
+<li>函数 getMcpPrefix — L39</li>
+<li>函数 buildMcpToolName — L50</li>
+<li>函数 getToolNameForPermissionCheck — L60</li>
+<li>函数 getMcpDisplayName — L75</li>
+<li>函数 extractMcpToolDisplayName — L88</li>
+<li>文件 <code class="inline-code">services/mcp/normalization.ts</code></li>
+<li>函数 normalizeNameForMCP — L17</li>
+<li>文件 <code class="inline-code">services/mcp/oauthPort.ts</code></li>
+<li>函数 buildRedirectUri — L21</li>
+<li>函数 getMcpOAuthCallbackPort — L26</li>
+<li>函数 findAvailablePort — L36</li>
+<li>文件 <code class="inline-code">services/mcp/officialRegistry.ts</code></li>
+<li>函数 normalizeUrl — L18</li>
+<li>函数 prefetchOfficialMcpUrls — L33</li>
+<li>函数 isOfficialMcpUrl — L66</li>
+<li>函数 resetOfficialMcpUrlsForTesting — L69</li>
+<li>文件 <code class="inline-code">services/mcp/types.ts</code></li>
+<li>函数 ConfigScopeSchema — L10</li>
+<li>函数 TransportSchema — L22</li>
+<li>函数 McpStdioServerConfigSchema — L27</li>
+<li>函数 McpSSEServerConfigSchema — L57</li>
+<li>函数 McpSSEIDEServerConfigSchema — L69</li>
+<li>函数 McpWebSocketIDEServerConfigSchema — L79</li>
+<li>函数 McpHTTPServerConfigSchema — L88</li>
+<li>函数 McpWebSocketServerConfigSchema — L98</li>
+<li>函数 McpSdkServerConfigSchema — L107</li>
+<li>函数 McpClaudeAIProxyServerConfigSchema — L116</li>
+<li>函数 McpServerConfigSchema — L123</li>
+<li>函数 McpJsonConfigSchema — L170</li>
+<li>文件 <code class="inline-code">services/mcp/useManageMCPConnections.ts</code></li>
+<li>函数 getErrorKey — L95</li>
+<li>函数 addErrorsToAppState — L103</li>
+<li>函数 useManageMCPConnections — L143</li>
+<li>函数 initializeServersAsPending — L773</li>
+<li>函数 loadAndConnectMcpConfigs — L860</li>
+<li>函数 getTransportDisplayName — L1130</li>
+<li>文件 <code class="inline-code">services/mcp/utils.ts</code></li>
+<li>函数 filterToolsByServer — L39</li>
+<li>函数 commandBelongsToServer — L52</li>
+<li>函数 filterCommandsByServer — L70</li>
+<li>函数 filterMcpPromptsByServer — L85</li>
+<li>函数 filterResourcesByServer — L102</li>
+<li>函数 excludeToolsByServer — L115</li>
+<li>函数 excludeCommandsByServer — L129</li>
+<li>函数 excludeResourcesByServer — L142</li>
+<li>函数 hashMcpConfig — L157</li>
+<li>函数 excludeStalePluginClients — L185</li>
+<li>函数 isToolFromMcpServer — L232</li>
+<li>函数 isMcpTool — L245</li>
+<li>函数 isMcpCommand — L254</li>
+<li>函数 describeMcpConfigFilePath — L263</li>
+<li>函数 getScopeLabel — L281</li>
+<li>函数 ensureConfigScope — L300</li>
+<li>函数 ensureTransport — L312</li>
+<li>函数 parseHeaders — L324</li>
+<li>函数 getProjectMcpServerStatus — L350</li>
+<li>函数 getMcpServerScopeFromToolName — L413</li>
+<li>函数 isStdioConfig — L439</li>
+<li>函数 isSSEConfig — L444</li>
+<li>函数 isHTTPConfig — L448</li>
+<li>函数 isWebSocketConfig — L452</li>
+<li>函数 extractAgentMcpServers — L466</li>
+<li>函数 getLoggingSafeMcpBaseUrl — L561</li>
+<li>文件 <code class="inline-code">services/mcp/vscodeSdkMcp.ts</code></li>
+<li>函数 readAutoModeEnabledState — L14</li>
+<li>函数 notifyVscodeFileUpdated — L39</li>
+<li>函数 setupVscodeSdkMcp — L64</li>
+<li>函数 LogEventNotificationSchema — L21</li>
+<li>文件 <code class="inline-code">services/mcp/xaa.ts</code></li>
+<li>类 XaaTokenExchangeError — L77</li>
+<li>函数 makeXaaFetch — L42</li>
+<li>函数 normalizeUrl — L61</li>
+<li>函数 redactTokens — L93</li>
+<li>函数 discoverProtectedResource — L135</li>
+<li>函数 discoverAuthorizationServer — L178</li>
+<li>函数 requestJwtAuthorizationGrant — L233</li>
+<li>函数 exchangeJwtAuthGrant — L337</li>
+<li>函数 performCrossAppAccess — L426</li>
+<li>文件 <code class="inline-code">services/mcp/xaaIdpLogin.ts</code></li>
+<li>函数 isXaaEnabled — L31</li>
+<li>函数 getXaaIdpSettings — L47</li>
+<li>函数 issuerKey — L84</li>
+<li>函数 getCachedIdpIdToken — L99</li>
+<li>函数 saveIdpIdToken — L108</li>
+<li>函数 saveIdpIdTokenFromJwt — L133</li>
+<li>函数 clearIdpIdToken — L142</li>
+<li>函数 saveIdpClientSecret — L159</li>
+<li>函数 getIdpClientSecret — L177</li>
+<li>函数 clearIdpClientSecret — L187</li>
+<li>函数 discoverOidc — L202</li>
+<li>函数 jwtExp — L252</li>
+<li>函数 waitForCallback — L272</li>
+<li>函数 acquireIdpIdToken — L401</li>
+<li>文件 <code class="inline-code">services/mcpServerApproval.tsx</code></li>
+<li>函数 handleMcpjsonServerApprovals — L15</li>
+<li>文件 <code class="inline-code">services/mockRateLimits.ts</code></li>
+<li>函数 setMockHeader — L100</li>
+<li>函数 updateRetryAfter — L186</li>
+<li>函数 updateRepresentativeClaim — L210</li>
+<li>函数 addExceededLimit — L249</li>
+<li>函数 setMockEarlyWarning — L276</li>
+<li>函数 clearMockEarlyWarning — L312</li>
+<li>函数 setMockRateLimitScenario — L320</li>
+<li>函数 getMockHeaderless429Message — L601</li>
+<li>函数 getMockHeaders — L615</li>
+<li>函数 getMockStatus — L626</li>
+<li>函数 clearMockHeaders — L677</li>
+<li>函数 applyMockHeaders — L688</li>
+<li>函数 shouldProcessMockLimits — L713</li>
+<li>函数 getCurrentMockScenario — L719</li>
+<li>函数 getScenarioDescription — L757</li>
+<li>函数 setMockSubscriptionType — L806</li>
+<li>函数 getMockSubscriptionType — L815</li>
+<li>函数 shouldUseMockSubscription — L825</li>
+<li>函数 setMockBillingAccess — L834</li>
+<li>函数 isMockFastModeRateLimitScenario — L843</li>
+<li>函数 checkMockFastModeRateLimit — L846</li>
+<li>文件 <code class="inline-code">services/notifier.ts</code></li>
+<li>函数 sendNotification — L17</li>
+<li>函数 sendToChannel — L39</li>
+<li>函数 sendAuto — L76</li>
+<li>函数 generateKittyId — L105</li>
+<li>函数 isAppleTerminalBellDisabled — L109</li>
+<li>文件 <code class="inline-code">services/oauth/auth-code-listener.ts</code></li>
+<li>类 AuthCodeListener — L18</li>
+<li>文件 <code class="inline-code">services/oauth/client.ts</code></li>
+<li>函数 shouldUseClaudeAIAuth — L38</li>
+<li>函数 parseScopes — L41</li>
+<li>函数 buildAuthUrl — L45</li>
+<li>函数 exchangeCodeForTokens — L106</li>
+<li>函数 refreshOAuthToken — L145</li>
+<li>函数 fetchAndStoreUserRoles — L275</li>
+<li>函数 createAndStoreApiKey — L310</li>
+<li>函数 isOAuthTokenExpired — L343</li>
+<li>函数 fetchProfileInfo — L354</li>
+<li>函数 getOrganizationUUID — L426</li>
+<li>函数 populateOAuthAccountInfoIfNeeded — L451</li>
+<li>函数 storeOAuthAccountInfo — L516</li>
+<li>文件 <code class="inline-code">services/oauth/crypto.ts</code></li>
+<li>函数 base64URLEncode — L2</li>
+<li>函数 generateCodeVerifier — L10</li>
+<li>函数 generateCodeChallenge — L14</li>
+<li>函数 generateState — L20</li>
+<li>文件 <code class="inline-code">services/oauth/getOauthProfile.ts</code></li>
+<li>函数 getOauthProfileFromApiKey — L7</li>
+<li>函数 getOauthProfileFromOauthToken — L36</li>
+<li>文件 <code class="inline-code">services/oauth/index.ts</code></li>
+<li>类 OAuthService — L21</li>
+<li>文件 <code class="inline-code">services/plugins/PluginInstallationManager.ts</code></li>
+<li>函数 updateMarketplaceStatus — L30</li>
+<li>函数 performBackgroundPluginInstallations — L60</li>
+<li>文件 <code class="inline-code">services/plugins/pluginCliCommands.ts</code></li>
+<li>函数 handlePluginCommandError — L53</li>
+<li>函数 installPlugin — L103</li>
+<li>函数 uninstallPlugin — L153</li>
+<li>函数 enablePlugin — L195</li>
+<li>函数 disablePlugin — L236</li>
+<li>函数 disableAllPlugins — L275</li>
+<li>函数 updatePluginCli — L300</li>
+<li>文件 <code class="inline-code">services/plugins/pluginOperations.ts</code></li>
+<li>函数 assertInstallableScope — L90</li>
+<li>函数 isInstallableScope — L104</li>
+<li>函数 getProjectPathForScope — L114</li>
+<li>函数 isPluginEnabledAtProjectScope — L128</li>
+<li>函数 findPluginInSettings — L180</li>
+<li>函数 findPluginByIdentifier — L206</li>
+<li>函数 resolveDelistedPluginId — L230</li>
+<li>函数 getPluginInstallationFromV2 — L258</li>
+<li>函数 installPluginOp — L321</li>
+<li>函数 uninstallPluginOp — L427</li>
+<li>函数 setPluginEnabledOp — L573</li>
+<li>函数 enablePluginOp — L756</li>
+<li>函数 disablePluginOp — L770</li>
+<li>函数 disableAllPluginsOp — L782</li>
+<li>函数 updatePluginOp — L829</li>
+<li>函数 performPluginUpdate — L896</li>
+<li>函数 VALID_INSTALLABLE_SCOPES — L72</li>
+<li>函数 VALID_UPDATE_SCOPES — L78</li>
+<li>文件 <code class="inline-code">services/policyLimits/index.ts</code></li>
+<li>函数 isNodeError — L49</li>
+<li>函数 _resetPolicyLimitsForTesting — L79</li>
+<li>函数 initializePolicyLimitsLoadingPromise — L94</li>
+<li>函数 getCachePath — L119</li>
+<li>函数 getPolicyLimitsEndpoint — L126</li>
+<li>函数 sortKeysDeep — L133</li>
+<li>函数 computeChecksum — L152</li>
+<li>函数 isPolicyLimitsEligible — L167</li>
+<li>函数 waitForPolicyLimitsToLoad — L217</li>
+<li>函数 getAuthHeaders — L227</li>
+<li>函数 fetchWithRetry — L267</li>
+<li>函数 fetchPolicyLimits — L300</li>
+<li>函数 loadCachedRestrictions — L392</li>
+<li>函数 saveCachedRestrictions — L410</li>
+<li>函数 fetchAndLoadPolicyLimits — L432</li>
+<li>函数 isPolicyAllowed — L510</li>
+<li>函数 getRestrictionsFromCache — L531</li>
+<li>函数 loadPolicyLimits — L556</li>
+<li>函数 refreshPolicyLimits — L581</li>
+<li>函数 clearPolicyLimitsCache — L595</li>
+<li>函数 pollPolicyLimits — L613</li>
+<li>函数 startBackgroundPolling — L635</li>
+<li>函数 stopBackgroundPolling — L658</li>
+<li>文件 <code class="inline-code">services/policyLimits/types.ts</code></li>
+<li>函数 PolicyLimitsResponseSchema — L8</li>
+<li>文件 <code class="inline-code">services/preventSleep.ts</code></li>
+<li>函数 startPreventSleep — L36</li>
+<li>函数 stopPreventSleep — L49</li>
+<li>函数 forceStopPreventSleep — L64</li>
+<li>函数 startRestartInterval — L69</li>
+<li>函数 stopRestartInterval — L93</li>
+<li>函数 spawnCaffeinate — L100</li>
+<li>函数 killCaffeinate — L152</li>
+<li>文件 <code class="inline-code">services/rateLimitMessages.ts</code></li>
+<li>函数 isRateLimitErrorMessage — L32</li>
+<li>函数 getRateLimitMessage — L45</li>
+<li>函数 getRateLimitErrorMessage — L110</li>
+<li>函数 getRateLimitWarning — L128</li>
+<li>函数 getLimitReachedText — L142</li>
+<li>函数 getEarlyWarningText — L198</li>
+<li>函数 getWarningUpsellText — L261</li>
+<li>函数 getUsingOverageText — L303</li>
+<li>函数 formatLimitReachedText — L332</li>
+<li>函数 RATE_LIMIT_ERROR_PREFIXES — L21</li>
+<li>文件 <code class="inline-code">services/rateLimitMocking.ts</code></li>
+<li>函数 processRateLimitHeaders — L19</li>
+<li>函数 shouldProcessRateLimits — L32</li>
+<li>函数 checkMockRateLimitError — L42</li>
+<li>函数 isMockRateLimitError — L137</li>
+<li>文件 <code class="inline-code">services/remoteManagedSettings/index.ts</code></li>
+<li>函数 initializeRemoteManagedSettingsLoadingPromise — L77</li>
+<li>函数 getRemoteManagedSettingsEndpoint — L105</li>
+<li>函数 sortKeysDeep — L112</li>
+<li>函数 computeChecksumFromSettings — L131</li>
+<li>函数 isEligibleForRemoteManagedSettings — L144</li>
+<li>函数 waitForRemoteManagedSettingsToLoad — L155</li>
+<li>函数 getRemoteSettingsAuthHeaders — L166</li>
+<li>函数 fetchWithRetry — L209</li>
+<li>函数 fetchRemoteManagedSettings — L248</li>
+<li>函数 saveSettings — L367</li>
+<li>函数 clearRemoteManagedSettingsCache — L391</li>
+<li>函数 fetchAndLoadRemoteManagedSettings — L415</li>
+<li>函数 loadRemoteManagedSettings — L514</li>
+<li>函数 refreshRemoteManagedSettings — L562</li>
+<li>函数 pollRemoteSettings — L584</li>
+<li>函数 startBackgroundPolling — L612</li>
+<li>函数 stopBackgroundPolling — L633</li>
+<li>文件 <code class="inline-code">services/remoteManagedSettings/securityCheck.tsx</code></li>
+<li>函数 checkManagedSettingsSecurity — L22</li>
+<li>函数 handleSecurityCheckResult — L67</li>
+<li>文件 <code class="inline-code">services/remoteManagedSettings/syncCache.ts</code></li>
+<li>函数 resetSyncCache — L26</li>
+<li>函数 isRemoteManagedSettingsEligible — L49</li>
+<li>文件 <code class="inline-code">services/remoteManagedSettings/syncCacheState.ts</code></li>
+<li>函数 setSessionCache — L36</li>
+<li>函数 resetSyncCache — L40</li>
+<li>函数 setEligibility — L45</li>
+<li>函数 getSettingsPath — L50</li>
+<li>函数 loadSettings — L57</li>
+<li>函数 getRemoteManagedSettingsSyncFromCache — L69</li>
+<li>文件 <code class="inline-code">services/remoteManagedSettings/types.ts</code></li>
+<li>函数 RemoteManagedSettingsResponseSchema — L10</li>
+<li>文件 <code class="inline-code">services/settingsSync/index.ts</code></li>
+<li>函数 uploadUserSettingsInBackground — L60</li>
+<li>函数 _resetDownloadPromiseForTesting — L118</li>
+<li>函数 downloadUserSettings — L129</li>
+<li>函数 redownloadUserSettings — L152</li>
+<li>函数 doDownloadUserSettings — L156</li>
+<li>函数 isUsingOAuth — L212</li>
+<li>函数 getSettingsSyncEndpoint — L222</li>
+<li>函数 getSettingsSyncAuthHeaders — L226</li>
+<li>函数 fetchUserSettingsOnce — L246</li>
+<li>函数 fetchUserSettings — L314</li>
+<li>函数 uploadUserSettings — L346</li>
+<li>函数 tryReadFileForSync — L398</li>
+<li>函数 buildEntriesFromLocalFiles — L417</li>
+<li>函数 writeFileForSync — L460</li>
+<li>函数 applyRemoteEntriesToLocal — L488</li>
+<li>文件 <code class="inline-code">services/settingsSync/types.ts</code></li>
+<li>函数 UserSyncContentSchema — L16</li>
+<li>函数 UserSyncDataSchema — L25</li>
+<li>函数 SYNC_KEYS — L61</li>
+<li>文件 <code class="inline-code">services/teamMemorySync/index.ts</code></li>
+<li>函数 createSyncState — L120</li>
+<li>函数 hashContent — L134</li>
+<li>函数 isErrnoException — L142</li>
+<li>函数 isUsingOAuth — L151</li>
+<li>函数 getTeamMemorySyncEndpoint — L162</li>
+<li>函数 getAuthHeaders — L168</li>
+<li>函数 fetchTeamMemoryOnce — L187</li>
+<li>函数 fetchTeamMemoryHashes — L315</li>
+<li>函数 fetchTeamMemory — L386</li>
+<li>函数 batchDeltaByBytes — L426</li>
+<li>函数 uploadTeamMemory — L461</li>
+<li>函数 readLocalTeamMemory — L567</li>
+<li>函数 walkDir — L574</li>
+<li>函数 writeRemoteEntriesToLocal — L689</li>
+<li>函数 isTeamMemorySyncAvailable — L762</li>
+<li>函数 pullTeamMemory — L770</li>
+<li>函数 pushTeamMemory — L889</li>
+<li>函数 syncTeamMemory — L1153</li>
+<li>函数 logPull — L1194</li>
+<li>函数 logPush — L1217</li>
+<li>文件 <code class="inline-code">services/teamMemorySync/secretScanner.ts</code></li>
+<li>函数 getCompiledRules — L228</li>
+<li>函数 ruleIdToLabel — L243</li>
+<li>函数 scanForSecrets — L277</li>
+<li>函数 getSecretLabel — L301</li>
+<li>函数 redactSecrets — L311</li>
+<li>文件 <code class="inline-code">services/teamMemorySync/teamMemSecretGuard.ts</code></li>
+<li>函数 checkTeamMemSecrets — L15</li>
+<li>文件 <code class="inline-code">services/teamMemorySync/types.ts</code></li>
+<li>函数 TeamMemoryContentSchema — L16</li>
+<li>函数 TeamMemoryDataSchema — L29</li>
+<li>函数 TeamMemoryTooManyEntriesSchema — L47</li>
+<li>文件 <code class="inline-code">services/teamMemorySync/watcher.ts</code></li>
+<li>函数 isPermanentFailure — L61</li>
+<li>函数 executePush — L84</li>
+<li>函数 schedulePush — L132</li>
+<li>函数 startFileWatcher — L167</li>
+<li>函数 startTeamMemoryWatcher — L252</li>
+<li>函数 notifyTeamMemoryWrite — L314</li>
+<li>函数 stopTeamMemoryWatcher — L327</li>
+<li>函数 _resetWatcherStateForTesting — L365</li>
+<li>函数 _startFileWatcherForTesting — L385</li>
+<li>文件 <code class="inline-code">services/tips/tipHistory.ts</code></li>
+<li>函数 recordTipShown — L2</li>
+<li>函数 getSessionsSinceLastShown — L11</li>
+<li>文件 <code class="inline-code">services/tips/tipRegistry.ts</code></li>
+<li>函数 isOfficialMarketplaceInstalled — L60</li>
+<li>函数 isMarketplacePluginRelevant — L68</li>
+<li>函数 getCustomTips — L654</li>
+<li>函数 getRelevantTips — L667</li>
+<li>文件 <code class="inline-code">services/tips/tipScheduler.ts</code></li>
+<li>函数 selectTipWithLongestTimeSinceShown — L9</li>
+<li>函数 getTipToShowOnSpinner — L31</li>
+<li>函数 recordShownTip — L47</li>
+<li>文件 <code class="inline-code">services/tokenEstimation.ts</code></li>
+<li>函数 hasThinkingBlocks — L38</li>
+<li>函数 stripToolSearchFieldsFromMessages — L66</li>
+<li>函数 countTokensWithAPI — L123</li>
+<li>函数 countMessagesTokensWithAPI — L139</li>
+<li>函数 roughTokenCountEstimation — L202</li>
+<li>函数 bytesPerTokenForFileType — L215</li>
+<li>函数 roughTokenCountEstimationForFileType — L234</li>
+<li>函数 countTokensViaHaikuFallback — L251</li>
+<li>函数 roughTokenCountEstimationForMessages — L326</li>
+<li>函数 roughTokenCountEstimationForMessage — L340</li>
+<li>函数 roughTokenCountEstimationForContent — L370</li>
+<li>函数 roughTokenCountEstimationForBlock — L390</li>
+<li>函数 countTokensWithBedrock — L436</li>
+<li>文件 <code class="inline-code">services/toolUseSummary/toolUseSummaryGenerator.ts</code></li>
+<li>函数 generateToolUseSummary — L45</li>
+<li>函数 truncateJson — L102</li>
+<li>文件 <code class="inline-code">services/tools/StreamingToolExecutor.ts</code></li>
+<li>类 StreamingToolExecutor — L40</li>
+<li>函数 markToolUseAsComplete — L520</li>
+<li>文件 <code class="inline-code">services/tools/toolExecution.ts</code></li>
+<li>函数 classifyToolError — L150</li>
+<li>函数 ruleSourceToOTelSource — L181</li>
+<li>函数 decisionReasonToOTelSource — L207</li>
+<li>函数 getNextImagePasteId — L251</li>
+<li>函数 findMcpServerConnection — L282</li>
+<li>函数 getMcpServerType — L308</li>
+<li>函数 getMcpServerBaseUrlFromToolName — L326</li>
+<li>函数 streamedCheckPermissionsAndCallTool — L491</li>
+<li>函数 buildSchemaNotSentHint — L578</li>
+<li>函数 checkPermissionsAndCallTool — L598</li>
+<li>函数 addToolResult — L1402</li>
+<li>函数 HOOK_TIMING_DISPLAY_THRESHOLD_MS — L134</li>
+<li>文件 <code class="inline-code">services/tools/toolHooks.ts</code></li>
+<li>函数 resolveHookPermissionDecision — L332</li>
+<li>文件 <code class="inline-code">services/tools/toolOrchestration.ts</code></li>
+<li>函数 getMaxToolUseConcurrency — L7</li>
+<li>函数 partitionToolCalls — L91</li>
+<li>函数 markToolUseAsComplete — L178</li>
+<li>文件 <code class="inline-code">services/vcr.ts</code></li>
+<li>函数 shouldUseVCR — L22</li>
+<li>函数 withFixture — L39</li>
+<li>函数 withVCR — L87</li>
+<li>函数 addCachedCostToTotalSessionCost — L162</li>
+<li>函数 mapMessages — L174</li>
+<li>函数 mapValuesDeep — L220</li>
+<li>函数 mapAssistantMessage — L237</li>
+<li>函数 mapMessage — L277</li>
+<li>函数 dehydrateValue — L290</li>
+<li>函数 hydrateValue — L337</li>
+<li>函数 withTokenCountVCR — L381</li>
+<li>文件 <code class="inline-code">services/voice.ts</code></li>
+<li>函数 loadAudioNapi — L23</li>
+<li>函数 hasCommand — L48</li>
+<li>函数 probeArecord — L74</li>
+<li>函数 _resetArecordProbeForTesting — L119</li>
+<li>函数 linuxHasAlsaCards — L129</li>
+<li>函数 _resetAlsaCardsForTesting — L140</li>
+<li>函数 detectPackageManager — L150</li>
+<li>函数 checkVoiceDependencies — L189</li>
+<li>函数 requestMicrophonePermission — L241</li>
+<li>函数 checkRecordingAvailability — L258</li>
+<li>函数 startRecording — L334</li>
+<li>函数 startSoxRecording — L397</li>
+<li>函数 startArecordRecording — L467</li>
+<li>函数 stopRecording — L514</li>
+<li>文件 <code class="inline-code">services/voiceKeyterms.ts</code></li>
+<li>函数 splitIdentifier — L40</li>
+<li>函数 fileNameWords — L47</li>
+<li>函数 getVoiceKeyterms — L63</li>
+<li>文件 <code class="inline-code">services/voiceStreamSTT.ts</code></li>
+<li>函数 isVoiceStreamAvailable — L97</li>
+<li>函数 connectVoiceStream — L110</li>
+<li>函数 FINALIZE_TIMEOUTS_MS — L44</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>services/AgentSummary/agentSummary.ts → import Task（内部）</li>
+<li>services/AgentSummary/agentSummary.ts → import tasks（内部）</li>
+<li>services/AgentSummary/agentSummary.ts → import tools（内部）</li>
+<li>services/AgentSummary/agentSummary.ts → import types（内部）</li>
+<li>services/AgentSummary/agentSummary.ts → import utils（内部）</li>
+<li>services/MagicDocs/magicDocs.ts → import Tool（内部）</li>
+<li>services/MagicDocs/magicDocs.ts → import tools（内部）</li>
+<li>services/MagicDocs/magicDocs.ts → import utils（内部）</li>
+<li>services/MagicDocs/magicDocs.ts → import services（外部）</li>
+<li>services/MagicDocs/prompts.ts → import utils（内部）</li>
+<li>services/PromptSuggestion/promptSuggestion.ts → import bootstrap（内部）</li>
+<li>services/PromptSuggestion/promptSuggestion.ts → import state（内部）</li>
+<li>services/PromptSuggestion/promptSuggestion.ts → import types（内部）</li>
+<li>services/PromptSuggestion/promptSuggestion.ts → import utils（内部）</li>
+<li>services/PromptSuggestion/promptSuggestion.ts → import services（外部）</li>
+<li>services/PromptSuggestion/speculation.ts → import bootstrap（内部）</li>
+<li>services/PromptSuggestion/speculation.ts → import state（内部）</li>
+<li>services/PromptSuggestion/speculation.ts → import tools（内部）</li>
+<li>services/PromptSuggestion/speculation.ts → import types（内部）</li>
+<li>services/PromptSuggestion/speculation.ts → import utils（内部）</li>
+<li>services/PromptSuggestion/speculation.ts → import services（外部）</li>
+<li>services/SessionMemory/prompts.ts → import services（外部）</li>
+<li>services/SessionMemory/prompts.ts → import utils（内部）</li>
+<li>services/SessionMemory/sessionMemory.ts → import bootstrap（内部）</li>
+<li>services/SessionMemory/sessionMemory.ts → import constants（内部）</li>
+<li>services/SessionMemory/sessionMemory.ts → import context（内部）</li>
+<li>services/SessionMemory/sessionMemory.ts → import hooks（内部）</li>
+<li>services/SessionMemory/sessionMemory.ts → import Tool（内部）</li>
+<li>services/SessionMemory/sessionMemory.ts → import tools（内部）</li>
+<li>services/SessionMemory/sessionMemory.ts → import types（内部）</li>
+<li>services/SessionMemory/sessionMemory.ts → import utils（内部）</li>
+<li>services/SessionMemory/sessionMemory.ts → import services（外部）</li>
+<li>services/SessionMemory/sessionMemoryUtils.ts → import utils（内部）</li>
+<li>services/SessionMemory/sessionMemoryUtils.ts → import services（外部）</li>
+<li>services/analytics/config.ts → import utils（内部）</li>
+<li>services/analytics/datadog.ts → import utils（内部）</li>
+<li>services/analytics/datadog.ts → import services（外部）</li>
+<li>services/analytics/firstPartyEventLogger.ts → import utils（内部）</li>
+<li>services/analytics/firstPartyEventLogger.ts → import services（外部）</li>
+<li>services/analytics/firstPartyEventLoggingExporter.ts → import utils（内部）</li>
+<li>services/analytics/firstPartyEventLoggingExporter.ts → import bootstrap（内部）</li>
+<li>services/analytics/firstPartyEventLoggingExporter.ts → import types（内部）</li>
+<li>services/analytics/firstPartyEventLoggingExporter.ts → import services（外部）</li>
+<li>services/analytics/growthbook.ts → import bootstrap（内部）</li>
+<li>services/analytics/growthbook.ts → import constants（内部）</li>
+<li>services/analytics/growthbook.ts → import utils（内部）</li>
+<li>services/analytics/growthbook.ts → import services（外部）</li>
+<li>services/analytics/metadata.ts → import utils（内部）</li>
+<li>services/analytics/metadata.ts → import bootstrap（内部）</li>
+<li>services/analytics/metadata.ts → import services（外部）</li>
+<li>services/analytics/metadata.ts → import types（内部）</li>
+<li>services/analytics/sink.ts → import services（外部）</li>
+<li>services/analytics/sinkKillswitch.ts → import services（外部）</li>
+<li>services/api/adminRequests.ts → import constants（内部）</li>
+<li>services/api/adminRequests.ts → import utils（内部）</li>
+<li>services/api/bootstrap.ts → import utils（内部）</li>
+<li>services/api/bootstrap.ts → import constants（内部）</li>
+<li>services/api/claude.ts → import utils（内部）</li>
+<li>services/api/claude.ts → import constants（内部）</li>
+<li>services/api/claude.ts → import Tool（内部）</li>
+<li>services/api/claude.ts → import tools（内部）</li>
+<li>services/api/claude.ts → import types（内部）</li>
+<li>services/api/claude.ts → import services（外部）</li>
+<li>services/api/claude.ts → import bootstrap（内部）</li>
+<li>services/api/claude.ts → import context（内部）</li>
+<li>services/api/claude.ts → import cost-tracker（内部）</li>
+<li>services/api/client.ts → import utils（内部）</li>
+<li>services/api/client.ts → import bootstrap（内部）</li>
+<li>services/api/client.ts → import constants（内部）</li>
+<li>services/api/dumpPrompts.ts → import bootstrap（内部）</li>
+<li>services/api/dumpPrompts.ts → import utils（内部）</li>
+<li>services/api/emptyUsage.ts → import entrypoints（内部）</li>
+<li>services/api/errors.ts → import constants（内部）</li>
+<li>services/api/errors.ts → import entrypoints（内部）</li>
+<li>services/api/errors.ts → import types（内部）</li>
+<li>services/api/errors.ts → import utils（内部）</li>
+<li>services/api/errors.ts → import bootstrap（内部）</li>
+<li>services/api/errors.ts → import services（外部）</li>
+<li>services/api/filesApi.ts → import utils（内部）</li>
+<li>services/api/filesApi.ts → import services（外部）</li>
+<li>services/api/firstTokenDate.ts → import constants（内部）</li>
+<li>services/api/firstTokenDate.ts → import utils（内部）</li>
+<li>services/api/grove.ts → import services（外部）</li>
+<li>services/api/grove.ts → import utils（内部）</li>
+<li>services/api/grove.ts → import constants（内部）</li>
+<li>services/api/logging.ts → import bootstrap（内部）</li>
+<li>services/api/logging.ts → import Tool（内部）</li>
+<li>services/api/logging.ts → import types（内部）</li>
+<li>services/api/logging.ts → import utils（内部）</li>
+<li>services/api/logging.ts → import entrypoints（内部）</li>
+<li>services/api/logging.ts → import services（外部）</li>
+<li>services/api/metricsOptOut.ts → import utils（内部）</li>
+<li>services/api/overageCreditGrant.ts → import constants（内部）</li>
+<li>services/api/overageCreditGrant.ts → import utils（内部）</li>
+<li>services/api/promptCacheBreakDetection.ts → import types（内部）</li>
+<li>services/api/promptCacheBreakDetection.ts → import utils（内部）</li>
+<li>services/api/promptCacheBreakDetection.ts → import constants（内部）</li>
+<li>services/api/promptCacheBreakDetection.ts → import services（外部）</li>
+<li>services/api/referral.ts → import constants（内部）</li>
+<li>services/api/referral.ts → import utils（内部）</li>
+<li>services/api/referral.ts → import services（外部）</li>
+<li>services/api/sessionIngress.ts → import constants（内部）</li>
+<li>services/api/sessionIngress.ts → import types（内部）</li>
+<li>services/api/sessionIngress.ts → import utils（内部）</li>
+<li>services/api/ultrareviewQuota.ts → import constants（内部）</li>
+<li>services/api/ultrareviewQuota.ts → import utils（内部）</li>
+<li>services/api/usage.ts → import constants（内部）</li>
+<li>services/api/usage.ts → import utils（内部）</li>
+<li>services/api/usage.ts → import services（外部）</li>
+<li>services/api/withRetry.ts → import constants（内部）</li>
+<li>services/api/withRetry.ts → import types（内部）</li>
+<li>services/api/withRetry.ts → import utils（内部）</li>
+<li>services/api/withRetry.ts → import services（外部）</li>
+<li>services/autoDream/autoDream.ts → import utils（内部）</li>
+<li>services/autoDream/autoDream.ts → import types（内部）</li>
+<li>services/autoDream/autoDream.ts → import Tool（内部）</li>
+<li>services/autoDream/autoDream.ts → import services（外部）</li>
+<li>services/autoDream/autoDream.ts → import memdir（内部）</li>
+<li>services/autoDream/autoDream.ts → import bootstrap（内部）</li>
+<li>services/autoDream/autoDream.ts → import tasks（内部）</li>
+<li>services/autoDream/autoDream.ts → import tools（内部）</li>
+<li>services/autoDream/config.ts → import utils（内部）</li>
+<li>services/autoDream/config.ts → import services（外部）</li>
+<li>services/autoDream/consolidationLock.ts → import bootstrap（内部）</li>
+<li>services/autoDream/consolidationLock.ts → import memdir（内部）</li>
+<li>services/autoDream/consolidationLock.ts → import utils（内部）</li>
+<li>services/autoDream/consolidationPrompt.ts → import memdir（内部）</li>
+<li>services/awaySummary.ts → import Tool（内部）</li>
+<li>services/awaySummary.ts → import types（内部）</li>
+<li>services/awaySummary.ts → import utils（内部）</li>
+<li>services/awaySummary.ts → import services（外部）</li>
+<li>services/claudeAiLimits.ts → import bootstrap（内部）</li>
+<li>services/claudeAiLimits.ts → import utils（内部）</li>
+<li>services/claudeAiLimits.ts → import services（外部）</li>
+<li>services/claudeAiLimitsHook.ts → import services（外部）</li>
+<li>services/compact/apiMicrocompact.ts → import tools（内部）</li>
+<li>services/compact/apiMicrocompact.ts → import utils（内部）</li>
+<li>services/compact/autoCompact.ts → import bootstrap（内部）</li>
+<li>services/compact/autoCompact.ts → import constants（内部）</li>
+<li>services/compact/autoCompact.ts → import Tool（内部）</li>
+<li>services/compact/autoCompact.ts → import types（内部）</li>
+<li>services/compact/autoCompact.ts → import utils（内部）</li>
+<li>services/compact/autoCompact.ts → import services（外部）</li>
+<li>services/compact/compact.ts → import bootstrap（内部）</li>
+<li>services/compact/compact.ts → import constants（内部）</li>
+<li>services/compact/compact.ts → import hooks（内部）</li>
+<li>services/compact/compact.ts → import Tool（内部）</li>
+<li>services/compact/compact.ts → import tasks（内部）</li>
+<li>services/compact/compact.ts → import tools（内部）</li>
+<li>services/compact/compact.ts → import types（内部）</li>
+<li>services/compact/compact.ts → import utils（内部）</li>
+<li>services/compact/compact.ts → import services（外部）</li>
+<li>services/compact/compactWarningHook.ts → import services（外部）</li>
+<li>services/compact/compactWarningState.ts → import state（内部）</li>
+<li>services/compact/grouping.ts → import types（内部）</li>
+<li>services/compact/microCompact.ts → import constants（内部）</li>
+<li>services/compact/microCompact.ts → import Tool（内部）</li>
+<li>services/compact/microCompact.ts → import tools（内部）</li>
+<li>services/compact/microCompact.ts → import types（内部）</li>
+<li>services/compact/microCompact.ts → import utils（内部）</li>
+<li>services/compact/microCompact.ts → import services（外部）</li>
+<li>services/compact/postCompactCleanup.ts → import constants（内部）</li>
+<li>services/compact/postCompactCleanup.ts → import context（内部）</li>
+<li>services/compact/postCompactCleanup.ts → import tools（内部）</li>
+<li>services/compact/postCompactCleanup.ts → import utils（内部）</li>
+<li>services/compact/postCompactCleanup.ts → import services（外部）</li>
+<li>services/compact/prompt.ts → import types（内部）</li>
+<li>services/compact/prompt.ts → import proactive（外部）</li>
+<li>services/compact/sessionMemoryCompact.ts → import types（内部）</li>
+<li>services/compact/sessionMemoryCompact.ts → import utils（内部）</li>
+<li>services/compact/sessionMemoryCompact.ts → import services（外部）</li>
+<li>services/compact/timeBasedMCConfig.ts → import services（外部）</li>
+<li>services/diagnosticTracking.ts → import utils（内部）</li>
+<li>services/diagnosticTracking.ts → import services（外部）</li>
+<li>services/extractMemories/extractMemories.ts → import bootstrap（内部）</li>
+<li>services/extractMemories/extractMemories.ts → import hooks（内部）</li>
+<li>services/extractMemories/extractMemories.ts → import memdir（内部）</li>
+<li>services/extractMemories/extractMemories.ts → import Tool（内部）</li>
+<li>services/extractMemories/extractMemories.ts → import tools（内部）</li>
+<li>services/extractMemories/extractMemories.ts → import types（内部）</li>
+<li>services/extractMemories/extractMemories.ts → import utils（内部）</li>
+<li>services/extractMemories/extractMemories.ts → import services（外部）</li>
+<li>services/extractMemories/prompts.ts → import memdir（内部）</li>
+<li>services/extractMemories/prompts.ts → import tools（内部）</li>
+<li>services/internalLogging.ts → import Tool（内部）</li>
+<li>services/internalLogging.ts → import utils（内部）</li>
+<li>services/internalLogging.ts → import services（外部）</li>
+<li>services/lsp/LSPClient.ts → import utils（内部）</li>
+<li>services/lsp/LSPDiagnosticRegistry.ts → import utils（内部）</li>
+<li>services/lsp/LSPDiagnosticRegistry.ts → import services（外部）</li>
+<li>services/lsp/LSPServerInstance.ts → import utils（内部）</li>
+<li>services/lsp/LSPServerInstance.ts → import services（外部）</li>
+<li>services/lsp/LSPServerManager.ts → import utils（内部）</li>
+<li>services/lsp/LSPServerManager.ts → import services（外部）</li>
+<li>services/lsp/config.ts → import types（内部）</li>
+<li>services/lsp/config.ts → import utils（内部）</li>
+<li>services/lsp/config.ts → import services（外部）</li>
+<li>services/lsp/manager.ts → import utils（内部）</li>
+<li>services/lsp/manager.ts → import services（外部）</li>
+<li>services/lsp/passiveFeedback.ts → import utils（内部）</li>
+<li>services/lsp/passiveFeedback.ts → import services（外部）</li>
+<li>services/mcp/MCPConnectionManager.tsx → import commands（内部）</li>
+<li>services/mcp/MCPConnectionManager.tsx → import Tool（内部）</li>
+<li>services/mcp/MCPConnectionManager.tsx → import services（外部）</li>
+<li>services/mcp/auth.ts → import constants（内部）</li>
+<li>services/mcp/auth.ts → import utils（内部）</li>
+<li>services/mcp/auth.ts → import services（外部）</li>
+<li>services/mcp/channelAllowlist.ts → import utils（内部）</li>
+<li>services/mcp/channelAllowlist.ts → import services（外部）</li>
+<li>services/mcp/channelNotification.ts → import bootstrap（内部）</li>
+<li>services/mcp/channelNotification.ts → import constants（内部）</li>
+<li>services/mcp/channelNotification.ts → import utils（内部）</li>
+<li>services/mcp/channelNotification.ts → import services（外部）</li>
+<li>services/mcp/channelPermissions.ts → import utils（内部）</li>
+<li>services/mcp/channelPermissions.ts → import services（外部）</li>
+<li>services/mcp/claudeai.ts → import constants（内部）</li>
+<li>services/mcp/claudeai.ts → import services（外部）</li>
+<li>services/mcp/claudeai.ts → import utils（内部）</li>
+<li>services/mcp/client.ts → import bootstrap（内部）</li>
+<li>services/mcp/client.ts → import commands（内部）</li>
+<li>services/mcp/client.ts → import constants（内部）</li>
+<li>services/mcp/client.ts → import state（内部）</li>
+<li>services/mcp/client.ts → import Tool（内部）</li>
+<li>services/mcp/client.ts → import tools（内部）</li>
+<li>services/mcp/client.ts → import utils（内部）</li>
+<li>services/mcp/client.ts → import services（外部）</li>
+<li>services/mcp/client.ts → import types（内部）</li>
+<li>services/mcp/client.ts → import skills（内部）</li>
+<li>services/mcp/config.ts → import utils（内部）</li>
+<li>services/mcp/config.ts → import types（内部）</li>
+<li>services/mcp/config.ts → import services（外部）</li>
+<li>services/mcp/elicitationHandler.ts → import state（内部）</li>
+<li>services/mcp/elicitationHandler.ts → import utils（内部）</li>
+<li>services/mcp/elicitationHandler.ts → import services（外部）</li>
+<li>services/mcp/headersHelper.ts → import bootstrap（内部）</li>
+<li>services/mcp/headersHelper.ts → import utils（内部）</li>
+<li>services/mcp/headersHelper.ts → import services（外部）</li>
+<li>services/mcp/mcpStringUtils.ts → import services（外部）</li>
+<li>services/mcp/oauthPort.ts → import utils（内部）</li>
+<li>services/mcp/officialRegistry.ts → import utils（内部）</li>
+<li>services/mcp/types.ts → import utils（内部）</li>
+<li>services/mcp/useManageMCPConnections.ts → import bootstrap（内部）</li>
+<li>services/mcp/useManageMCPConnections.ts → import commands（内部）</li>
+<li>services/mcp/useManageMCPConnections.ts → import Tool（内部）</li>
+<li>services/mcp/useManageMCPConnections.ts → import services（外部）</li>
+<li>services/mcp/useManageMCPConnections.ts → import state（内部）</li>
+<li>services/mcp/useManageMCPConnections.ts → import types（内部）</li>
+<li>services/mcp/useManageMCPConnections.ts → import utils（内部）</li>
+<li>services/mcp/useManageMCPConnections.ts → import context（内部）</li>
+<li>services/mcp/useManageMCPConnections.ts → import skills（内部）</li>
+<li>services/mcp/utils.ts → import bootstrap（内部）</li>
+<li>services/mcp/utils.ts → import commands（内部）</li>
+<li>services/mcp/utils.ts → import components（内部）</li>
+<li>services/mcp/utils.ts → import Tool（内部）</li>
+<li>services/mcp/utils.ts → import tools（内部）</li>
+<li>services/mcp/utils.ts → import utils（内部）</li>
+<li>services/mcp/utils.ts → import services（外部）</li>
+<li>services/mcp/vscodeSdkMcp.ts → import utils（内部）</li>
+<li>services/mcp/vscodeSdkMcp.ts → import services（外部）</li>
+<li>services/mcp/xaa.ts → import utils（内部）</li>
+<li>services/mcp/xaaIdpLogin.ts → import utils（内部）</li>
+<li>services/mcp/xaaIdpLogin.ts → import services（外部）</li>
+<li>services/mcpServerApproval.tsx → import components（内部）</li>
+<li>services/mcpServerApproval.tsx → import ink（内部）</li>
+<li>services/mcpServerApproval.tsx → import keybindings（内部）</li>
+<li>services/mcpServerApproval.tsx → import state（内部）</li>
+<li>services/mcpServerApproval.tsx → import services（外部）</li>
+<li>services/mockRateLimits.ts → import services（外部）</li>
+<li>services/mockRateLimits.ts → import utils（内部）</li>
+<li>services/notifier.ts → import ink（内部）</li>
+<li>services/notifier.ts → import utils（内部）</li>
+<li>services/notifier.ts → import services（外部）</li>
+<li>services/oauth/auth-code-listener.ts → import services（外部）</li>
+<li>services/oauth/auth-code-listener.ts → import constants（内部）</li>
+<li>services/oauth/auth-code-listener.ts → import utils（内部）</li>
+<li>services/oauth/client.ts → import services（外部）</li>
+<li>services/oauth/client.ts → import constants（内部）</li>
+<li>services/oauth/client.ts → import utils（内部）</li>
+<li>services/oauth/getOauthProfile.ts → import constants（内部）</li>
+<li>services/oauth/getOauthProfile.ts → import services（外部）</li>
+<li>services/oauth/getOauthProfile.ts → import utils（内部）</li>
+<li>services/oauth/index.ts → import services（外部）</li>
+<li>services/oauth/index.ts → import utils（内部）</li>
+<li>services/plugins/PluginInstallationManager.ts → import state（内部）</li>
+<li>services/plugins/PluginInstallationManager.ts → import utils（内部）</li>
+<li>services/plugins/PluginInstallationManager.ts → import services（外部）</li>
+<li>services/plugins/pluginCliCommands.ts → import utils（内部）</li>
+<li>services/plugins/pluginCliCommands.ts → import services（外部）</li>
+<li>services/plugins/pluginOperations.ts → import bootstrap（内部）</li>
+<li>services/plugins/pluginOperations.ts → import plugins（内部）</li>
+<li>services/plugins/pluginOperations.ts → import types（内部）</li>
+<li>services/plugins/pluginOperations.ts → import utils（内部）</li>
+<li>services/policyLimits/index.ts → import constants（内部）</li>
+<li>services/policyLimits/index.ts → import utils（内部）</li>
+<li>services/policyLimits/index.ts → import services（外部）</li>
+<li>services/policyLimits/types.ts → import utils（内部）</li>
+<li>services/preventSleep.ts → import utils（内部）</li>
+<li>services/rateLimitMessages.ts → import utils（内部）</li>
+<li>services/rateLimitMessages.ts → import services（外部）</li>
+<li>services/rateLimitMocking.ts → import services（外部）</li>
+<li>services/remoteManagedSettings/index.ts → import constants（内部）</li>
+<li>services/remoteManagedSettings/index.ts → import utils（内部）</li>
+<li>services/remoteManagedSettings/index.ts → import services（外部）</li>
+<li>services/remoteManagedSettings/securityCheck.tsx → import bootstrap（内部）</li>
+<li>services/remoteManagedSettings/securityCheck.tsx → import components（内部）</li>
+<li>services/remoteManagedSettings/securityCheck.tsx → import ink（内部）</li>
+<li>services/remoteManagedSettings/securityCheck.tsx → import keybindings（内部）</li>
+<li>services/remoteManagedSettings/securityCheck.tsx → import state（内部）</li>
+<li>services/remoteManagedSettings/securityCheck.tsx → import utils（内部）</li>
+<li>services/remoteManagedSettings/securityCheck.tsx → import services（外部）</li>
+<li>services/remoteManagedSettings/syncCache.ts → import constants（内部）</li>
+<li>services/remoteManagedSettings/syncCache.ts → import utils（内部）</li>
+<li>services/remoteManagedSettings/syncCache.ts → import services（外部）</li>
+<li>services/remoteManagedSettings/syncCacheState.ts → import utils（内部）</li>
+<li>services/remoteManagedSettings/types.ts → import utils（内部）</li>
+<li>services/settingsSync/index.ts → import bootstrap（内部）</li>
+<li>services/settingsSync/index.ts → import constants（内部）</li>
+<li>services/settingsSync/index.ts → import utils（内部）</li>
+<li>services/settingsSync/index.ts → import services（外部）</li>
+<li>services/settingsSync/types.ts → import utils（内部）</li>
+<li>services/teamMemorySync/index.ts → import constants（内部）</li>
+<li>services/teamMemorySync/index.ts → import memdir（内部）</li>
+<li>services/teamMemorySync/index.ts → import utils（内部）</li>
+<li>services/teamMemorySync/index.ts → import services（外部）</li>
+<li>services/teamMemorySync/secretScanner.ts → import utils（内部）</li>
+<li>services/teamMemorySync/teamMemSecretGuard.ts → import memdir（内部）</li>
+<li>services/teamMemorySync/teamMemSecretGuard.ts → import services（外部）</li>
+<li>services/teamMemorySync/types.ts → import utils（内部）</li>
+<li>services/teamMemorySync/watcher.ts → import memdir（内部）</li>
+<li>services/teamMemorySync/watcher.ts → import utils（内部）</li>
+<li>services/teamMemorySync/watcher.ts → import services（外部）</li>
+<li>services/tips/tipHistory.ts → import utils（内部）</li>
+<li>services/tips/tipRegistry.ts → import utils（内部）</li>
+<li>services/tips/tipRegistry.ts → import commands（内部）</li>
+<li>services/tips/tipRegistry.ts → import components（内部）</li>
+<li>services/tips/tipRegistry.ts → import keybindings（内部）</li>
+<li>services/tips/tipRegistry.ts → import tools（内部）</li>
+<li>services/tips/tipRegistry.ts → import services（外部）</li>
+<li>services/tips/tipScheduler.ts → import utils（内部）</li>
+<li>services/tips/tipScheduler.ts → import services（外部）</li>
+<li>services/tokenEstimation.ts → import utils（内部）</li>
+<li>services/tokenEstimation.ts → import constants（内部）</li>
+<li>services/tokenEstimation.ts → import services（外部）</li>
+<li>services/toolUseSummary/toolUseSummaryGenerator.ts → import constants（内部）</li>
+<li>services/toolUseSummary/toolUseSummaryGenerator.ts → import utils（内部）</li>
+<li>services/toolUseSummary/toolUseSummaryGenerator.ts → import services（外部）</li>
+<li>services/tools/StreamingToolExecutor.ts → import utils（内部）</li>
+<li>services/tools/StreamingToolExecutor.ts → import hooks（内部）</li>
+<li>services/tools/StreamingToolExecutor.ts → import Tool（内部）</li>
+<li>services/tools/StreamingToolExecutor.ts → import tools（内部）</li>
+<li>services/tools/StreamingToolExecutor.ts → import types（内部）</li>
+<li>services/tools/StreamingToolExecutor.ts → import services（外部）</li>
+<li>services/tools/toolExecution.ts → import services（外部）</li>
+<li>services/tools/toolExecution.ts → import bootstrap（内部）</li>
+<li>services/tools/toolExecution.ts → import hooks（内部）</li>
+<li>services/tools/toolExecution.ts → import Tool（内部）</li>
+<li>services/tools/toolExecution.ts → import tools（内部）</li>
+<li>services/tools/toolExecution.ts → import types（内部）</li>
+<li>services/tools/toolExecution.ts → import utils（内部）</li>
+<li>services/tools/toolHooks.ts → import services（外部）</li>
+<li>services/tools/toolHooks.ts → import hooks（内部）</li>
+<li>services/tools/toolHooks.ts → import Tool（内部）</li>
+<li>services/tools/toolHooks.ts → import types（内部）</li>
+<li>services/tools/toolHooks.ts → import utils（内部）</li>
+<li>services/tools/toolOrchestration.ts → import hooks（内部）</li>
+<li>services/tools/toolOrchestration.ts → import Tool（内部）</li>
+<li>services/tools/toolOrchestration.ts → import types（内部）</li>
+<li>services/tools/toolOrchestration.ts → import utils（内部）</li>
+<li>services/tools/toolOrchestration.ts → import services（外部）</li>
+<li>services/vcr.ts → import cost-tracker（内部）</li>
+<li>services/vcr.ts → import utils（内部）</li>
+<li>services/vcr.ts → import types（内部）</li>
+<li>services/voice.ts → import utils（内部）</li>
+<li>services/voiceKeyterms.ts → import bootstrap（内部）</li>
+<li>services/voiceKeyterms.ts → import utils（内部）</li>
+<li>services/voiceStreamSTT.ts → import constants（内部）</li>
+<li>services/voiceStreamSTT.ts → import utils（内部）</li>
+<li>services/voiceStreamSTT.ts → import services（外部）</li>
+</ol>
+<h2 id="5-python-侧候选映射-启发式初版">5. Python 侧候选映射（启发式初版）</h2>
+<ol>
+<li>→ python <code class="inline-code">services</code> — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-未确认项与待核实项">6. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ python 候选映射待逐符号对照核实（symbol 级 map 未生成）</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 python 实现</li>
+<li>☐ 顶层符号提取为启发式正则，需人工抽样验证召回率</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-services-reference-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

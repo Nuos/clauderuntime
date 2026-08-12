@@ -1,0 +1,1577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>services 源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-r7-r5-ccr-14-映射-启发式初版" data-nav>5. R7/R5/CCR-14 映射（启发式初版）</a></li>
+<li><a href="#6-文件级映射细分" data-nav>6. 文件级映射细分</a></li>
+<li><a href="#7-未确认项与待核实项" data-nav>7. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>services 源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">42</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2304</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="services-源码盘点">services 源码盘点</h1>
+<blockquote>
+<p>编号: 42</p>
+<p>时间戳: 20260811_2304</p>
+<p>基线: def709361a86</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>类型: package（目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: services</li>
+<li>类型: package（目录模块）</li>
+<li>Python 文件数: 108</li>
+<li>总行数: 21733</li>
+<li>依赖的 src 内部模块: compact_service, context_system, providers, token_estimation, types, utils</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">services/__init__.py</code> — 22 行（类 0，函数 0）</li>
+<li><code class="inline-code">services/analytics/__init__.py</code> — 22 行（类 0，函数 0）</li>
+<li><code class="inline-code">services/analytics/events.py</code> — 73 行（类 2，函数 3）</li>
+<li><code class="inline-code">services/analytics/metadata.py</code> — 50 行（类 1，函数 1）</li>
+<li><code class="inline-code">services/analytics/sink.py</code> — 84 行（类 4，函数 0）</li>
+<li><code class="inline-code">services/api/__init__.py</code> — 36 行（类 0，函数 0）</li>
+<li><code class="inline-code">services/api/claude.py</code> — 450 行（类 12，函数 6）</li>
+<li><code class="inline-code">services/api/custom_headers.py</code> — 44 行（类 0，函数 2）</li>
+<li><code class="inline-code">services/api/errors.py</code> — 348 行（类 8，函数 10）</li>
+<li><code class="inline-code">services/api/logging.py</code> — 99 行（类 2，函数 3）</li>
+<li><code class="inline-code">services/api/provider_config.py</code> — 57 行（类 1，函数 2）</li>
+<li><code class="inline-code">services/api/tool_normalization.py</code> — 62 行（类 0，函数 6）</li>
+<li><code class="inline-code">services/autofix/__init__.py</code> — 24 行（类 0，函数 0）</li>
+<li><code class="inline-code">services/autofix/config.py</code> — 103 行（类 2，函数 4）</li>
+<li><code class="inline-code">services/autofix/hook.py</code> — 52 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/autofix/runner.py</code> — 227 行（类 2，函数 4）</li>
+<li><code class="inline-code">services/autofix/step.py</code> — 94 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/bash_mode.py</code> — 102 行（类 1，函数 1）</li>
+<li><code class="inline-code">services/compact/__init__.py</code> — 82 行（类 0，函数 0）</li>
+<li><code class="inline-code">services/compact/autocompact.py</code> — 349 行（类 1，函数 9）</li>
+<li><code class="inline-code">services/compact/compact.py</code> — 692 行（类 2，函数 9）</li>
+<li><code class="inline-code">services/compact/compact_warning.py</code> — 36 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/compact/context_collapse.py</code> — 157 行（类 2，函数 3）</li>
+<li><code class="inline-code">services/compact/grouping.py</code> — 63 行（类 1，函数 1）</li>
+<li><code class="inline-code">services/compact/pipeline.py</code> — 328 行（类 3，函数 2）</li>
+<li><code class="inline-code">services/compact/post_compact_attachments.py</code> — 308 行（类 2，函数 8）</li>
+<li><code class="inline-code">services/compact/post_compact_cleanup.py</code> — 72 行（类 1，函数 1）</li>
+<li><code class="inline-code">services/compact/prompt.py</code> — 410 行（类 0，函数 4）</li>
+<li><code class="inline-code">services/compact/reactive_compact.py</code> — 268 行（类 1，函数 9）</li>
+<li><code class="inline-code">services/compact/session_memory_compact.py</code> — 387 行（类 3，函数 8）</li>
+<li><code class="inline-code">services/compact/snip_compact.py</code> — 22 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/compact/tool_result_budget.py</code> — 265 行（类 2，函数 5）</li>
+<li><code class="inline-code">services/config_health.py</code> — 136 行（类 1，函数 3）</li>
+<li><code class="inline-code">services/cost_restore.py</code> — 182 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/cost_tracker.py</code> — 247 行（类 3，函数 0）</li>
+<li><code class="inline-code">services/fuzzy_match.py</code> — 44 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/ide/__init__.py</code> — 30 行（类 0，函数 0）</li>
+<li><code class="inline-code">services/ide/connection.py</code> — 169 行（类 2，函数 0）</li>
+<li><code class="inline-code">services/ide/diagnostics.py</code> — 75 行（类 1，函数 0）</li>
+<li><code class="inline-code">services/ide/selection.py</code> — 79 行（类 2，函数 0）</li>
+<li><code class="inline-code">services/ide/types.py</code> — 80 行（类 6，函数 0）</li>
+<li><code class="inline-code">services/mcp/__init__.py</code> — 228 行（类 0，函数 0）</li>
+<li><code class="inline-code">services/mcp/auth.py</code> — 671 行（类 5，函数 4）</li>
+<li><code class="inline-code">services/mcp/auth_discovery.py</code> — 260 行（类 2，函数 3）</li>
+<li><code class="inline-code">services/mcp/auth_provider.py</code> — 284 行（类 2，函数 1）</li>
+<li><code class="inline-code">services/mcp/channel_permissions.py</code> — 86 行（类 2，函数 0）</li>
+<li><code class="inline-code">services/mcp/claudeai.py</code> — 194 行（类 0，函数 6）</li>
+<li><code class="inline-code">services/mcp/client.py</code> — 863 行（类 1，函数 8）</li>
+<li><code class="inline-code">services/mcp/config.py</code> — 1240 行（类 2，函数 38）</li>
+<li><code class="inline-code">services/mcp/connection_manager.py</code> — 393 行（类 1，函数 1）</li>
+<li><code class="inline-code">services/mcp/doctor.py</code> — 301 行（类 2，函数 5）</li>
+<li><code class="inline-code">services/mcp/elicitation.py</code> — 113 行（类 1，函数 0）</li>
+<li><code class="inline-code">services/mcp/env_expansion.py</code> — 33 行（类 1，函数 1）</li>
+<li><code class="inline-code">services/mcp/errors.py</code> — 115 行（类 3，函数 1）</li>
+<li><code class="inline-code">services/mcp/fetch_wrappers.py</code> — 94 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/mcp/in_process_transport.py</code> — 125 行（类 2，函数 1）</li>
+<li><code class="inline-code">services/mcp/manager.py</code> — 178 行（类 1，函数 5）</li>
+<li><code class="inline-code">services/mcp/mcp_string_utils.py</code> — 61 行（类 1，函数 6）</li>
+<li><code class="inline-code">services/mcp/normalization.py</code> — 29 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/mcp/oauth_callback_server.py</code> — 206 行（类 2，函数 4）</li>
+<li><code class="inline-code">services/mcp/oauth_error_normalization.py</code> — 81 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/mcp/oauth_port.py</code> — 100 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/mcp/oauth_redaction.py</code> — 86 行（类 0，函数 2）</li>
+<li><code class="inline-code">services/mcp/official_registry.py</code> — 129 行（类 0，函数 6）</li>
+<li><code class="inline-code">services/mcp/output_storage.py</code> — 97 行（类 0，函数 4）</li>
+<li><code class="inline-code">services/mcp/output_validation.py</code> — 207 行（类 0，函数 6）</li>
+<li><code class="inline-code">services/mcp/telemetry.py</code> — 63 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/mcp/text_truncation.py</code> — 25 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/mcp/tool_wrapper.py</code> — 373 行（类 0，函数 4）</li>
+<li><code class="inline-code">services/mcp/transport.py</code> — 403 行（类 7，函数 1）</li>
+<li><code class="inline-code">services/mcp/types.py</code> — 370 行（类 19，函数 4）</li>
+<li><code class="inline-code">services/mcp/xaa.py</code> — 277 行（类 1，函数 5）</li>
+<li><code class="inline-code">services/mcp/xaa_idp_login.py</code> — 295 行（类 2，函数 9）</li>
+<li><code class="inline-code">services/mcp_approval.py</code> — 246 行（类 0，函数 8）</li>
+<li><code class="inline-code">services/memory_append.py</code> — 76 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/oauth/__init__.py</code> — 10 行（类 0，函数 0）</li>
+<li><code class="inline-code">services/oauth/client.py</code> — 41 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/pricing.py</code> — 515 行（类 0，函数 6）</li>
+<li><code class="inline-code">services/session_listing.py</code> — 114 行（类 1，函数 2）</li>
+<li><code class="inline-code">services/session_persistence.py</code> — 90 行（类 1，函数 0）</li>
+<li><code class="inline-code">services/session_resume.py</code> — 205 行（类 1，函数 4）</li>
+<li><code class="inline-code">services/session_storage.py</code> — 350 行（类 2，函数 1）</li>
+<li><code class="inline-code">services/session_title.py</code> — 98 行（类 0，函数 2）</li>
+<li><code class="inline-code">services/startup_gates.py</code> — 341 行（类 0，函数 13）</li>
+<li><code class="inline-code">services/status_line_command.py</code> — 200 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/swarm/__init__.py</code> — 20 行（类 0，函数 0）</li>
+<li><code class="inline-code">services/swarm/agent_name_registry.py</code> — 137 行（类 2，函数 0）</li>
+<li><code class="inline-code">services/swarm/helpers.py</code> — 37 行（类 0，函数 2）</li>
+<li><code class="inline-code">services/swarm/leader_permission_bridge.py</code> — 276 行（类 2，函数 7）</li>
+<li><code class="inline-code">services/swarm/mailbox.py</code> — 404 行（类 1，函数 11）</li>
+<li><code class="inline-code">services/swarm/mailbox_poller.py</code> — 420 行（类 0，函数 12）</li>
+<li><code class="inline-code">services/swarm/permissions.py</code> — 71 行（类 2，函数 0）</li>
+<li><code class="inline-code">services/swarm/team_file.py</code> — 168 行（类 2，函数 6）</li>
+<li><code class="inline-code">services/swarm/team_membership.py</code> — 46 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/swarm/teammate.py</code> — 134 行（类 4，函数 0）</li>
+<li><code class="inline-code">services/token_warning.py</code> — 92 行（类 1，函数 2）</li>
+<li><code class="inline-code">services/tool_execution/__init__.py</code> — 49 行（类 0，函数 0）</li>
+<li><code class="inline-code">services/tool_execution/can_use_tool_adapter.py</code> — 168 行（类 0，函数 1）</li>
+<li><code class="inline-code">services/tool_execution/orchestrator.py</code> — 340 行（类 1，函数 10）</li>
+<li><code class="inline-code">services/tool_execution/streaming_executor.py</code> — 525 行（类 4，函数 1）</li>
+<li><code class="inline-code">services/tool_execution/tool_execution.py</code> — 750 行（类 2，函数 10）</li>
+<li><code class="inline-code">services/tool_execution/tool_hooks.py</code> — 425 行（类 1，函数 4）</li>
+<li><code class="inline-code">services/tool_execution/tool_result_persistence.py</code> — 511 行（类 2，函数 16）</li>
+<li><code class="inline-code">services/tool_use_summary.py</code> — 137 行（类 0，函数 3）</li>
+<li><code class="inline-code">services/voice/__init__.py</code> — 17 行（类 0，函数 0）</li>
+<li><code class="inline-code">services/voice/detection.py</code> — 112 行（类 3，函数 0）</li>
+<li><code class="inline-code">services/voice/stt.py</code> — 53 行（类 3，函数 0）</li>
+<li><code class="inline-code">services/workspace_search.py</code> — 145 行（类 1，函数 5）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">services/__init__.py</code></li>
+<li>文件 <code class="inline-code">services/analytics/__init__.py</code></li>
+<li>文件 <code class="inline-code">services/analytics/events.py</code></li>
+<li>类 EventType — L15</li>
+<li>类 AnalyticsEvent — L36</li>
+<li>函数 set_analytics_sink — L48</li>
+<li>函数 get_analytics_sink — L54</li>
+<li>函数 log_event — L59</li>
+<li>文件 <code class="inline-code">services/analytics/metadata.py</code></li>
+<li>类 SessionAnalyticsMetadata — L16</li>
+<li>函数 collect_session_metadata — L31</li>
+<li>文件 <code class="inline-code">services/analytics/sink.py</code></li>
+<li>类 AnalyticsSink — L20</li>
+<li>类 NullSink — L34</li>
+<li>类 ConsoleSink — L41</li>
+<li>类 FileSink — L51</li>
+<li>文件 <code class="inline-code">services/api/__init__.py</code></li>
+<li>文件 <code class="inline-code">services/api/claude.py</code></li>
+<li>类 TextDelta — L22</li>
+<li>类 ToolUseStart — L29</li>
+<li>类 ToolUseDelta — L37</li>
+<li>类 ToolUseEnd — L44</li>
+<li>类 ThinkingDelta — L50</li>
+<li>类 MessageStart — L57</li>
+<li>类 MessageDelta — L64</li>
+<li>类 MessageStop — L71</li>
+<li>类 ContentBlockStop — L76</li>
+<li>类 UsageEvent — L82</li>
+<li>类 ErrorEvent — L88</li>
+<li>类 CallModelOptions — L248</li>
+<li>函数 split_system_prompt_prefix — L108</li>
+<li>函数 tool_to_api_schema — L114</li>
+<li>函数 _build_system_blocks — L123</li>
+<li>函数 _build_tool_schemas — L130</li>
+<li>函数 add_cache_breakpoints — L134</li>
+<li>函数 call_model — L268</li>
+<li>文件 <code class="inline-code">services/api/custom_headers.py</code></li>
+<li>函数 parse_custom_headers — L19</li>
+<li>函数 get_anthropic_custom_headers — L42</li>
+<li>文件 <code class="inline-code">services/api/errors.py</code></li>
+<li>类 PromptTooLongError — L32</li>
+<li>类 MaxOutputTokensError — L51</li>
+<li>类 RateLimitError — L56</li>
+<li>类 OverloadedError — L68</li>
+<li>类 APIConnectionError — L74</li>
+<li>类 APITimeoutError — L79</li>
+<li>类 InvalidAPIKeyError — L84</li>
+<li>类 ErrorClassification — L276</li>
+<li>函数 parse_prompt_too_long_token_counts — L89</li>
+<li>函数 is_prompt_too_long_error — L96</li>
+<li>函数 is_rate_limit_error — L101</li>
+<li>函数 is_overloaded_error — L108</li>
+<li>函数 is_quota_exhausted — L115</li>
+<li>函数 is_invalid_api_key — L121</li>
+<li>函数 is_transport_error — L188</li>
+<li>函数 is_media_size_error — L209</li>
+<li>函数 is_image_unsupported_error — L253</li>
+<li>函数 categorize_retryable_api_error — L282</li>
+<li>文件 <code class="inline-code">services/api/logging.py</code></li>
+<li>类 NonNullableUsage — L12</li>
+<li>类 APICallLog — L73</li>
+<li>函数 accumulate_usage — L34</li>
+<li>函数 update_usage — L57</li>
+<li>函数 log_api_call — L86</li>
+<li>文件 <code class="inline-code">services/api/provider_config.py</code></li>
+<li>类 ProviderOverride — L8</li>
+<li>函数 _normalize — L14</li>
+<li>函数 resolve_agent_provider — L18</li>
+<li>文件 <code class="inline-code">services/api/tool_normalization.py</code></li>
+<li>函数 _is_blank_string — L16</li>
+<li>函数 _is_likely_structured_object_literal — L20</li>
+<li>函数 _get_plain_string_tool_argument_field — L25</li>
+<li>函数 has_tool_field_mapping — L29</li>
+<li>函数 _wrap_plain_string_tool_arguments — L33</li>
+<li>函数 normalize_tool_arguments — L43</li>
+<li>文件 <code class="inline-code">services/autofix/__init__.py</code></li>
+<li>文件 <code class="inline-code">services/autofix/config.py</code></li>
+<li>类 AutoFixConfig — L22</li>
+<li>类 _Reject — L30</li>
+<li>函数 _opt_str — L34</li>
+<li>函数 _bounded_int — L45</li>
+<li>函数 get_auto_fix_config — L57</li>
+<li>函数 load_auto_fix_config — L94</li>
+<li>文件 <code class="inline-code">services/autofix/hook.py</code></li>
+<li>函数 should_run_auto_fix — L22</li>
+<li>函数 build_auto_fix_context — L28</li>
+<li>函数 build_max_retries_context — L43</li>
+<li>文件 <code class="inline-code">services/autofix/runner.py</code></li>
+<li>类 AutoFixResult — L30</li>
+<li>类 _CmdResult — L41</li>
+<li>函数 _run_command — L51</li>
+<li>函数 _kill_group — L143</li>
+<li>函数 _build_error_summary — L156</li>
+<li>函数 run_auto_fix_check — L176</li>
+<li>文件 <code class="inline-code">services/autofix/step.py</code></li>
+<li>函数 _chain_key — L37</li>
+<li>函数 _attachment — L42</li>
+<li>函数 run_auto_fix_step — L54</li>
+<li>文件 <code class="inline-code">services/bash_mode.py</code></li>
+<li>类 BashModeOutcome — L38</li>
+<li>函数 run_bash_mode_command — L49</li>
+<li>文件 <code class="inline-code">services/compact/__init__.py</code></li>
+<li>文件 <code class="inline-code">services/compact/autocompact.py</code></li>
+<li>类 AutoCompactTracking — L64</li>
+<li>函数 _get_env_int — L74</li>
+<li>函数 _get_env_float — L86</li>
+<li>函数 _is_env_truthy — L98</li>
+<li>函数 get_effective_context_window_size — L104</li>
+<li>函数 get_auto_compact_threshold — L131</li>
+<li>函数 is_auto_compact_enabled — L162</li>
+<li>函数 calculate_token_warning_state — L175</li>
+<li>函数 should_auto_compact — L232</li>
+<li>函数 auto_compact_if_needed — L274</li>
+<li>文件 <code class="inline-code">services/compact/compact.py</code></li>
+<li>类 CompactionResult — L139</li>
+<li>类 CompactContext — L154</li>
+<li>函数 parse_prompt_too_long_token_gap — L88</li>
+<li>函数 _collect_discovered_tool_names — L113</li>
+<li>函数 _is_prompt_too_long_error — L168</li>
+<li>函数 _mark_post_compaction_state — L179</li>
+<li>函数 _record_compaction_usage — L193</li>
+<li>函数 _fallback_summary — L217</li>
+<li>函数 truncate_head_for_ptl_retry — L259</li>
+<li>函数 compact_conversation — L329</li>
+<li>函数 partial_compact_conversation — L525</li>
+<li>文件 <code class="inline-code">services/compact/compact_warning.py</code></li>
+<li>函数 suppress_compact_warning — L19</li>
+<li>函数 clear_compact_warning_suppression — L26</li>
+<li>函数 is_compact_warning_suppressed — L33</li>
+<li>文件 <code class="inline-code">services/compact/context_collapse.py</code></li>
+<li>类 CollapseCommit — L26</li>
+<li>类 ContextCollapseStore — L43</li>
+<li>函数 is_context_collapse_enabled — L144</li>
+<li>函数 get_context_collapse_state — L149</li>
+<li>函数 set_context_collapse_store — L154</li>
+<li>文件 <code class="inline-code">services/compact/grouping.py</code></li>
+<li>类 ApiRound — L20</li>
+<li>函数 group_messages_by_api_round — L35</li>
+<li>文件 <code class="inline-code">services/compact/pipeline.py</code></li>
+<li>类 CompressionResult — L42</li>
+<li>类 PipelineConfig — L51</li>
+<li>类 CompressionPipeline — L142</li>
+<li>函数 build_production_pipeline_config — L93</li>
+<li>函数 run_compression_pipeline — L311</li>
+<li>文件 <code class="inline-code">services/compact/post_compact_attachments.py</code></li>
+<li>类 FileAttachment — L163</li>
+<li>类 SkillInfo — L268</li>
+<li>函数 _expand_path — L46</li>
+<li>函数 _should_exclude_from_post_compact_restore — L51</li>
+<li>函数 _collect_read_tool_file_paths — L79</li>
+<li>函数 _truncate_to_tokens — L133</li>
+<li>函数 _read_file_safe — L141</li>
+<li>函数 create_post_compact_file_attachments — L169</li>
+<li>函数 create_plan_attachment_if_needed — L237</li>
+<li>函数 create_skill_attachment_if_needed — L276</li>
+<li>文件 <code class="inline-code">services/compact/post_compact_cleanup.py</code></li>
+<li>类 PostCompactContext — L17</li>
+<li>函数 run_post_compact_cleanup — L27</li>
+<li>文件 <code class="inline-code">services/compact/prompt.py</code></li>
+<li>函数 get_compact_prompt — L287</li>
+<li>函数 get_partial_compact_prompt — L300</li>
+<li>函数 format_compact_summary — L324</li>
+<li>函数 get_compact_user_summary_message — L373</li>
+<li>文件 <code class="inline-code">services/compact/reactive_compact.py</code></li>
+<li>类 ReactiveCompactResult — L33</li>
+<li>函数 is_withheld_prompt_too_long — L45</li>
+<li>函数 is_prompt_too_long_error — L80</li>
+<li>函数 withhold_error — L84</li>
+<li>函数 get_withheld_errors — L88</li>
+<li>函数 clear_withheld_errors — L92</li>
+<li>函数 _drop_oldest_messages — L96</li>
+<li>函数 build_post_compact_messages — L116</li>
+<li>函数 _ensure_alternating_roles — L165</li>
+<li>函数 reactive_compact — L189</li>
+<li>文件 <code class="inline-code">services/compact/session_memory_compact.py</code></li>
+<li>类 SessionMemoryCompactConfig — L31</li>
+<li>类 SessionMemoryEntry — L327</li>
+<li>类 SessionMemory — L333</li>
+<li>函数 has_text_blocks — L48</li>
+<li>函数 _estimate_message_tokens — L62</li>
+<li>函数 _get_tool_result_ids — L72</li>
+<li>函数 _has_tool_use_with_ids — L88</li>
+<li>函数 _get_message_id — L104</li>
+<li>函数 adjust_index_to_preserve_api_invariants — L117</li>
+<li>函数 calculate_messages_to_keep_index — L196</li>
+<li>函数 try_session_memory_compaction — L275</li>
+<li>文件 <code class="inline-code">services/compact/snip_compact.py</code></li>
+<li>函数 snip_compact — L18</li>
+<li>文件 <code class="inline-code">services/compact/tool_result_budget.py</code></li>
+<li>类 StoredResult — L56</li>
+<li>类 BudgetManifest — L64</li>
+<li>函数 get_tool_result_budget_dir — L45</li>
+<li>函数 _estimate_block_tokens — L98</li>
+<li>函数 _content_to_string — L126</li>
+<li>函数 apply_tool_result_budget — L133</li>
+<li>函数 cleanup_budget_dir — L252</li>
+<li>文件 <code class="inline-code">services/config_health.py</code></li>
+<li>类 ConfigWarning — L28</li>
+<li>函数 _check_json_file — L36</li>
+<li>函数 collect_config_warnings — L55</li>
+<li>函数 collect_rule_warnings — L108</li>
+<li>文件 <code class="inline-code">services/cost_restore.py</code></li>
+<li>函数 _sessions_dir — L31</li>
+<li>函数 build_cost_block — L40</li>
+<li>函数 restore_cost_state_for_session — L111</li>
+<li>文件 <code class="inline-code">services/cost_tracker.py</code></li>
+<li>类 UsageEvent — L36</li>
+<li>类 ModelUsageEntry — L47</li>
+<li>类 CostTracker — L59</li>
+<li>文件 <code class="inline-code">services/fuzzy_match.py</code></li>
+<li>函数 fuzzy_score — L11</li>
+<li>文件 <code class="inline-code">services/ide/__init__.py</code></li>
+<li>文件 <code class="inline-code">services/ide/connection.py</code></li>
+<li>类 PendingRequest — L20</li>
+<li>类 IDEConnectionManager — L27</li>
+<li>文件 <code class="inline-code">services/ide/diagnostics.py</code></li>
+<li>类 DiagnosticsCollector — L18</li>
+<li>文件 <code class="inline-code">services/ide/selection.py</code></li>
+<li>类 SelectionEntry — L19</li>
+<li>类 SelectionTracker — L25</li>
+<li>文件 <code class="inline-code">services/ide/types.py</code></li>
+<li>类 IDEType — L13</li>
+<li>类 IDEDiagnosticSeverity — L21</li>
+<li>类 IDERange — L29</li>
+<li>类 IDESelection — L38</li>
+<li>类 IDEDiagnostic — L47</li>
+<li>类 IDEConnection — L58</li>
+<li>文件 <code class="inline-code">services/mcp/__init__.py</code></li>
+<li>文件 <code class="inline-code">services/mcp/auth.py</code></li>
+<li>类 OAuthConfig — L26</li>
+<li>类 TokenData — L37</li>
+<li>类 AuthResult — L52</li>
+<li>类 McpTokenStore — L102</li>
+<li>类 McpAuthManager — L479</li>
+<li>函数 _get_token_store_path — L58</li>
+<li>函数 _generate_pkce — L68</li>
+<li>函数 _serialize_token — L81</li>
+<li>函数 _deserialize_token — L91</li>
+<li>文件 <code class="inline-code">services/mcp/auth_discovery.py</code></li>
+<li>类 OAuthDiscoveryError — L36</li>
+<li>类 EscapeHatchScopeRejectedError — L68</li>
+<li>函数 discover_oauth_metadata — L74</li>
+<li>函数 _try_prm — L213</li>
+<li>函数 _try_as_metadata — L235</li>
+<li>文件 <code class="inline-code">services/mcp/auth_provider.py</code></li>
+<li>类 _NeedsAuthCacheEntry — L71</li>
+<li>类 McpAuthProvider — L85</li>
+<li>函数 is_oauth_required_error — L267</li>
+<li>文件 <code class="inline-code">services/mcp/channel_permissions.py</code></li>
+<li>类 ChannelPermission — L11</li>
+<li>类 ChannelPermissionManager — L18</li>
+<li>文件 <code class="inline-code">services/mcp/claudeai.py</code></li>
+<li>函数 reset_claudeai_cache — L44</li>
+<li>函数 get_cached_claudeai_mcp_configs — L52</li>
+<li>函数 fetch_claudeai_mcp_configs_if_eligible — L66</li>
+<li>函数 _is_claudeai_enabled — L145</li>
+<li>函数 _resolve_auth_token — L158</li>
+<li>函数 _to_scoped_config — L175</li>
+<li>文件 <code class="inline-code">services/mcp/client.py</code></li>
+<li>类 McpClient — L126</li>
+<li>函数 _parse_server_capabilities — L45</li>
+<li>函数 _is_remote_config — L77</li>
+<li>函数 _unwrap_exception_group_message — L88</li>
+<li>函数 _get_connection_timeout_ms — L107</li>
+<li>函数 _get_tool_timeout_ms — L114</li>
+<li>函数 _cache_key_for — L792</li>
+<li>函数 connect_to_server — L825</li>
+<li>函数 clear_connection_cache — L855</li>
+<li>文件 <code class="inline-code">services/mcp/config.py</code></li>
+<li>类 ValidationError — L32</li>
+<li>类 ParsedMcpConfig — L43</li>
+<li>函数 _get_cwd — L48</li>
+<li>函数 _get_global_config_dir — L52</li>
+<li>函数 _get_managed_file_path — L59</li>
+<li>函数 get_enterprise_mcp_file_path — L66</li>
+<li>函数 _add_scope_to_servers — L70</li>
+<li>函数 _get_server_command_array — L82</li>
+<li>函数 _get_server_url — L88</li>
+<li>函数 unwrap_ccr_proxy_url — L94</li>
+<li>函数 _normalize_url_for_signature — L135</li>
+<li>函数 get_mcp_server_signature — L158</li>
+<li>函数 _expand_env_vars — L168</li>
+<li>函数 parse_mcp_config — L224</li>
+<li>函数 parse_mcp_config_from_file_path — L311</li>
+<li>函数 get_mcp_configs_by_scope — L370</li>
+<li>函数 get_mcp_config_by_name — L501</li>
+<li>函数 add_dynamic_mcp_config — L538</li>
+<li>函数 remove_dynamic_mcp_config — L557</li>
+<li>函数 get_dynamic_mcp_configs — L562</li>
+<li>函数 get_managed_mcp_configs — L573</li>
+<li>函数 get_all_mcp_configs — L598</li>
+<li>函数 _notices_to_validation_errors — L725</li>
+<li>函数 _suggestion_for_message — L741</li>
+<li>函数 _does_enterprise_mcp_config_exist — L773</li>
+<li>函数 clear_enterprise_config_cache — L786</li>
+<li>函数 is_mcp_server_disabled — L794</li>
+<li>函数 set_mcp_server_enabled — L798</li>
+<li>函数 _invalidate_config_manager_cache — L805</li>
+<li>函数 _write_user_config_atomic — L822</li>
+<li>函数 add_mcp_config — L844</li>
+<li>函数 remove_mcp_config — L917</li>
+<li>函数 get_claude_desktop_config_path — L957</li>
+<li>函数 import_from_claude_desktop — L969</li>
+<li>函数 discover_vscode_mcp_servers — L998</li>
+<li>函数 validate_server_connectivity — L1042</li>
+<li>函数 filter_mcp_servers_by_policy — L1062</li>
+<li>函数 _safe_load_settings — L1138</li>
+<li>函数 dedup_claudeai_mcp_servers — L1164</li>
+<li>函数 dedup_plugin_mcp_servers — L1210</li>
+<li>文件 <code class="inline-code">services/mcp/connection_manager.py</code></li>
+<li>类 MCPConnectionManager — L52</li>
+<li>函数 bootstrap_mcp_runtime — L355</li>
+<li>文件 <code class="inline-code">services/mcp/doctor.py</code></li>
+<li>类 ServerDiagnostic — L30</li>
+<li>类 DiagnosticReport — L46</li>
+<li>函数 _get_transport_type — L101</li>
+<li>函数 _validate_stdio_config — L114</li>
+<li>函数 _validate_url_config — L138</li>
+<li>函数 check_server_health — L157</li>
+<li>函数 run_diagnostics — L251</li>
+<li>文件 <code class="inline-code">services/mcp/elicitation.py</code></li>
+<li>类 ElicitationHandler — L12</li>
+<li>文件 <code class="inline-code">services/mcp/env_expansion.py</code></li>
+<li>类 EnvExpansionResult — L9</li>
+<li>函数 expand_env_vars_in_string — L14</li>
+<li>文件 <code class="inline-code">services/mcp/errors.py</code></li>
+<li>类 McpAuthError — L26</li>
+<li>类 McpSessionExpiredError — L32</li>
+<li>类 McpToolCallError — L38</li>
+<li>函数 is_mcp_session_expired_error — L50</li>
+<li>文件 <code class="inline-code">services/mcp/fetch_wrappers.py</code></li>
+<li>函数 _env_float — L45</li>
+<li>函数 build_mcp_timeout — L68</li>
+<li>函数 build_mcp_http_client — L78</li>
+<li>文件 <code class="inline-code">services/mcp/in_process_transport.py</code></li>
+<li>类 _ClosedSentinel — L31</li>
+<li>类 InProcessTransport — L44</li>
+<li>函数 create_linked_transport_pair — L111</li>
+<li>文件 <code class="inline-code">services/mcp/manager.py</code></li>
+<li>类 ConnectionAttemptResult — L28</li>
+<li>函数 _is_local_mcp_server — L37</li>
+<li>函数 _process_server — L42</li>
+<li>函数 _process_batched — L100</li>
+<li>函数 get_mcp_tools_commands_and_resources — L120</li>
+<li>函数 prefetch_all_mcp_resources — L161</li>
+<li>文件 <code class="inline-code">services/mcp/mcp_string_utils.py</code></li>
+<li>类 McpInfoParsed — L11</li>
+<li>函数 mcp_info_from_string — L16</li>
+<li>函数 get_mcp_prefix — L29</li>
+<li>函数 build_mcp_tool_name — L33</li>
+<li>函数 get_tool_name_for_permission_check — L37</li>
+<li>函数 get_mcp_display_name — L49</li>
+<li>函数 extract_mcp_tool_display_name — L56</li>
+<li>文件 <code class="inline-code">services/mcp/normalization.py</code></li>
+<li>函数 normalize_name_for_mcp — L12</li>
+<li>文件 <code class="inline-code">services/mcp/oauth_callback_server.py</code></li>
+<li>类 CallbackResult — L53</li>
+<li>类 OAuthCallbackError — L60</li>
+<li>函数 _error_body — L39</li>
+<li>函数 wait_for_callback — L65</li>
+<li>函数 _process_request — L135</li>
+<li>函数 _write_response — L193</li>
+<li>文件 <code class="inline-code">services/mcp/oauth_error_normalization.py</code></li>
+<li>函数 normalize_oauth_error_body — L42</li>
+<li>文件 <code class="inline-code">services/mcp/oauth_port.py</code></li>
+<li>函数 _port_range — L37</li>
+<li>函数 find_available_port — L44</li>
+<li>函数 _is_port_free — L84</li>
+<li>文件 <code class="inline-code">services/mcp/oauth_redaction.py</code></li>
+<li>函数 _redact_params — L53</li>
+<li>函数 redact_sensitive_params — L67</li>
+<li>文件 <code class="inline-code">services/mcp/official_registry.py</code></li>
+<li>函数 _is_disabled — L42</li>
+<li>函数 _normalize_url — L49</li>
+<li>函数 prefetch_official_mcp_urls — L58</li>
+<li>函数 _fetch_and_store — L81</li>
+<li>函数 _record_empty — L117</li>
+<li>函数 is_official_mcp_url — L123</li>
+<li>文件 <code class="inline-code">services/mcp/output_storage.py</code></li>
+<li>函数 _ext_for_content_type — L49</li>
+<li>函数 persist_binary_content — L56</li>
+<li>函数 get_binary_blob_saved_message — L86</li>
+<li>函数 _safe_filename_chunk — L94</li>
+<li>文件 <code class="inline-code">services/mcp/output_validation.py</code></li>
+<li>函数 _get_tiktoken_encoder — L57</li>
+<li>函数 get_max_mcp_output_tokens — L76</li>
+<li>函数 estimate_text_tokens — L97</li>
+<li>函数 get_content_size_estimate — L120</li>
+<li>函数 mcp_content_needs_truncation — L153</li>
+<li>函数 truncate_mcp_content_if_needed — L165</li>
+<li>文件 <code class="inline-code">services/mcp/telemetry.py</code></li>
+<li>函数 _default_sink — L42</li>
+<li>函数 register_sink — L50</li>
+<li>函数 emit — L56</li>
+<li>文件 <code class="inline-code">services/mcp/text_truncation.py</code></li>
+<li>函数 truncate_description — L14</li>
+<li>文件 <code class="inline-code">services/mcp/tool_wrapper.py</code></li>
+<li>函数 _get_input_validator — L63</li>
+<li>函数 _flatten_content_blocks_to_text — L100</li>
+<li>函数 wrap_mcp_tool — L177</li>
+<li>函数 wrap_mcp_tools_for_server — L358</li>
+<li>文件 <code class="inline-code">services/mcp/transport.py</code></li>
+<li>类 JsonRpcMessage — L47</li>
+<li>类 McpTransport — L88</li>
+<li>类 _SdkTransportAdapter — L111</li>
+<li>类 StdioTransport — L226</li>
+<li>类 HttpTransport — L253</li>
+<li>类 SseTransport — L343</li>
+<li>类 WebSocketTransport — L377</li>
+<li>函数 _mcp_sse_http_client_factory — L322</li>
+<li>文件 <code class="inline-code">services/mcp/types.py</code></li>
+<li>类 McpStdioServerConfig — L14</li>
+<li>类 McpSSEServerConfig — L22</li>
+<li>类 McpHTTPServerConfig — L33</li>
+<li>类 McpWebSocketServerConfig — L42</li>
+<li>类 McpSdkServerConfig — L51</li>
+<li>类 ScopedMcpServerConfig — L66</li>
+<li>类 McpJsonConfig — L77</li>
+<li>类 ServerCapabilities — L82</li>
+<li>类 ServerInfo — L94</li>
+<li>类 ConnectedMCPServer — L100</li>
+<li>类 FailedMCPServer — L113</li>
+<li>类 NeedsAuthMCPServer — L121</li>
+<li>类 PendingMCPServer — L139</li>
+<li>类 DisabledMCPServer — L148</li>
+<li>类 McpToolSchema — L164</li>
+<li>类 McpToolResult — L173</li>
+<li>类 SerializedTool — L181</li>
+<li>类 SerializedClient — L190</li>
+<li>类 MCPCliState — L197</li>
+<li>函数 _validate_str_str_dict — L211</li>
+<li>函数 _validate_string_field — L235</li>
+<li>函数 validate_server_config — L257</li>
+<li>函数 parse_server_config — L364</li>
+<li>文件 <code class="inline-code">services/mcp/xaa.py</code></li>
+<li>类 XaaTokenExchangeError — L88</li>
+<li>函数 redact_tokens — L57</li>
+<li>函数 normalize_url — L65</li>
+<li>函数 perform_cross_app_access — L103</li>
+<li>函数 _exchange_id_token_for_id_jag — L158</li>
+<li>函数 _exchange_id_jag_for_access_token — L211</li>
+<li>文件 <code class="inline-code">services/mcp/xaa_idp_login.py</code></li>
+<li>类 XaaIdpSettings — L50</li>
+<li>类 _CachedIdToken — L60</li>
+<li>函数 _issuer_key — L76</li>
+<li>函数 is_xaa_enabled — L84</li>
+<li>函数 get_xaa_idp_settings — L94</li>
+<li>函数 get_cached_idp_id_token — L115</li>
+<li>函数 save_idp_id_token — L127</li>
+<li>函数 clear_idp_id_token — L135</li>
+<li>函数 jwt_exp — L139</li>
+<li>函数 discover_oidc — L158</li>
+<li>函数 acquire_idp_id_token — L189</li>
+<li>文件 <code class="inline-code">services/mcp_approval.py</code></li>
+<li>函数 _local_settings_path — L66</li>
+<li>函数 _read_merged_settings — L72</li>
+<li>函数 _write_local_settings — L97</li>
+<li>函数 get_mcpjson_server_status — L109</li>
+<li>函数 list_pending_mcpjson_servers — L155</li>
+<li>函数 record_mcpjson_choice — L174</li>
+<li>函数 is_mcpjson_scope — L202</li>
+<li>函数 filter_unapproved_mcpjson_servers — L206</li>
+<li>文件 <code class="inline-code">services/memory_append.py</code></li>
+<li>函数 pick_saving_message — L28</li>
+<li>函数 format_note_line — L34</li>
+<li>函数 append_memory_note — L41</li>
+<li>文件 <code class="inline-code">services/oauth/__init__.py</code></li>
+<li>文件 <code class="inline-code">services/oauth/client.py</code></li>
+<li>函数 get_organization_uuid — L21</li>
+<li>文件 <code class="inline-code">services/pricing.py</code></li>
+<li>函数 _get_exact_pricing — L312</li>
+<li>函数 get_pricing — L344</li>
+<li>函数 is_known_pricing — L396</li>
+<li>函数 compute_cost — L403</li>
+<li>函数 format_cost_usd — L436</li>
+<li>函数 compute_session_cost — L459</li>
+<li>文件 <code class="inline-code">services/session_listing.py</code></li>
+<li>类 ResumeEntry — L24</li>
+<li>函数 build_resume_entries — L55</li>
+<li>函数 filter_entries — L100</li>
+<li>文件 <code class="inline-code">services/session_persistence.py</code></li>
+<li>类 SessionPersister — L32</li>
+<li>文件 <code class="inline-code">services/session_resume.py</code></li>
+<li>类 ResumeResult — L90</li>
+<li>函数 resume_session — L30</li>
+<li>函数 _fix_orphaned_tool_uses — L114</li>
+<li>函数 _adjust_paths — L181</li>
+<li>函数 _handle_snip_boundaries — L191</li>
+<li>文件 <code class="inline-code">services/session_storage.py</code></li>
+<li>类 SessionMetadata — L43</li>
+<li>类 SessionStorage — L80</li>
+<li>函数 _atomic_write — L337</li>
+<li>文件 <code class="inline-code">services/session_title.py</code></li>
+<li>函数 auto_title_from_message — L14</li>
+<li>函数 generate_llm_title — L44</li>
+<li>文件 <code class="inline-code">services/startup_gates.py</code></li>
+<li>函数 reset_session_trust_for_testing — L57</li>
+<li>函数 _invalidate_trust_memo — L77</li>
+<li>函数 _bootstrap_session_trust — L81</li>
+<li>函数 check_trust_accepted — L96</li>
+<li>函数 grant_session_trust — L131</li>
+<li>函数 record_trust_accepted — L153</li>
+<li>函数 collect_trust_warnings — L175</li>
+<li>函数 get_external_includes_state — L217</li>
+<li>函数 record_external_includes_choice — L232</li>
+<li>函数 list_external_includes — L265</li>
+<li>函数 _read_json_dict — L283</li>
+<li>函数 has_skip_dangerous_mode_permission_prompt — L292</li>
+<li>函数 record_bypass_accepted — L307</li>
+<li>文件 <code class="inline-code">services/status_line_command.py</code></li>
+<li>函数 read_status_line_config — L39</li>
+<li>函数 build_status_line_input — L71</li>
+<li>函数 execute_status_line_command — L132</li>
+<li>文件 <code class="inline-code">services/swarm/__init__.py</code></li>
+<li>文件 <code class="inline-code">services/swarm/agent_name_registry.py</code></li>
+<li>类 AgentNameAlreadyClaimedError — L32</li>
+<li>类 AgentNameRegistry — L54</li>
+<li>文件 <code class="inline-code">services/swarm/helpers.py</code></li>
+<li>函数 get_active_teammates — L10</li>
+<li>函数 format_team_summary — L15</li>
+<li>文件 <code class="inline-code">services/swarm/leader_permission_bridge.py</code></li>
+<li>类 PermissionRequest — L57</li>
+<li>类 _CallbackEntry — L98</li>
+<li>函数 create_permission_request — L115</li>
+<li>函数 register_permission_callback — L141</li>
+<li>函数 unregister_permission_callback — L164</li>
+<li>函数 get_pending_request_ids — L171</li>
+<li>函数 deliver_permission_decision — L178</li>
+<li>函数 send_permission_request_via_mailbox — L222</li>
+<li>函数 _reset_callbacks — L260</li>
+<li>文件 <code class="inline-code">services/swarm/mailbox.py</code></li>
+<li>类 TeammateMessage — L132</li>
+<li>函数 _sanitize_name — L80</li>
+<li>函数 get_mailboxes_root — L105</li>
+<li>函数 get_inbox_path — L114</li>
+<li>函数 _append_lock — L171</li>
+<li>函数 write_to_mailbox — L218</li>
+<li>函数 read_mailbox — L265</li>
+<li>函数 make_iso_timestamp — L321</li>
+<li>函数 create_shutdown_request_message — L331</li>
+<li>函数 create_shutdown_approved_message — L346</li>
+<li>函数 create_shutdown_rejected_message — L358</li>
+<li>函数 create_plan_approval_response_message — L371</li>
+<li>文件 <code class="inline-code">services/swarm/mailbox_poller.py</code></li>
+<li>函数 _read_offset_path — L70</li>
+<li>函数 _read_offset — L74</li>
+<li>函数 _write_offset — L86</li>
+<li>函数 _try_parse_envelope — L94</li>
+<li>函数 _dispatch_shutdown_request — L114</li>
+<li>函数 _dispatch_plan_approval_response — L135</li>
+<li>函数 _dispatch_permission_response — L190</li>
+<li>函数 sweep_mailboxes — L214</li>
+<li>函数 _enqueue_user_message — L306</li>
+<li>函数 start_mailbox_poller — L336</li>
+<li>函数 stop_mailbox_poller — L374</li>
+<li>函数 _poller_loop — L387</li>
+<li>文件 <code class="inline-code">services/swarm/permissions.py</code></li>
+<li>类 PermissionDecision — L16</li>
+<li>类 SwarmPermissionSync — L24</li>
+<li>文件 <code class="inline-code">services/swarm/team_file.py</code></li>
+<li>类 TeamMember — L37</li>
+<li>类 TeamFile — L48</li>
+<li>函数 get_team_file_path — L63</li>
+<li>函数 read_team_file — L68</li>
+<li>函数 write_team_file — L106</li>
+<li>函数 add_member — L134</li>
+<li>函数 remove_member — L145</li>
+<li>函数 find_member_by_name — L149</li>
+<li>文件 <code class="inline-code">services/swarm/team_membership.py</code></li>
+<li>函数 is_team_lead — L16</li>
+<li>文件 <code class="inline-code">services/swarm/teammate.py</code></li>
+<li>类 TeammateStatus — L18</li>
+<li>类 TeammateConfig — L39</li>
+<li>类 Teammate — L50</li>
+<li>类 TeammateManager — L71</li>
+<li>文件 <code class="inline-code">services/token_warning.py</code></li>
+<li>类 TokenWarningState — L29</li>
+<li>函数 calculate_token_warning_state — L38</li>
+<li>函数 context_low_message — L71</li>
+<li>文件 <code class="inline-code">services/tool_execution/__init__.py</code></li>
+<li>文件 <code class="inline-code">services/tool_execution/can_use_tool_adapter.py</code></li>
+<li>函数 build_can_use_tool — L31</li>
+<li>文件 <code class="inline-code">services/tool_execution/orchestrator.py</code></li>
+<li>类 Batch — L71</li>
+<li>函数 _coerce_concurrency — L35</li>
+<li>函数 _get_max_tool_use_concurrency — L49</li>
+<li>函数 classify_concurrency_safe — L76</li>
+<li>函数 partition_tool_calls — L105</li>
+<li>函数 run_tools — L121</li>
+<li>函数 _extract_modifier — L174</li>
+<li>函数 _run_tools_serially — L188</li>
+<li>函数 _run_tools_concurrently — L225</li>
+<li>函数 _normalize_update — L316</li>
+<li>函数 _find_assistant_message — L326</li>
+<li>文件 <code class="inline-code">services/tool_execution/streaming_executor.py</code></li>
+<li>类 MessageUpdate — L43</li>
+<li>类 ToolUseBlock — L49</li>
+<li>类 TrackedTool — L56</li>
+<li>类 StreamingToolExecutor — L68</li>
+<li>函数 _mark_tool_use_as_complete — L521</li>
+<li>文件 <code class="inline-code">services/tool_execution/tool_execution.py</code></li>
+<li>类 ContextModifier — L37</li>
+<li>类 MessageUpdateLazy — L43</li>
+<li>函数 run_tool_use — L48</li>
+<li>函数 _streamed_check_permissions_and_call_tool — L160</li>
+<li>函数 _check_permissions_and_call_tool — L180</li>
+<li>函数 _call_tool — L595</li>
+<li>函数 _resolve_permission — L619</li>
+<li>函数 _is_user_cancelled_abort — L641</li>
+<li>函数 _build_user_cancelled_message — L659</li>
+<li>函数 _create_tool_result_stop — L683</li>
+<li>函数 _format_error — L697</li>
+<li>函数 classify_tool_error — L739</li>
+<li>文件 <code class="inline-code">services/tool_execution/tool_hooks.py</code></li>
+<li>类 PreToolUseResult — L30</li>
+<li>函数 run_pre_tool_use_hooks — L39</li>
+<li>函数 run_post_tool_use_hooks — L156</li>
+<li>函数 run_post_tool_use_failure_hooks — L220</li>
+<li>函数 resolve_hook_permission_decision — L269</li>
+<li>文件 <code class="inline-code">services/tool_execution/tool_result_persistence.py</code></li>
+<li>类 PersistedToolResult — L209</li>
+<li>类 PersistToolResultError — L218</li>
+<li>函数 get_persistence_threshold — L63</li>
+<li>函数 is_tool_result_content_empty — L90</li>
+<li>函数 _has_image_block — L130</li>
+<li>函数 _content_size — L147</li>
+<li>函数 generate_preview — L177</li>
+<li>函数 _format_file_size — L194</li>
+<li>函数 is_persist_error — L225</li>
+<li>函数 _content_to_string — L229</li>
+<li>函数 _ensure_dir — L235</li>
+<li>函数 persist_tool_result — L239</li>
+<li>函数 build_large_tool_result_message — L297</li>
+<li>函数 maybe_persist_large_tool_result — L322</li>
+<li>函数 compute_block_chars — L418</li>
+<li>函数 process_tool_result_block — L428</li>
+<li>函数 _hash_id — L461</li>
+<li>函数 resolve_tool_results_dir — L479</li>
+<li>文件 <code class="inline-code">services/tool_use_summary.py</code></li>
+<li>函数 _truncate_json — L51</li>
+<li>函数 _resolve_summary_model — L70</li>
+<li>函数 generate_tool_use_summary — L85</li>
+<li>文件 <code class="inline-code">services/voice/__init__.py</code></li>
+<li>文件 <code class="inline-code">services/voice/detection.py</code></li>
+<li>类 VoiceActivityState — L13</li>
+<li>类 VoiceActivityConfig — L21</li>
+<li>类 VoiceActivityDetector — L30</li>
+<li>文件 <code class="inline-code">services/voice/stt.py</code></li>
+<li>类 STTConfig — L13</li>
+<li>类 STTResult — L23</li>
+<li>类 STTProvider — L32</li>
+<li>文件 <code class="inline-code">services/workspace_search.py</code></li>
+<li>类 ContentMatch — L43</li>
+<li>函数 _to_posix_rel — L36</li>
+<li>函数 file_insertion — L55</li>
+<li>函数 search_content — L59</li>
+<li>函数 list_workspace_files — L109</li>
+<li>函数 filter_files — L122</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>services/__init__.py → import __future__（外部）</li>
+<li>services/__init__.py → import json（外部）</li>
+<li>services/__init__.py → import pathlib（外部）</li>
+<li>services/analytics/__init__.py → import __future__（外部）</li>
+<li>services/analytics/__init__.py → import services（外部）</li>
+<li>services/analytics/events.py → import __future__（外部）</li>
+<li>services/analytics/events.py → import time（外部）</li>
+<li>services/analytics/events.py → import dataclasses（外部）</li>
+<li>services/analytics/events.py → import enum（外部）</li>
+<li>services/analytics/events.py → import typing（外部）</li>
+<li>services/analytics/events.py → import services（外部）</li>
+<li>services/analytics/metadata.py → import __future__（外部）</li>
+<li>services/analytics/metadata.py → import os（外部）</li>
+<li>services/analytics/metadata.py → import platform（外部）</li>
+<li>services/analytics/metadata.py → import time（外部）</li>
+<li>services/analytics/metadata.py → import dataclasses（外部）</li>
+<li>services/analytics/metadata.py → import typing（外部）</li>
+<li>services/analytics/sink.py → import __future__（外部）</li>
+<li>services/analytics/sink.py → import json（外部）</li>
+<li>services/analytics/sink.py → import logging（外部）</li>
+<li>services/analytics/sink.py → import sys（外部）</li>
+<li>services/analytics/sink.py → import abc（外部）</li>
+<li>services/analytics/sink.py → import pathlib（外部）</li>
+<li>services/analytics/sink.py → import typing（外部）</li>
+<li>services/api/__init__.py → import services（外部）</li>
+<li>services/api/claude.py → import __future__（外部）</li>
+<li>services/api/claude.py → import logging（外部）</li>
+<li>services/api/claude.py → import time（外部）</li>
+<li>services/api/claude.py → import uuid（外部）</li>
+<li>services/api/claude.py → import dataclasses（外部）</li>
+<li>services/api/claude.py → import typing（外部）</li>
+<li>services/api/claude.py → import services（外部）</li>
+<li>services/api/custom_headers.py → import __future__（外部）</li>
+<li>services/api/custom_headers.py → import os（外部）</li>
+<li>services/api/errors.py → import __future__（外部）</li>
+<li>services/api/errors.py → import re（外部）</li>
+<li>services/api/errors.py → import dataclasses（外部）</li>
+<li>services/api/errors.py → import typing（外部）</li>
+<li>services/api/logging.py → import __future__（外部）</li>
+<li>services/api/logging.py → import logging（外部）</li>
+<li>services/api/logging.py → import time（外部）</li>
+<li>services/api/logging.py → import dataclasses（外部）</li>
+<li>services/api/logging.py → import typing（外部）</li>
+<li>services/api/provider_config.py → import __future__（外部）</li>
+<li>services/api/provider_config.py → import dataclasses（外部）</li>
+<li>services/api/provider_config.py → import typing（外部）</li>
+<li>services/api/tool_normalization.py → import __future__（外部）</li>
+<li>services/api/tool_normalization.py → import json（外部）</li>
+<li>services/api/tool_normalization.py → import typing（外部）</li>
+<li>services/autofix/__init__.py → import __future__（外部）</li>
+<li>services/autofix/__init__.py → import services（外部）</li>
+<li>services/autofix/config.py → import __future__（外部）</li>
+<li>services/autofix/config.py → import dataclasses（外部）</li>
+<li>services/autofix/config.py → import typing（外部）</li>
+<li>services/autofix/hook.py → import __future__（外部）</li>
+<li>services/autofix/hook.py → import services（外部）</li>
+<li>services/autofix/runner.py → import __future__（外部）</li>
+<li>services/autofix/runner.py → import asyncio（外部）</li>
+<li>services/autofix/runner.py → import logging（外部）</li>
+<li>services/autofix/runner.py → import sys（外部）</li>
+<li>services/autofix/runner.py → import dataclasses（外部）</li>
+<li>services/autofix/runner.py → import typing（外部）</li>
+<li>services/autofix/runner.py → import src（外部）</li>
+<li>services/autofix/step.py → import __future__（外部）</li>
+<li>services/autofix/step.py → import logging（外部）</li>
+<li>services/autofix/step.py → import typing（外部）</li>
+<li>services/autofix/step.py → import src（外部）</li>
+<li>services/autofix/step.py → import services（外部）</li>
+<li>services/bash_mode.py → import __future__（外部）</li>
+<li>services/bash_mode.py → import dataclasses（外部）</li>
+<li>services/bash_mode.py → import typing（外部）</li>
+<li>services/bash_mode.py → import xml（外部）</li>
+<li>services/compact/__init__.py → import __future__（外部）</li>
+<li>services/compact/__init__.py → import services（外部）</li>
+<li>services/compact/autocompact.py → import __future__（外部）</li>
+<li>services/compact/autocompact.py → import logging（外部）</li>
+<li>services/compact/autocompact.py → import math（外部）</li>
+<li>services/compact/autocompact.py → import os（外部）</li>
+<li>services/compact/autocompact.py → import time（外部）</li>
+<li>services/compact/autocompact.py → import dataclasses（外部）</li>
+<li>services/compact/autocompact.py → import typing（外部）</li>
+<li>services/compact/autocompact.py → import types（内部）</li>
+<li>services/compact/autocompact.py → import providers（内部）</li>
+<li>services/compact/autocompact.py → import services（外部）</li>
+<li>services/compact/compact.py → import __future__（外部）</li>
+<li>services/compact/compact.py → import logging（外部）</li>
+<li>services/compact/compact.py → import re（外部）</li>
+<li>services/compact/compact.py → import dataclasses（外部）</li>
+<li>services/compact/compact.py → import typing（外部）</li>
+<li>services/compact/compact.py → import types（内部）</li>
+<li>services/compact/compact.py → import compact_service（内部）</li>
+<li>services/compact/compact.py → import context_system（内部）</li>
+<li>services/compact/compact.py → import token_estimation（内部）</li>
+<li>services/compact/compact.py → import services（外部）</li>
+<li>services/compact/compact_warning.py → import __future__（外部）</li>
+<li>services/compact/compact_warning.py → import threading（外部）</li>
+<li>services/compact/context_collapse.py → import __future__（外部）</li>
+<li>services/compact/context_collapse.py → import logging（外部）</li>
+<li>services/compact/context_collapse.py → import dataclasses（外部）</li>
+<li>services/compact/context_collapse.py → import typing（外部）</li>
+<li>services/compact/context_collapse.py → import types（内部）</li>
+<li>services/compact/grouping.py → import __future__（外部）</li>
+<li>services/compact/grouping.py → import dataclasses（外部）</li>
+<li>services/compact/grouping.py → import typing（外部）</li>
+<li>services/compact/grouping.py → import types（内部）</li>
+<li>services/compact/pipeline.py → import __future__（外部）</li>
+<li>services/compact/pipeline.py → import logging（外部）</li>
+<li>services/compact/pipeline.py → import dataclasses（外部）</li>
+<li>services/compact/pipeline.py → import pathlib（外部）</li>
+<li>services/compact/pipeline.py → import typing（外部）</li>
+<li>services/compact/pipeline.py → import types（内部）</li>
+<li>services/compact/pipeline.py → import providers（内部）</li>
+<li>services/compact/pipeline.py → import services（外部）</li>
+<li>services/compact/pipeline.py → import context_system（内部）</li>
+<li>services/compact/post_compact_attachments.py → import __future__（外部）</li>
+<li>services/compact/post_compact_attachments.py → import logging（外部）</li>
+<li>services/compact/post_compact_attachments.py → import os（外部）</li>
+<li>services/compact/post_compact_attachments.py → import dataclasses（外部）</li>
+<li>services/compact/post_compact_attachments.py → import typing（外部）</li>
+<li>services/compact/post_compact_attachments.py → import token_estimation（内部）</li>
+<li>services/compact/post_compact_attachments.py → import types（内部）</li>
+<li>services/compact/post_compact_cleanup.py → import __future__（外部）</li>
+<li>services/compact/post_compact_cleanup.py → import logging（外部）</li>
+<li>services/compact/post_compact_cleanup.py → import dataclasses（外部）</li>
+<li>services/compact/post_compact_cleanup.py → import typing（外部）</li>
+<li>services/compact/prompt.py → import __future__（外部）</li>
+<li>services/compact/prompt.py → import re（外部）</li>
+<li>services/compact/prompt.py → import typing（外部）</li>
+<li>services/compact/reactive_compact.py → import __future__（外部）</li>
+<li>services/compact/reactive_compact.py → import logging（外部）</li>
+<li>services/compact/reactive_compact.py → import dataclasses（外部）</li>
+<li>services/compact/reactive_compact.py → import typing（外部）</li>
+<li>services/compact/reactive_compact.py → import types（内部）</li>
+<li>services/compact/reactive_compact.py → import token_estimation（内部）</li>
+<li>services/compact/reactive_compact.py → import services（外部）</li>
+<li>services/compact/session_memory_compact.py → import __future__（外部）</li>
+<li>services/compact/session_memory_compact.py → import logging（外部）</li>
+<li>services/compact/session_memory_compact.py → import dataclasses（外部）</li>
+<li>services/compact/session_memory_compact.py → import typing（外部）</li>
+<li>services/compact/session_memory_compact.py → import types（内部）</li>
+<li>services/compact/session_memory_compact.py → import token_estimation（内部）</li>
+<li>services/compact/snip_compact.py → import __future__（外部）</li>
+<li>services/compact/snip_compact.py → import typing（外部）</li>
+<li>services/compact/snip_compact.py → import types（内部）</li>
+<li>services/compact/tool_result_budget.py → import __future__（外部）</li>
+<li>services/compact/tool_result_budget.py → import hashlib（外部）</li>
+<li>services/compact/tool_result_budget.py → import json（外部）</li>
+<li>services/compact/tool_result_budget.py → import logging（外部）</li>
+<li>services/compact/tool_result_budget.py → import os（外部）</li>
+<li>services/compact/tool_result_budget.py → import tempfile（外部）</li>
+<li>services/compact/tool_result_budget.py → import dataclasses（外部）</li>
+<li>services/compact/tool_result_budget.py → import pathlib（外部）</li>
+<li>services/compact/tool_result_budget.py → import typing（外部）</li>
+<li>services/compact/tool_result_budget.py → import types（内部）</li>
+<li>services/compact/tool_result_budget.py → import token_estimation（内部）</li>
+<li>services/config_health.py → import __future__（外部）</li>
+<li>services/config_health.py → import json（外部）</li>
+<li>services/config_health.py → import os（外部）</li>
+<li>services/config_health.py → import dataclasses（外部）</li>
+<li>services/cost_restore.py → import __future__（外部）</li>
+<li>services/cost_restore.py → import json（外部）</li>
+<li>services/cost_restore.py → import pathlib（外部）</li>
+<li>services/cost_restore.py → import typing（外部）</li>
+<li>services/cost_restore.py → import src（外部）</li>
+<li>services/cost_tracker.py → import __future__（外部）</li>
+<li>services/cost_tracker.py → import time（外部）</li>
+<li>services/cost_tracker.py → import dataclasses（外部）</li>
+<li>services/cost_tracker.py → import typing（外部）</li>
+<li>services/cost_tracker.py → import src（外部）</li>
+<li>services/fuzzy_match.py → import __future__（外部）</li>
+<li>services/ide/__init__.py → import __future__（外部）</li>
+<li>services/ide/__init__.py → import services（外部）</li>
+<li>services/ide/connection.py → import __future__（外部）</li>
+<li>services/ide/connection.py → import asyncio（外部）</li>
+<li>services/ide/connection.py → import json（外部）</li>
+<li>services/ide/connection.py → import logging（外部）</li>
+<li>services/ide/connection.py → import dataclasses（外部）</li>
+<li>services/ide/connection.py → import typing（外部）</li>
+<li>services/ide/connection.py → import services（外部）</li>
+<li>services/ide/diagnostics.py → import __future__（外部）</li>
+<li>services/ide/diagnostics.py → import logging（外部）</li>
+<li>services/ide/diagnostics.py → import collections（外部）</li>
+<li>services/ide/diagnostics.py → import dataclasses（外部）</li>
+<li>services/ide/diagnostics.py → import typing（外部）</li>
+<li>services/ide/diagnostics.py → import services（外部）</li>
+<li>services/ide/selection.py → import __future__（外部）</li>
+<li>services/ide/selection.py → import logging（外部）</li>
+<li>services/ide/selection.py → import time（外部）</li>
+<li>services/ide/selection.py → import dataclasses（外部）</li>
+<li>services/ide/selection.py → import typing（外部）</li>
+<li>services/ide/selection.py → import services（外部）</li>
+<li>services/ide/types.py → import __future__（外部）</li>
+<li>services/ide/types.py → import dataclasses（外部）</li>
+<li>services/ide/types.py → import enum（外部）</li>
+<li>services/ide/types.py → import typing（外部）</li>
+<li>services/mcp/__init__.py → import services（外部）</li>
+<li>services/mcp/auth.py → import __future__（外部）</li>
+<li>services/mcp/auth.py → import base64（外部）</li>
+<li>services/mcp/auth.py → import hashlib（外部）</li>
+<li>services/mcp/auth.py → import json（外部）</li>
+<li>services/mcp/auth.py → import logging（外部）</li>
+<li>services/mcp/auth.py → import os（外部）</li>
+<li>services/mcp/auth.py → import secrets（外部）</li>
+<li>services/mcp/auth.py → import time（外部）</li>
+<li>services/mcp/auth.py → import webbrowser（外部）</li>
+<li>services/mcp/auth.py → import dataclasses（外部）</li>
+<li>services/mcp/auth.py → import pathlib（外部）</li>
+<li>services/mcp/auth.py → import typing（外部）</li>
+<li>services/mcp/auth.py → import urllib（外部）</li>
+<li>services/mcp/auth.py → import httpx（外部）</li>
+<li>services/mcp/auth.py → import services（外部）</li>
+<li>services/mcp/auth_discovery.py → import __future__（外部）</li>
+<li>services/mcp/auth_discovery.py → import logging（外部）</li>
+<li>services/mcp/auth_discovery.py → import typing（外部）</li>
+<li>services/mcp/auth_discovery.py → import httpx（外部）</li>
+<li>services/mcp/auth_discovery.py → import mcp（外部）</li>
+<li>services/mcp/auth_discovery.py → import services（外部）</li>
+<li>services/mcp/auth_provider.py → import __future__（外部）</li>
+<li>services/mcp/auth_provider.py → import asyncio（外部）</li>
+<li>services/mcp/auth_provider.py → import logging（外部）</li>
+<li>services/mcp/auth_provider.py → import secrets（外部）</li>
+<li>services/mcp/auth_provider.py → import time（外部）</li>
+<li>services/mcp/auth_provider.py → import webbrowser（外部）</li>
+<li>services/mcp/auth_provider.py → import dataclasses（外部）</li>
+<li>services/mcp/auth_provider.py → import typing（外部）</li>
+<li>services/mcp/auth_provider.py → import httpx（外部）</li>
+<li>services/mcp/auth_provider.py → import services（外部）</li>
+<li>services/mcp/channel_permissions.py → import __future__（外部）</li>
+<li>services/mcp/channel_permissions.py → import logging（外部）</li>
+<li>services/mcp/channel_permissions.py → import dataclasses（外部）</li>
+<li>services/mcp/channel_permissions.py → import typing（外部）</li>
+<li>services/mcp/claudeai.py → import __future__（外部）</li>
+<li>services/mcp/claudeai.py → import logging（外部）</li>
+<li>services/mcp/claudeai.py → import os（外部）</li>
+<li>services/mcp/claudeai.py → import time（外部）</li>
+<li>services/mcp/claudeai.py → import typing（外部）</li>
+<li>services/mcp/claudeai.py → import httpx（外部）</li>
+<li>services/mcp/claudeai.py → import services（外部）</li>
+<li>services/mcp/client.py → import __future__（外部）</li>
+<li>services/mcp/client.py → import asyncio（外部）</li>
+<li>services/mcp/client.py → import json（外部）</li>
+<li>services/mcp/client.py → import logging（外部）</li>
+<li>services/mcp/client.py → import os（外部）</li>
+<li>services/mcp/client.py → import time（外部）</li>
+<li>services/mcp/client.py → import typing（外部）</li>
+<li>services/mcp/client.py → import services（外部）</li>
+<li>services/mcp/config.py → import __future__（外部）</li>
+<li>services/mcp/config.py → import json（外部）</li>
+<li>services/mcp/config.py → import logging（外部）</li>
+<li>services/mcp/config.py → import os（外部）</li>
+<li>services/mcp/config.py → import re（外部）</li>
+<li>services/mcp/config.py → import tempfile（外部）</li>
+<li>services/mcp/config.py → import threading（外部）</li>
+<li>services/mcp/config.py → import dataclasses（外部）</li>
+<li>services/mcp/config.py → import pathlib（外部）</li>
+<li>services/mcp/config.py → import typing（外部）</li>
+<li>services/mcp/config.py → import urllib（外部）</li>
+<li>services/mcp/config.py → import services（外部）</li>
+<li>services/mcp/connection_manager.py → import __future__（外部）</li>
+<li>services/mcp/connection_manager.py → import asyncio（外部）</li>
+<li>services/mcp/connection_manager.py → import logging（外部）</li>
+<li>services/mcp/connection_manager.py → import typing（外部）</li>
+<li>services/mcp/connection_manager.py → import src（外部）</li>
+<li>services/mcp/connection_manager.py → import services（外部）</li>
+<li>services/mcp/doctor.py → import __future__（外部）</li>
+<li>services/mcp/doctor.py → import asyncio（外部）</li>
+<li>services/mcp/doctor.py → import json（外部）</li>
+<li>services/mcp/doctor.py → import logging（外部）</li>
+<li>services/mcp/doctor.py → import os（外部）</li>
+<li>services/mcp/doctor.py → import shutil（外部）</li>
+<li>services/mcp/doctor.py → import time（外部）</li>
+<li>services/mcp/doctor.py → import dataclasses（外部）</li>
+<li>services/mcp/doctor.py → import pathlib（外部）</li>
+<li>services/mcp/doctor.py → import typing（外部）</li>
+<li>services/mcp/doctor.py → import services（外部）</li>
+<li>services/mcp/elicitation.py → import __future__（外部）</li>
+<li>services/mcp/elicitation.py → import logging（外部）</li>
+<li>services/mcp/elicitation.py → import webbrowser（外部）</li>
+<li>services/mcp/elicitation.py → import typing（外部）</li>
+<li>services/mcp/elicitation.py → import services（外部）</li>
+<li>services/mcp/env_expansion.py → import __future__（外部）</li>
+<li>services/mcp/env_expansion.py → import os（外部）</li>
+<li>services/mcp/env_expansion.py → import re（外部）</li>
+<li>services/mcp/env_expansion.py → import dataclasses（外部）</li>
+<li>services/mcp/errors.py → import __future__（外部）</li>
+<li>services/mcp/errors.py → import re（外部）</li>
+<li>services/mcp/errors.py → import typing（外部）</li>
+<li>services/mcp/fetch_wrappers.py → import __future__（外部）</li>
+<li>services/mcp/fetch_wrappers.py → import logging（外部）</li>
+<li>services/mcp/fetch_wrappers.py → import httpx（外部）</li>
+<li>services/mcp/in_process_transport.py → import __future__（外部）</li>
+<li>services/mcp/in_process_transport.py → import asyncio（外部）</li>
+<li>services/mcp/in_process_transport.py → import typing（外部）</li>
+<li>services/mcp/in_process_transport.py → import services（外部）</li>
+<li>services/mcp/manager.py → import __future__（外部）</li>
+<li>services/mcp/manager.py → import asyncio（外部）</li>
+<li>services/mcp/manager.py → import logging（外部）</li>
+<li>services/mcp/manager.py → import dataclasses（外部）</li>
+<li>services/mcp/manager.py → import typing（外部）</li>
+<li>services/mcp/manager.py → import src（外部）</li>
+<li>services/mcp/manager.py → import services（外部）</li>
+<li>services/mcp/mcp_string_utils.py → import __future__（外部）</li>
+<li>services/mcp/mcp_string_utils.py → import re（外部）</li>
+<li>services/mcp/mcp_string_utils.py → import dataclasses（外部）</li>
+<li>services/mcp/mcp_string_utils.py → import typing（外部）</li>
+<li>services/mcp/mcp_string_utils.py → import services（外部）</li>
+<li>services/mcp/normalization.py → import __future__（外部）</li>
+<li>services/mcp/normalization.py → import re（外部）</li>
+<li>services/mcp/oauth_callback_server.py → import __future__（外部）</li>
+<li>services/mcp/oauth_callback_server.py → import asyncio（外部）</li>
+<li>services/mcp/oauth_callback_server.py → import html（外部）</li>
+<li>services/mcp/oauth_callback_server.py → import logging（外部）</li>
+<li>services/mcp/oauth_callback_server.py → import dataclasses（外部）</li>
+<li>services/mcp/oauth_callback_server.py → import typing（外部）</li>
+<li>services/mcp/oauth_callback_server.py → import urllib（外部）</li>
+<li>services/mcp/oauth_error_normalization.py → import __future__（外部）</li>
+<li>services/mcp/oauth_error_normalization.py → import logging（外部）</li>
+<li>services/mcp/oauth_error_normalization.py → import typing（外部）</li>
+<li>services/mcp/oauth_port.py → import __future__（外部）</li>
+<li>services/mcp/oauth_port.py → import logging（外部）</li>
+<li>services/mcp/oauth_port.py → import os（外部）</li>
+<li>services/mcp/oauth_port.py → import random（外部）</li>
+<li>services/mcp/oauth_port.py → import socket（外部）</li>
+<li>services/mcp/oauth_port.py → import sys（外部）</li>
+<li>services/mcp/oauth_redaction.py → import __future__（外部）</li>
+<li>services/mcp/oauth_redaction.py → import urllib（外部）</li>
+<li>services/mcp/official_registry.py → import __future__（外部）</li>
+<li>services/mcp/official_registry.py → import asyncio（外部）</li>
+<li>services/mcp/official_registry.py → import logging（外部）</li>
+<li>services/mcp/official_registry.py → import os（外部）</li>
+<li>services/mcp/official_registry.py → import urllib（外部）</li>
+<li>services/mcp/official_registry.py → import httpx（外部）</li>
+<li>services/mcp/output_storage.py → import __future__（外部）</li>
+<li>services/mcp/output_storage.py → import logging（外部）</li>
+<li>services/mcp/output_storage.py → import tempfile（外部）</li>
+<li>services/mcp/output_storage.py → import uuid（外部）</li>
+<li>services/mcp/output_storage.py → import pathlib（外部）</li>
+<li>services/mcp/output_validation.py → import __future__（外部）</li>
+<li>services/mcp/output_validation.py → import json（外部）</li>
+<li>services/mcp/output_validation.py → import logging（外部）</li>
+<li>services/mcp/output_validation.py → import os（外部）</li>
+<li>services/mcp/output_validation.py → import typing（外部）</li>
+<li>services/mcp/telemetry.py → import __future__（外部）</li>
+<li>services/mcp/telemetry.py → import logging（外部）</li>
+<li>services/mcp/telemetry.py → import typing（外部）</li>
+<li>services/mcp/text_truncation.py → import __future__（外部）</li>
+<li>services/mcp/tool_wrapper.py → import __future__（外部）</li>
+<li>services/mcp/tool_wrapper.py → import asyncio（外部）</li>
+<li>services/mcp/tool_wrapper.py → import hashlib（外部）</li>
+<li>services/mcp/tool_wrapper.py → import json（外部）</li>
+<li>services/mcp/tool_wrapper.py → import logging（外部）</li>
+<li>services/mcp/tool_wrapper.py → import re（外部）</li>
+<li>services/mcp/tool_wrapper.py → import typing（外部）</li>
+<li>services/mcp/tool_wrapper.py → import src（外部）</li>
+<li>services/mcp/tool_wrapper.py → import services（外部）</li>
+<li>services/mcp/transport.py → import __future__（外部）</li>
+<li>services/mcp/transport.py → import logging（外部）</li>
+<li>services/mcp/transport.py → import abc（外部）</li>
+<li>services/mcp/transport.py → import contextlib（外部）</li>
+<li>services/mcp/transport.py → import dataclasses（外部）</li>
+<li>services/mcp/transport.py → import typing（外部）</li>
+<li>services/mcp/transport.py → import anyio（外部）</li>
+<li>services/mcp/transport.py → import httpx（外部）</li>
+<li>services/mcp/transport.py → import mcp（外部）</li>
+<li>services/mcp/transport.py → import services（外部）</li>
+<li>services/mcp/types.py → import __future__（外部）</li>
+<li>services/mcp/types.py → import dataclasses（外部）</li>
+<li>services/mcp/types.py → import typing（外部）</li>
+<li>services/mcp/xaa.py → import __future__（外部）</li>
+<li>services/mcp/xaa.py → import logging（外部）</li>
+<li>services/mcp/xaa.py → import re（外部）</li>
+<li>services/mcp/xaa.py → import time（外部）</li>
+<li>services/mcp/xaa.py → import dataclasses（外部）</li>
+<li>services/mcp/xaa.py → import typing（外部）</li>
+<li>services/mcp/xaa.py → import urllib（外部）</li>
+<li>services/mcp/xaa.py → import httpx（外部）</li>
+<li>services/mcp/xaa.py → import services（外部）</li>
+<li>services/mcp/xaa_idp_login.py → import __future__（外部）</li>
+<li>services/mcp/xaa_idp_login.py → import asyncio（外部）</li>
+<li>services/mcp/xaa_idp_login.py → import base64（外部）</li>
+<li>services/mcp/xaa_idp_login.py → import json（外部）</li>
+<li>services/mcp/xaa_idp_login.py → import logging（外部）</li>
+<li>services/mcp/xaa_idp_login.py → import os（外部）</li>
+<li>services/mcp/xaa_idp_login.py → import time（外部）</li>
+<li>services/mcp/xaa_idp_login.py → import webbrowser（外部）</li>
+<li>services/mcp/xaa_idp_login.py → import dataclasses（外部）</li>
+<li>services/mcp/xaa_idp_login.py → import typing（外部）</li>
+<li>services/mcp/xaa_idp_login.py → import httpx（外部）</li>
+<li>services/mcp/xaa_idp_login.py → import services（外部）</li>
+<li>services/mcp_approval.py → import __future__（外部）</li>
+<li>services/mcp_approval.py → import json（外部）</li>
+<li>services/mcp_approval.py → import os（外部）</li>
+<li>services/mcp_approval.py → import typing（外部）</li>
+<li>services/mcp_approval.py → import src（外部）</li>
+<li>services/memory_append.py → import __future__（外部）</li>
+<li>services/memory_append.py → import random（外部）</li>
+<li>services/memory_append.py → import pathlib（外部）</li>
+<li>services/oauth/__init__.py → import src（外部）</li>
+<li>services/oauth/client.py → import __future__（外部）</li>
+<li>services/oauth/client.py → import src（外部）</li>
+<li>services/pricing.py → import __future__（外部）</li>
+<li>services/pricing.py → import typing（外部）</li>
+<li>services/session_listing.py → import __future__（外部）</li>
+<li>services/session_listing.py → import time（外部）</li>
+<li>services/session_listing.py → import dataclasses（外部）</li>
+<li>services/session_listing.py → import typing（外部）</li>
+<li>services/session_persistence.py → import __future__（外部）</li>
+<li>services/session_persistence.py → import logging（外部）</li>
+<li>services/session_persistence.py → import threading（外部）</li>
+<li>services/session_persistence.py → import pathlib（外部）</li>
+<li>services/session_persistence.py → import typing（外部）</li>
+<li>services/session_resume.py → import __future__（外部）</li>
+<li>services/session_resume.py → import logging（外部）</li>
+<li>services/session_resume.py → import pathlib（外部）</li>
+<li>services/session_resume.py → import typing（外部）</li>
+<li>services/session_resume.py → import types（内部）</li>
+<li>services/session_resume.py → import services（外部）</li>
+<li>services/session_storage.py → import __future__（外部）</li>
+<li>services/session_storage.py → import json（外部）</li>
+<li>services/session_storage.py → import logging（外部）</li>
+<li>services/session_storage.py → import os（外部）</li>
+<li>services/session_storage.py → import shutil（外部）</li>
+<li>services/session_storage.py → import tempfile（外部）</li>
+<li>services/session_storage.py → import time（外部）</li>
+<li>services/session_storage.py → import uuid（外部）</li>
+<li>services/session_storage.py → import dataclasses（外部）</li>
+<li>services/session_storage.py → import pathlib（外部）</li>
+<li>services/session_storage.py → import typing（外部）</li>
+<li>services/session_storage.py → import types（内部）</li>
+<li>services/session_storage.py → import utils（内部）</li>
+<li>services/session_title.py → import __future__（外部）</li>
+<li>services/session_title.py → import logging（外部）</li>
+<li>services/session_title.py → import re（外部）</li>
+<li>services/session_title.py → import typing（外部）</li>
+<li>services/startup_gates.py → import __future__（外部）</li>
+<li>services/startup_gates.py → import json（外部）</li>
+<li>services/startup_gates.py → import os（外部）</li>
+<li>services/startup_gates.py → import pathlib（外部）</li>
+<li>services/startup_gates.py → import typing（外部）</li>
+<li>services/status_line_command.py → import __future__（外部）</li>
+<li>services/status_line_command.py → import json（外部）</li>
+<li>services/status_line_command.py → import logging（外部）</li>
+<li>services/status_line_command.py → import subprocess（外部）</li>
+<li>services/status_line_command.py → import sys（外部）</li>
+<li>services/status_line_command.py → import typing（外部）</li>
+<li>services/swarm/__init__.py → import __future__（外部）</li>
+<li>services/swarm/__init__.py → import services（外部）</li>
+<li>services/swarm/agent_name_registry.py → import __future__（外部）</li>
+<li>services/swarm/agent_name_registry.py → import threading（外部）</li>
+<li>services/swarm/agent_name_registry.py → import typing（外部）</li>
+<li>services/swarm/agent_name_registry.py → import src（外部）</li>
+<li>services/swarm/helpers.py → import __future__（外部）</li>
+<li>services/swarm/helpers.py → import services（外部）</li>
+<li>services/swarm/leader_permission_bridge.py → import __future__（外部）</li>
+<li>services/swarm/leader_permission_bridge.py → import logging（外部）</li>
+<li>services/swarm/leader_permission_bridge.py → import threading（外部）</li>
+<li>services/swarm/leader_permission_bridge.py → import time（外部）</li>
+<li>services/swarm/leader_permission_bridge.py → import uuid（外部）</li>
+<li>services/swarm/leader_permission_bridge.py → import dataclasses（外部）</li>
+<li>services/swarm/leader_permission_bridge.py → import pathlib（外部）</li>
+<li>services/swarm/leader_permission_bridge.py → import typing（外部）</li>
+<li>services/swarm/leader_permission_bridge.py → import src（外部）</li>
+<li>services/swarm/mailbox.py → import __future__（外部）</li>
+<li>services/swarm/mailbox.py → import errno（外部）</li>
+<li>services/swarm/mailbox.py → import json（外部）</li>
+<li>services/swarm/mailbox.py → import logging（外部）</li>
+<li>services/swarm/mailbox.py → import os（外部）</li>
+<li>services/swarm/mailbox.py → import re（外部）</li>
+<li>services/swarm/mailbox.py → import time（外部）</li>
+<li>services/swarm/mailbox.py → import contextlib（外部）</li>
+<li>services/swarm/mailbox.py → import dataclasses（外部）</li>
+<li>services/swarm/mailbox.py → import pathlib（外部）</li>
+<li>services/swarm/mailbox.py → import typing（外部）</li>
+<li>services/swarm/mailbox_poller.py → import __future__（外部）</li>
+<li>services/swarm/mailbox_poller.py → import json（外部）</li>
+<li>services/swarm/mailbox_poller.py → import logging（外部）</li>
+<li>services/swarm/mailbox_poller.py → import threading（外部）</li>
+<li>services/swarm/mailbox_poller.py → import time（外部）</li>
+<li>services/swarm/mailbox_poller.py → import dataclasses（外部）</li>
+<li>services/swarm/mailbox_poller.py → import pathlib（外部）</li>
+<li>services/swarm/mailbox_poller.py → import typing（外部）</li>
+<li>services/swarm/mailbox_poller.py → import src（外部）</li>
+<li>services/swarm/permissions.py → import __future__（外部）</li>
+<li>services/swarm/permissions.py → import logging（外部）</li>
+<li>services/swarm/permissions.py → import dataclasses（外部）</li>
+<li>services/swarm/permissions.py → import typing（外部）</li>
+<li>services/swarm/team_file.py → import __future__（外部）</li>
+<li>services/swarm/team_file.py → import json（外部）</li>
+<li>services/swarm/team_file.py → import dataclasses（外部）</li>
+<li>services/swarm/team_file.py → import pathlib（外部）</li>
+<li>services/swarm/team_file.py → import typing（外部）</li>
+<li>services/swarm/team_membership.py → import __future__（外部）</li>
+<li>services/swarm/team_membership.py → import typing（外部）</li>
+<li>services/swarm/teammate.py → import __future__（外部）</li>
+<li>services/swarm/teammate.py → import logging（外部）</li>
+<li>services/swarm/teammate.py → import time（外部）</li>
+<li>services/swarm/teammate.py → import dataclasses（外部）</li>
+<li>services/swarm/teammate.py → import enum（外部）</li>
+<li>services/swarm/teammate.py → import typing（外部）</li>
+<li>services/swarm/teammate.py → import uuid（外部）</li>
+<li>services/token_warning.py → import __future__（外部）</li>
+<li>services/token_warning.py → import dataclasses（外部）</li>
+<li>services/token_warning.py → import src（外部）</li>
+<li>services/tool_execution/__init__.py → import __future__（外部）</li>
+<li>services/tool_execution/__init__.py → import services（外部）</li>
+<li>services/tool_execution/can_use_tool_adapter.py → import __future__（外部）</li>
+<li>services/tool_execution/can_use_tool_adapter.py → import logging（外部）</li>
+<li>services/tool_execution/can_use_tool_adapter.py → import typing（外部）</li>
+<li>services/tool_execution/orchestrator.py → import __future__（外部）</li>
+<li>services/tool_execution/orchestrator.py → import asyncio（外部）</li>
+<li>services/tool_execution/orchestrator.py → import logging（外部）</li>
+<li>services/tool_execution/orchestrator.py → import os（外部）</li>
+<li>services/tool_execution/orchestrator.py → import dataclasses（外部）</li>
+<li>services/tool_execution/orchestrator.py → import typing（外部）</li>
+<li>services/tool_execution/orchestrator.py → import src（外部）</li>
+<li>services/tool_execution/streaming_executor.py → import __future__（外部）</li>
+<li>services/tool_execution/streaming_executor.py → import asyncio（外部）</li>
+<li>services/tool_execution/streaming_executor.py → import dataclasses（外部）</li>
+<li>services/tool_execution/streaming_executor.py → import json（外部）</li>
+<li>services/tool_execution/streaming_executor.py → import logging（外部）</li>
+<li>services/tool_execution/streaming_executor.py → import typing（外部）</li>
+<li>services/tool_execution/streaming_executor.py → import src（外部）</li>
+<li>services/tool_execution/tool_execution.py → import __future__（外部）</li>
+<li>services/tool_execution/tool_execution.py → import json（外部）</li>
+<li>services/tool_execution/tool_execution.py → import logging（外部）</li>
+<li>services/tool_execution/tool_execution.py → import math（外部）</li>
+<li>services/tool_execution/tool_execution.py → import time（外部）</li>
+<li>services/tool_execution/tool_execution.py → import dataclasses（外部）</li>
+<li>services/tool_execution/tool_execution.py → import typing（外部）</li>
+<li>services/tool_execution/tool_execution.py → import src（外部）</li>
+<li>services/tool_execution/tool_hooks.py → import __future__（外部）</li>
+<li>services/tool_execution/tool_hooks.py → import logging（外部）</li>
+<li>services/tool_execution/tool_hooks.py → import time（外部）</li>
+<li>services/tool_execution/tool_hooks.py → import dataclasses（外部）</li>
+<li>services/tool_execution/tool_hooks.py → import typing（外部）</li>
+<li>services/tool_execution/tool_hooks.py → import src（外部）</li>
+<li>services/tool_execution/tool_result_persistence.py → import __future__（外部）</li>
+<li>services/tool_execution/tool_result_persistence.py → import hashlib（外部）</li>
+<li>services/tool_execution/tool_result_persistence.py → import json（外部）</li>
+<li>services/tool_execution/tool_result_persistence.py → import logging（外部）</li>
+<li>services/tool_execution/tool_result_persistence.py → import os（外部）</li>
+<li>services/tool_execution/tool_result_persistence.py → import dataclasses（外部）</li>
+<li>services/tool_execution/tool_result_persistence.py → import pathlib（外部）</li>
+<li>services/tool_execution/tool_result_persistence.py → import typing（外部）</li>
+<li>services/tool_use_summary.py → import __future__（外部）</li>
+<li>services/tool_use_summary.py → import json（外部）</li>
+<li>services/tool_use_summary.py → import logging（外部）</li>
+<li>services/tool_use_summary.py → import typing（外部）</li>
+<li>services/voice/__init__.py → import __future__（外部）</li>
+<li>services/voice/__init__.py → import services（外部）</li>
+<li>services/voice/detection.py → import __future__（外部）</li>
+<li>services/voice/detection.py → import time（外部）</li>
+<li>services/voice/detection.py → import dataclasses（外部）</li>
+<li>services/voice/detection.py → import enum（外部）</li>
+<li>services/voice/detection.py → import typing（外部）</li>
+<li>services/voice/stt.py → import __future__（外部）</li>
+<li>services/voice/stt.py → import abc（外部）</li>
+<li>services/voice/stt.py → import dataclasses（外部）</li>
+<li>services/voice/stt.py → import typing（外部）</li>
+<li>services/workspace_search.py → import __future__（外部）</li>
+<li>services/workspace_search.py → import os（外部）</li>
+<li>services/workspace_search.py → import re（外部）</li>
+<li>services/workspace_search.py → import dataclasses（外部）</li>
+<li>services/workspace_search.py → import typing（外部）</li>
+</ol>
+<h2 id="5-r7-r5-ccr-14-映射-启发式初版">5. R7/R5/CCR-14 映射（启发式初版）</h2>
+<ol>
+<li>CCR-06 Tool Orchestration — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-14 Runtime Config / Feature Gate Control Plane — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-文件级映射细分">6. 文件级映射细分</h2>
+<ol>
+<li><code class="inline-code">__init__.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">agent_name_registry.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">auth.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">auth_discovery.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">auth_provider.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">autocompact.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">bash_mode.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">can_use_tool_adapter.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">channel_permissions.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">claude.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">claudeai.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">client.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">compact.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">compact_warning.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">config.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">config_health.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">connection.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">connection_manager.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">context_collapse.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">cost_restore.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">cost_tracker.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">custom_headers.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">detection.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">diagnostics.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">doctor.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">elicitation.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">env_expansion.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">errors.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">events.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">fetch_wrappers.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">fuzzy_match.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">grouping.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">helpers.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">hook.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">in_process_transport.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">leader_permission_bridge.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">logging.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">mailbox.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">mailbox_poller.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">manager.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">mcp_approval.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">mcp_string_utils.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">memory_append.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">metadata.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">normalization.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">oauth_callback_server.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">oauth_error_normalization.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">oauth_port.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">oauth_redaction.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">official_registry.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">orchestrator.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">output_storage.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">output_validation.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">permissions.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">pipeline.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">post_compact_attachments.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">post_compact_cleanup.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">pricing.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">prompt.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">provider_config.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">reactive_compact.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">runner.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">selection.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">session_listing.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">session_memory_compact.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">session_persistence.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">session_resume.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">session_storage.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">session_title.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">sink.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">snip_compact.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">startup_gates.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">status_line_command.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">step.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">streaming_executor.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">stt.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">team_file.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">team_membership.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">teammate.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">telemetry.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">text_truncation.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">token_warning.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">tool_execution.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">tool_hooks.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">tool_normalization.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">tool_result_budget.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">tool_result_persistence.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">tool_use_summary.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">tool_wrapper.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">transport.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">types.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">workspace_search.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">xaa.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">xaa_idp_login.py</code> → CCR-06, CCR-14（UNVERIFIED）</li>
+</ol>
+<h2 id="7-未确认项与待核实项">7. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ reference 侧对应文件/symbol 映射待核实</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 reference source</li>
+<li>☐ 本模块 R7/R5/CCR 归属的 UNVERIFIED 状态待升级或降级</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-services-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

@@ -29,6 +29,10 @@ TerminalReason = Literal[
 PYTHON_ONLY_TERMINAL_REASONS: frozenset[str] = frozenset({
     "empty_response",
     "max_cost",
+    # Wave 1 F5: reference query.ts 无 tool_failure_loop 终态
+    # （TS 的 tool-failure 保护在 services 层以不同语义存在），
+    # 本实现将其作为显式终态，必须登记为 adaptation/product extension。
+    "tool_failure_loop",
 })
 
 EARLY_STOP_SUBTYPES: dict[str, str] = {

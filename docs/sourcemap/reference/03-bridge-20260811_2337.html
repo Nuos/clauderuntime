@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bridge（reference）源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-python-侧候选映射-启发式初版" data-nav>5. Python 侧候选映射（启发式初版）</a></li>
+<li><a href="#6-未确认项与待核实项" data-nav>6. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>bridge（reference）源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">03</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2337</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">来源</span><span class="meta-value">restored-src/src/bridge</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（reference 目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="bridge-reference-源码盘点">bridge（reference）源码盘点</h1>
+<blockquote>
+<p>编号: 03</p>
+<p>时间戳: 20260811_2337</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>来源: restored-src/src/bridge</p>
+<p>类型: package（reference 目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: bridge</li>
+<li>类型: package（reference 目录模块）</li>
+<li>TS/JS 文件数: 31</li>
+<li>总行数: 12613</li>
+<li>依赖的 reference 内部模块: assistant, bootstrap, cli, constants, entrypoints, ink, services, types, utils</li>
+<li>Python 侧候选映射: bridge（UNVERIFIED）</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">bridge/bridgeApi.ts</code> — 539 行（类 1，函数 10）</li>
+<li><code class="inline-code">bridge/bridgeConfig.ts</code> — 48 行（类 0，函数 4）</li>
+<li><code class="inline-code">bridge/bridgeDebug.ts</code> — 135 行（类 0，函数 7）</li>
+<li><code class="inline-code">bridge/bridgeEnabled.ts</code> — 202 行（类 0，函数 11）</li>
+<li><code class="inline-code">bridge/bridgeMain.ts</code> — 2999 行（类 1，函数 27）</li>
+<li><code class="inline-code">bridge/bridgeMessaging.ts</code> — 461 行（类 1，函数 8）</li>
+<li><code class="inline-code">bridge/bridgePermissionCallbacks.ts</code> — 43 行（类 0，函数 1）</li>
+<li><code class="inline-code">bridge/bridgePointer.ts</code> — 210 行（类 0，函数 7）</li>
+<li><code class="inline-code">bridge/bridgeStatusUtil.ts</code> — 163 行（类 0，函数 13）</li>
+<li><code class="inline-code">bridge/bridgeUI.ts</code> — 530 行（类 0，函数 11）</li>
+<li><code class="inline-code">bridge/capacityWake.ts</code> — 56 行（类 0，函数 3）</li>
+<li><code class="inline-code">bridge/codeSessionApi.ts</code> — 168 行（类 0，函数 3）</li>
+<li><code class="inline-code">bridge/createSession.ts</code> — 384 行（类 0，函数 4）</li>
+<li><code class="inline-code">bridge/debugUtils.ts</code> — 141 行（类 0，函数 7）</li>
+<li><code class="inline-code">bridge/envLessBridgeConfig.ts</code> — 165 行（类 0，函数 4）</li>
+<li><code class="inline-code">bridge/flushGate.ts</code> — 71 行（类 1，函数 0）</li>
+<li><code class="inline-code">bridge/inboundAttachments.ts</code> — 175 行（类 0，函数 8）</li>
+<li><code class="inline-code">bridge/inboundMessages.ts</code> — 80 行（类 0，函数 3）</li>
+<li><code class="inline-code">bridge/initReplBridge.ts</code> — 569 行（类 0，函数 2）</li>
+<li><code class="inline-code">bridge/jwtUtils.ts</code> — 256 行（类 0，函数 10）</li>
+<li><code class="inline-code">bridge/pollConfig.ts</code> — 110 行（类 0，函数 1）</li>
+<li><code class="inline-code">bridge/pollConfigDefaults.ts</code> — 82 行（类 0，函数 1）</li>
+<li><code class="inline-code">bridge/remoteBridgeCore.ts</code> — 1008 行（类 0，函数 12）</li>
+<li><code class="inline-code">bridge/replBridge.ts</code> — 2406 行（类 0，函数 9）</li>
+<li><code class="inline-code">bridge/replBridgeHandle.ts</code> — 36 行（类 0，函数 3）</li>
+<li><code class="inline-code">bridge/replBridgeTransport.ts</code> — 370 行（类 0，函数 2）</li>
+<li><code class="inline-code">bridge/sessionIdCompat.ts</code> — 57 行（类 0，函数 3）</li>
+<li><code class="inline-code">bridge/sessionRunner.ts</code> — 550 行（类 0，函数 6）</li>
+<li><code class="inline-code">bridge/trustedDevice.ts</code> — 210 行（类 0，函数 5）</li>
+<li><code class="inline-code">bridge/types.ts</code> — 262 行（类 0，函数 4）</li>
+<li><code class="inline-code">bridge/workSecret.ts</code> — 127 行（类 0，函数 5）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">bridge/bridgeApi.ts</code></li>
+<li>类 BridgeFatalError — L56</li>
+<li>函数 validateBridgeId — L48</li>
+<li>函数 createBridgeApiClient — L67</li>
+<li>函数 debug — L69</li>
+<li>函数 getHeaders — L75</li>
+<li>函数 resolveAuth — L90</li>
+<li>函数 withOAuthRetry — L106</li>
+<li>函数 handleErrorStatus — L453</li>
+<li>函数 isExpiredErrorType — L503</li>
+<li>函数 isSuppressible403 — L516</li>
+<li>函数 extractErrorTypeFromData — L525</li>
+<li>文件 <code class="inline-code">bridge/bridgeConfig.ts</code></li>
+<li>函数 getBridgeTokenOverride — L18</li>
+<li>函数 getBridgeBaseUrlOverride — L27</li>
+<li>函数 getBridgeAccessToken — L38</li>
+<li>函数 getBridgeBaseUrl — L46</li>
+<li>文件 <code class="inline-code">bridge/bridgeDebug.ts</code></li>
+<li>函数 registerBridgeDebugHandle — L56</li>
+<li>函数 clearBridgeDebugHandle — L60</li>
+<li>函数 getBridgeDebugHandle — L65</li>
+<li>函数 injectBridgeFault — L69</li>
+<li>函数 wrapApiForFaultInjection — L84</li>
+<li>函数 consume — L87</li>
+<li>函数 throwFault — L95</li>
+<li>文件 <code class="inline-code">bridge/bridgeEnabled.ts</code></li>
+<li>函数 isBridgeEnabled — L28</li>
+<li>函数 isBridgeEnabledBlocking — L50</li>
+<li>函数 getBridgeDisabledReason — L70</li>
+<li>函数 isClaudeAISubscriber — L94</li>
+<li>函数 hasProfileScope — L101</li>
+<li>函数 getOauthAccountInfo — L108</li>
+<li>函数 isEnvLessBridgeEnabled — L126</li>
+<li>函数 isCseShimEnabled — L141</li>
+<li>函数 checkBridgeMinVersion — L160</li>
+<li>函数 getCcrAutoConnectDefault — L185</li>
+<li>函数 isCcrMirrorEnabled — L197</li>
+<li>文件 <code class="inline-code">bridge/bridgeMain.ts</code></li>
+<li>类 BridgeHeadlessPermanentError — L2778</li>
+<li>函数 isMultiSessionSpawnEnabled — L96</li>
+<li>函数 pollSleepDetectionThresholdMs — L107</li>
+<li>函数 spawnScriptArgs — L119</li>
+<li>函数 safeSpawn — L127</li>
+<li>函数 runBridgeLoop — L140</li>
+<li>函数 heartbeatActiveWorkItems — L202</li>
+<li>函数 trackCleanup — L318</li>
+<li>函数 updateStatusDisplay — L372</li>
+<li>函数 startStatusUpdates — L423</li>
+<li>函数 stopStatusUpdates — L435</li>
+<li>函数 onSessionDone — L441</li>
+<li>函数 isConnectionError — L1589</li>
+<li>函数 isServerError — L1604</li>
+<li>函数 addJitter — L1615</li>
+<li>函数 formatDelay — L1618</li>
+<li>函数 stopWorkWithRetry — L1627</li>
+<li>函数 onSessionTimeout — L1677</li>
+<li>函数 parseSpawnValue — L1721</li>
+<li>函数 parseCapacityValue — L1728</li>
+<li>函数 parseArgs — L1736</li>
+<li>函数 makeError — L1869</li>
+<li>函数 printHelp — L1888</li>
+<li>函数 deriveSessionTitle — L1956</li>
+<li>函数 fetchSessionTitle — L1971</li>
+<li>函数 bridgeMain — L1979</li>
+<li>函数 runBridgeHeadless — L2810</li>
+<li>函数 createHeadlessBridgeLogger — L2968</li>
+<li>文件 <code class="inline-code">bridge/bridgeMessaging.ts</code></li>
+<li>类 BoundedUUIDSet — L429</li>
+<li>函数 isSDKMessage — L36</li>
+<li>函数 isSDKControlResponse — L46</li>
+<li>函数 isSDKControlRequest — L59</li>
+<li>函数 isEligibleBridgeMessage — L77</li>
+<li>函数 extractTitleText — L103</li>
+<li>函数 handleIngressMessage — L132</li>
+<li>函数 handleServerControlRequest — L243</li>
+<li>函数 makeResultMessage — L399</li>
+<li>文件 <code class="inline-code">bridge/bridgePermissionCallbacks.ts</code></li>
+<li>函数 isBridgePermissionResponse — L32</li>
+<li>文件 <code class="inline-code">bridge/bridgePointer.ts</code></li>
+<li>函数 getBridgePointerPath — L51</li>
+<li>函数 writeBridgePointer — L62</li>
+<li>函数 readBridgePointer — L83</li>
+<li>函数 readBridgePointerAcrossWorktrees — L129</li>
+<li>函数 clearBridgePointer — L190</li>
+<li>函数 safeJsonParse — L203</li>
+<li>函数 BRIDGE_POINTER_TTL_MS — L39</li>
+<li>文件 <code class="inline-code">bridge/bridgeStatusUtil.ts</code></li>
+<li>函数 timestamp — L22</li>
+<li>函数 abbreviateActivity — L34</li>
+<li>函数 buildBridgeConnectUrl — L39</li>
+<li>函数 buildBridgeSessionUrl — L52</li>
+<li>函数 computeGlimmerIndex — L61</li>
+<li>函数 computeShimmerSegments — L79</li>
+<li>函数 getBridgeStatus — L124</li>
+<li>函数 buildIdleFooterText — L144</li>
+<li>函数 buildActiveFooterText — L149</li>
+<li>函数 wrapWithOsc8Link — L161</li>
+<li>函数 TOOL_DISPLAY_EXPIRY_MS — L18</li>
+<li>函数 SHIMMER_INTERVAL_MS — L21</li>
+<li>函数 FAILED_FOOTER_TEXT — L154</li>
+<li>文件 <code class="inline-code">bridge/bridgeUI.ts</code></li>
+<li>函数 generateQr — L37</li>
+<li>函数 createBridgeLogger — L41</li>
+<li>函数 countVisualLines — L95</li>
+<li>函数 writeStatus — L118</li>
+<li>函数 clearStatusLines — L124</li>
+<li>函数 printLog — L134</li>
+<li>函数 regenerateQr — L140</li>
+<li>函数 renderConnectingLine — L152</li>
+<li>函数 startConnecting — L170</li>
+<li>函数 stopConnecting — L180</li>
+<li>函数 renderStatusLine — L188</li>
+<li>文件 <code class="inline-code">bridge/capacityWake.ts</code></li>
+<li>函数 createCapacityWake — L27</li>
+<li>函数 wake — L30</li>
+<li>函数 signal — L35</li>
+<li>文件 <code class="inline-code">bridge/codeSessionApi.ts</code></li>
+<li>函数 oauthHeaders — L17</li>
+<li>函数 createCodeSession — L25</li>
+<li>函数 fetchRemoteCredentials — L92</li>
+<li>文件 <code class="inline-code">bridge/createSession.ts</code></li>
+<li>函数 createBridgeSession — L34</li>
+<li>函数 getBridgeSession — L190</li>
+<li>函数 archiveBridgeSession — L263</li>
+<li>函数 updateBridgeSessionTitle — L327</li>
+<li>文件 <code class="inline-code">bridge/debugUtils.ts</code></li>
+<li>函数 redactSecrets — L25</li>
+<li>函数 debugTruncate — L37</li>
+<li>函数 debugBody — L46</li>
+<li>函数 describeAxiosError — L60</li>
+<li>函数 extractHttpStatus — L88</li>
+<li>函数 extractErrorDetail — L106</li>
+<li>函数 logBridgeSkip — L128</li>
+<li>文件 <code class="inline-code">bridge/envLessBridgeConfig.ts</code></li>
+<li>函数 getEnvLessBridgeConfig — L130</li>
+<li>函数 checkEnvLessBridgeMinVersion — L147</li>
+<li>函数 shouldShowAppUpgradeMessage — L161</li>
+<li>函数 DEFAULT_ENV_LESS_BRIDGE_CONFIG — L43</li>
+<li>文件 <code class="inline-code">bridge/flushGate.ts</code></li>
+<li>类 FlushGate — L16</li>
+<li>文件 <code class="inline-code">bridge/inboundAttachments.ts</code></li>
+<li>函数 debug — L26</li>
+<li>函数 extractInboundAttachments — L42</li>
+<li>函数 sanitizeFileName — L55</li>
+<li>函数 uploadsDir — L59</li>
+<li>函数 resolveOne — L68</li>
+<li>函数 resolveInboundAttachments — L123</li>
+<li>函数 prependPathRefs — L142</li>
+<li>函数 resolveAndPrepend — L167</li>
+<li>文件 <code class="inline-code">bridge/inboundMessages.ts</code></li>
+<li>函数 extractInboundMessageFields — L21</li>
+<li>函数 normalizeImageBlocks — L52</li>
+<li>函数 isMalformedBase64Image — L74</li>
+<li>文件 <code class="inline-code">bridge/initReplBridge.ts</code></li>
+<li>函数 initReplBridge — L109</li>
+<li>函数 deriveTitle — L555</li>
+<li>文件 <code class="inline-code">bridge/jwtUtils.ts</code></li>
+<li>函数 formatDuration — L8</li>
+<li>函数 decodeJwtPayload — L21</li>
+<li>函数 decodeJwtExpiry — L38</li>
+<li>函数 createTokenRefreshScheduler — L72</li>
+<li>函数 nextGeneration — L95</li>
+<li>函数 schedule — L101</li>
+<li>函数 scheduleFromExpiresIn — L147</li>
+<li>函数 doRefresh — L164</li>
+<li>函数 cancel — L231</li>
+<li>函数 cancelAll — L242</li>
+<li>文件 <code class="inline-code">bridge/pollConfig.ts</code></li>
+<li>函数 getPollIntervalConfig — L102</li>
+<li>文件 <code class="inline-code">bridge/pollConfigDefaults.ts</code></li>
+<li>函数 DEFAULT_POLL_CONFIG — L54</li>
+<li>文件 <code class="inline-code">bridge/remoteBridgeCore.ts</code></li>
+<li>函数 oauthHeaders — L80</li>
+<li>函数 initEnvLessBridgeCore — L140</li>
+<li>函数 onConnectTimeout — L301</li>
+<li>函数 wireTransportCallbacks — L380</li>
+<li>函数 rebuildTransport — L477</li>
+<li>函数 recoverFromAuthFailure — L530</li>
+<li>函数 drainFlushGate — L607</li>
+<li>函数 flushHistory — L623</li>
+<li>函数 teardown — L664</li>
+<li>函数 withRetry — L892</li>
+<li>函数 fetchRemoteCredentials — L931</li>
+<li>函数 archiveSession — L962</li>
+<li>文件 <code class="inline-code">bridge/replBridge.ts</code></li>
+<li>函数 initBridgeCore — L260</li>
+<li>函数 tryReconnectInPlace — L381</li>
+<li>函数 reconnectEnvironmentWithSession — L605</li>
+<li>函数 doReconnect — L616</li>
+<li>函数 getOAuthToken — L841</li>
+<li>函数 drainFlushGate — L848</li>
+<li>函数 triggerTeardown — L874</li>
+<li>函数 handleTransportPermanentClose — L887</li>
+<li>函数 startWorkPollLoop — L1851</li>
+<li>文件 <code class="inline-code">bridge/replBridgeHandle.ts</code></li>
+<li>函数 setReplBridgeHandle — L17</li>
+<li>函数 getReplBridgeHandle — L24</li>
+<li>函数 getSelfBridgeCompatId — L33</li>
+<li>文件 <code class="inline-code">bridge/replBridgeTransport.ts</code></li>
+<li>函数 createV1ReplTransport — L78</li>
+<li>函数 createV2ReplTransport — L119</li>
+<li>文件 <code class="inline-code">bridge/sessionIdCompat.ts</code></li>
+<li>函数 setCseShimGate — L21</li>
+<li>函数 toCompatSessionId — L38</li>
+<li>函数 toInfraSessionId — L54</li>
+<li>文件 <code class="inline-code">bridge/sessionRunner.ts</code></li>
+<li>函数 safeFilenameId — L24</li>
+<li>函数 toolSummary — L90</li>
+<li>函数 extractActivities — L106</li>
+<li>函数 extractUserMessageText — L207</li>
+<li>函数 inputPreview — L237</li>
+<li>函数 createSessionSpawner — L247</li>
+<li>文件 <code class="inline-code">bridge/trustedDevice.ts</code></li>
+<li>函数 isGateEnabled — L34</li>
+<li>函数 getTrustedDeviceToken — L53</li>
+<li>函数 clearTrustedDeviceTokenCache — L60</li>
+<li>函数 clearTrustedDeviceToken — L72</li>
+<li>函数 enrollTrustedDevice — L98</li>
+<li>文件 <code class="inline-code">bridge/types.ts</code></li>
+<li>函数 DEFAULT_SESSION_TIMEOUT_MS — L2</li>
+<li>函数 BRIDGE_LOGIN_INSTRUCTION — L5</li>
+<li>函数 BRIDGE_LOGIN_ERROR — L9</li>
+<li>函数 REMOTE_CONTROL_DISCONNECTED_MSG — L14</li>
+<li>文件 <code class="inline-code">bridge/workSecret.ts</code></li>
+<li>函数 decodeWorkSecret — L6</li>
+<li>函数 buildSdkUrl — L41</li>
+<li>函数 sameSessionId — L62</li>
+<li>函数 buildCCRv2SdkUrl — L81</li>
+<li>函数 registerWorker — L97</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>bridge/bridgeApi.ts → import bridge（外部）</li>
+<li>bridge/bridgeConfig.ts → import constants（内部）</li>
+<li>bridge/bridgeConfig.ts → import utils（内部）</li>
+<li>bridge/bridgeDebug.ts → import utils（内部）</li>
+<li>bridge/bridgeDebug.ts → import bridge（外部）</li>
+<li>bridge/bridgeEnabled.ts → import services（内部）</li>
+<li>bridge/bridgeEnabled.ts → import utils（内部）</li>
+<li>bridge/bridgeMain.ts → import constants（内部）</li>
+<li>bridge/bridgeMain.ts → import services（内部）</li>
+<li>bridge/bridgeMain.ts → import utils（内部）</li>
+<li>bridge/bridgeMain.ts → import bridge（外部）</li>
+<li>bridge/bridgeMessaging.ts → import entrypoints（内部）</li>
+<li>bridge/bridgeMessaging.ts → import services（内部）</li>
+<li>bridge/bridgeMessaging.ts → import types（内部）</li>
+<li>bridge/bridgeMessaging.ts → import utils（内部）</li>
+<li>bridge/bridgeMessaging.ts → import bridge（外部）</li>
+<li>bridge/bridgePermissionCallbacks.ts → import utils（内部）</li>
+<li>bridge/bridgePointer.ts → import utils（内部）</li>
+<li>bridge/bridgeStatusUtil.ts → import constants（内部）</li>
+<li>bridge/bridgeStatusUtil.ts → import ink（内部）</li>
+<li>bridge/bridgeStatusUtil.ts → import utils（内部）</li>
+<li>bridge/bridgeUI.ts → import constants（内部）</li>
+<li>bridge/bridgeUI.ts → import ink（内部）</li>
+<li>bridge/bridgeUI.ts → import utils（内部）</li>
+<li>bridge/bridgeUI.ts → import bridge（外部）</li>
+<li>bridge/codeSessionApi.ts → import utils（内部）</li>
+<li>bridge/codeSessionApi.ts → import bridge（外部）</li>
+<li>bridge/createSession.ts → import entrypoints（内部）</li>
+<li>bridge/createSession.ts → import utils（内部）</li>
+<li>bridge/createSession.ts → import bridge（外部）</li>
+<li>bridge/debugUtils.ts → import services（内部）</li>
+<li>bridge/debugUtils.ts → import utils（内部）</li>
+<li>bridge/envLessBridgeConfig.ts → import services（内部）</li>
+<li>bridge/envLessBridgeConfig.ts → import utils（内部）</li>
+<li>bridge/envLessBridgeConfig.ts → import bridge（外部）</li>
+<li>bridge/inboundAttachments.ts → import bootstrap（内部）</li>
+<li>bridge/inboundAttachments.ts → import utils（内部）</li>
+<li>bridge/inboundAttachments.ts → import bridge（外部）</li>
+<li>bridge/inboundMessages.ts → import entrypoints（内部）</li>
+<li>bridge/inboundMessages.ts → import utils（内部）</li>
+<li>bridge/initReplBridge.ts → import bootstrap（内部）</li>
+<li>bridge/initReplBridge.ts → import entrypoints（内部）</li>
+<li>bridge/initReplBridge.ts → import services（内部）</li>
+<li>bridge/initReplBridge.ts → import types（内部）</li>
+<li>bridge/initReplBridge.ts → import utils（内部）</li>
+<li>bridge/initReplBridge.ts → import bridge（外部）</li>
+<li>bridge/initReplBridge.ts → import assistant（内部）</li>
+<li>bridge/jwtUtils.ts → import services（内部）</li>
+<li>bridge/jwtUtils.ts → import utils（内部）</li>
+<li>bridge/pollConfig.ts → import services（内部）</li>
+<li>bridge/pollConfig.ts → import utils（内部）</li>
+<li>bridge/pollConfig.ts → import bridge（外部）</li>
+<li>bridge/remoteBridgeCore.ts → import bridge（外部）</li>
+<li>bridge/remoteBridgeCore.ts → import utils（内部）</li>
+<li>bridge/remoteBridgeCore.ts → import services（内部）</li>
+<li>bridge/remoteBridgeCore.ts → import types（内部）</li>
+<li>bridge/remoteBridgeCore.ts → import entrypoints（内部）</li>
+<li>bridge/replBridge.ts → import bridge（外部）</li>
+<li>bridge/replBridge.ts → import utils（内部）</li>
+<li>bridge/replBridge.ts → import services（内部）</li>
+<li>bridge/replBridge.ts → import cli（内部）</li>
+<li>bridge/replBridge.ts → import types（内部）</li>
+<li>bridge/replBridge.ts → import entrypoints（内部）</li>
+<li>bridge/replBridgeHandle.ts → import utils（内部）</li>
+<li>bridge/replBridgeHandle.ts → import bridge（外部）</li>
+<li>bridge/replBridgeTransport.ts → import entrypoints（内部）</li>
+<li>bridge/replBridgeTransport.ts → import cli（内部）</li>
+<li>bridge/replBridgeTransport.ts → import utils（内部）</li>
+<li>bridge/replBridgeTransport.ts → import bridge（外部）</li>
+<li>bridge/sessionRunner.ts → import utils（内部）</li>
+<li>bridge/sessionRunner.ts → import bridge（外部）</li>
+<li>bridge/trustedDevice.ts → import constants（内部）</li>
+<li>bridge/trustedDevice.ts → import services（内部）</li>
+<li>bridge/trustedDevice.ts → import utils（内部）</li>
+<li>bridge/workSecret.ts → import utils（内部）</li>
+<li>bridge/workSecret.ts → import bridge（外部）</li>
+</ol>
+<h2 id="5-python-侧候选映射-启发式初版">5. Python 侧候选映射（启发式初版）</h2>
+<ol>
+<li>→ python <code class="inline-code">bridge</code> — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-未确认项与待核实项">6. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ python 候选映射待逐符号对照核实（symbol 级 map 未生成）</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 python 实现</li>
+<li>☐ 顶层符号提取为启发式正则，需人工抽样验证召回率</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-bridge-reference-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

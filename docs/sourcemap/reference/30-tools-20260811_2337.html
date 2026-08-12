@@ -1,0 +1,1912 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tools（reference）源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-python-侧候选映射-启发式初版" data-nav>5. Python 侧候选映射（启发式初版）</a></li>
+<li><a href="#6-未确认项与待核实项" data-nav>6. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>tools（reference）源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">30</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2337</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">来源</span><span class="meta-value">restored-src/src/tools</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（reference 目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="tools-reference-源码盘点">tools（reference）源码盘点</h1>
+<blockquote>
+<p>编号: 30</p>
+<p>时间戳: 20260811_2337</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>来源: restored-src/src/tools</p>
+<p>类型: package（reference 目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: tools</li>
+<li>类型: package（reference 目录模块）</li>
+<li>TS/JS 文件数: 184</li>
+<li>总行数: 50828</li>
+<li>依赖的 reference 内部模块: Task, Tool, bootstrap, bridge, commands, components, constants, context, coordinator, hooks, ink, keybindings, memdir, query, services, skills, state, tasks, types, utils, voice</li>
+<li>Python 侧候选映射: tool_system（UNVERIFIED）</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">tools/AgentTool/AgentTool.tsx</code> — 1397 行（类 0，函数 5）</li>
+<li><code class="inline-code">tools/AgentTool/UI.tsx</code> — 871 行（类 0，函数 23）</li>
+<li><code class="inline-code">tools/AgentTool/agentColorManager.ts</code> — 66 行（类 0，函数 4）</li>
+<li><code class="inline-code">tools/AgentTool/agentDisplay.ts</code> — 104 行（类 0，函数 5）</li>
+<li><code class="inline-code">tools/AgentTool/agentMemory.ts</code> — 177 行（类 0，函数 7）</li>
+<li><code class="inline-code">tools/AgentTool/agentMemorySnapshot.ts</code> — 197 行（类 0，函数 10）</li>
+<li><code class="inline-code">tools/AgentTool/agentToolUtils.ts</code> — 686 行（类 0，函数 10）</li>
+<li><code class="inline-code">tools/AgentTool/built-in/claudeCodeGuideAgent.ts</code> — 205 行（类 0，函数 4）</li>
+<li><code class="inline-code">tools/AgentTool/built-in/exploreAgent.ts</code> — 83 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/AgentTool/built-in/generalPurposeAgent.ts</code> — 34 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/AgentTool/built-in/planAgent.ts</code> — 92 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/AgentTool/built-in/statuslineSetup.ts</code> — 144 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/AgentTool/built-in/verificationAgent.ts</code> — 152 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/AgentTool/builtInAgents.ts</code> — 72 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/AgentTool/constants.ts</code> — 12 行（类 0，函数 4）</li>
+<li><code class="inline-code">tools/AgentTool/forkSubagent.ts</code> — 210 行（类 0，函数 7）</li>
+<li><code class="inline-code">tools/AgentTool/loadAgentsDir.ts</code> — 755 行（类 0，函数 14）</li>
+<li><code class="inline-code">tools/AgentTool/prompt.ts</code> — 287 行（类 0，函数 5）</li>
+<li><code class="inline-code">tools/AgentTool/resumeAgent.ts</code> — 265 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/AgentTool/runAgent.ts</code> — 973 行（类 0，函数 5）</li>
+<li><code class="inline-code">tools/AskUserQuestionTool/AskUserQuestionTool.tsx</code> — 265 行（类 0，函数 6）</li>
+<li><code class="inline-code">tools/AskUserQuestionTool/prompt.ts</code> — 44 行（类 0，函数 5）</li>
+<li><code class="inline-code">tools/BashTool/BashTool.tsx</code> — 1143 行（类 0，函数 10）</li>
+<li><code class="inline-code">tools/BashTool/BashToolResultMessage.tsx</code> — 190 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/BashTool/UI.tsx</code> — 184 行（类 0，函数 6）</li>
+<li><code class="inline-code">tools/BashTool/bashCommandHelpers.ts</code> — 265 行（类 0，函数 4）</li>
+<li><code class="inline-code">tools/BashTool/bashPermissions.ts</code> — 2621 行（类 0，函数 37）</li>
+<li><code class="inline-code">tools/BashTool/bashSecurity.ts</code> — 2592 行（类 0，函数 34）</li>
+<li><code class="inline-code">tools/BashTool/commandSemantics.ts</code> — 140 行（类 0，函数 4）</li>
+<li><code class="inline-code">tools/BashTool/commentLabel.ts</code> — 13 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/BashTool/destructiveCommandWarning.ts</code> — 102 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/BashTool/modeValidation.ts</code> — 115 行（类 0，函数 4）</li>
+<li><code class="inline-code">tools/BashTool/pathValidation.ts</code> — 1303 行（类 0，函数 17）</li>
+<li><code class="inline-code">tools/BashTool/prompt.ts</code> — 369 行（类 0，函数 7）</li>
+<li><code class="inline-code">tools/BashTool/readOnlyValidation.ts</code> — 1990 行（类 0，函数 10）</li>
+<li><code class="inline-code">tools/BashTool/sedEditParser.ts</code> — 322 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/BashTool/sedValidation.ts</code> — 684 行（类 0，函数 9）</li>
+<li><code class="inline-code">tools/BashTool/shouldUseSandbox.ts</code> — 153 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/BashTool/toolName.ts</code> — 2 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/BashTool/utils.ts</code> — 223 行（类 0，函数 9）</li>
+<li><code class="inline-code">tools/BriefTool/BriefTool.ts</code> — 204 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/BriefTool/UI.tsx</code> — 100 行（类 0，函数 4）</li>
+<li><code class="inline-code">tools/BriefTool/attachments.ts</code> — 110 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/BriefTool/prompt.ts</code> — 22 行（类 0，函数 5）</li>
+<li><code class="inline-code">tools/BriefTool/upload.ts</code> — 174 行（类 0，函数 4）</li>
+<li><code class="inline-code">tools/ConfigTool/ConfigTool.ts</code> — 467 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/ConfigTool/UI.tsx</code> — 37 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/ConfigTool/constants.ts</code> — 1 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/ConfigTool/prompt.ts</code> — 93 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/ConfigTool/supportedSettings.ts</code> — 211 行（类 0，函数 6）</li>
+<li><code class="inline-code">tools/EnterPlanModeTool/EnterPlanModeTool.ts</code> — 126 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/EnterPlanModeTool/UI.tsx</code> — 32 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/EnterPlanModeTool/constants.ts</code> — 1 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/EnterPlanModeTool/prompt.ts</code> — 170 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/EnterWorktreeTool/EnterWorktreeTool.ts</code> — 127 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/EnterWorktreeTool/UI.tsx</code> — 19 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/EnterWorktreeTool/constants.ts</code> — 1 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/EnterWorktreeTool/prompt.ts</code> — 30 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts</code> — 493 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/ExitPlanModeTool/UI.tsx</code> — 81 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/ExitPlanModeTool/constants.ts</code> — 2 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/ExitPlanModeTool/prompt.ts</code> — 29 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/ExitWorktreeTool/ExitWorktreeTool.ts</code> — 329 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/ExitWorktreeTool/UI.tsx</code> — 24 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/ExitWorktreeTool/constants.ts</code> — 1 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/ExitWorktreeTool/prompt.ts</code> — 32 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/FileEditTool/FileEditTool.ts</code> — 625 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/FileEditTool/UI.tsx</code> — 288 行（类 0，函数 9）</li>
+<li><code class="inline-code">tools/FileEditTool/constants.ts</code> — 11 行（类 0，函数 4）</li>
+<li><code class="inline-code">tools/FileEditTool/prompt.ts</code> — 28 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/FileEditTool/types.ts</code> — 85 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/FileEditTool/utils.ts</code> — 775 行（类 0，函数 22）</li>
+<li><code class="inline-code">tools/FileReadTool/FileReadTool.ts</code> — 1183 行（类 1，函数 14）</li>
+<li><code class="inline-code">tools/FileReadTool/UI.tsx</code> — 184 行（类 0，函数 7）</li>
+<li><code class="inline-code">tools/FileReadTool/imageProcessor.ts</code> — 94 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/FileReadTool/limits.ts</code> — 92 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/FileReadTool/prompt.ts</code> — 49 行（类 0，函数 8）</li>
+<li><code class="inline-code">tools/FileWriteTool/FileWriteTool.ts</code> — 434 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/FileWriteTool/UI.tsx</code> — 404 行（类 0，函数 12）</li>
+<li><code class="inline-code">tools/FileWriteTool/prompt.ts</code> — 18 行（类 0，函数 4）</li>
+<li><code class="inline-code">tools/GlobTool/GlobTool.ts</code> — 198 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/GlobTool/UI.tsx</code> — 62 行（类 0，函数 5）</li>
+<li><code class="inline-code">tools/GlobTool/prompt.ts</code> — 7 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/GrepTool/GrepTool.ts</code> — 577 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/GrepTool/UI.tsx</code> — 200 行（类 0，函数 5）</li>
+<li><code class="inline-code">tools/GrepTool/prompt.ts</code> — 18 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/LSPTool/LSPTool.ts</code> — 860 行（类 0，函数 12）</li>
+<li><code class="inline-code">tools/LSPTool/UI.tsx</code> — 227 行（类 0，函数 5）</li>
+<li><code class="inline-code">tools/LSPTool/formatters.ts</code> — 592 行（类 0，函数 17）</li>
+<li><code class="inline-code">tools/LSPTool/prompt.ts</code> — 21 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/LSPTool/schemas.ts</code> — 215 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/LSPTool/symbolContext.ts</code> — 90 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/ListMcpResourcesTool/ListMcpResourcesTool.ts</code> — 123 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/ListMcpResourcesTool/UI.tsx</code> — 28 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/ListMcpResourcesTool/prompt.ts</code> — 20 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/MCPTool/MCPTool.ts</code> — 77 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/MCPTool/UI.tsx</code> — 402 行（类 0，函数 10）</li>
+<li><code class="inline-code">tools/MCPTool/classifyForCollapse.ts</code> — 604 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/MCPTool/prompt.ts</code> — 3 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/McpAuthTool/McpAuthTool.ts</code> — 215 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/NotebookEditTool/NotebookEditTool.ts</code> — 490 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/NotebookEditTool/UI.tsx</code> — 92 行（类 0，函数 5）</li>
+<li><code class="inline-code">tools/NotebookEditTool/constants.ts</code> — 2 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/NotebookEditTool/prompt.ts</code> — 3 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/PowerShellTool/PowerShellTool.tsx</code> — 1000 行（类 0，函数 9）</li>
+<li><code class="inline-code">tools/PowerShellTool/UI.tsx</code> — 130 行（类 0，函数 5）</li>
+<li><code class="inline-code">tools/PowerShellTool/clmTypes.ts</code> — 211 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/PowerShellTool/commandSemantics.ts</code> — 142 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/PowerShellTool/commonParameters.ts</code> — 30 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/PowerShellTool/destructiveCommandWarning.ts</code> — 109 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/PowerShellTool/gitSafety.ts</code> — 176 行（类 0，函数 7）</li>
+<li><code class="inline-code">tools/PowerShellTool/modeValidation.ts</code> — 404 行（类 0，函数 4）</li>
+<li><code class="inline-code">tools/PowerShellTool/pathValidation.ts</code> — 2049 行（类 0，函数 14）</li>
+<li><code class="inline-code">tools/PowerShellTool/powershellPermissions.ts</code> — 1648 行（类 0，函数 15）</li>
+<li><code class="inline-code">tools/PowerShellTool/powershellSecurity.ts</code> — 1090 行（类 0，函数 29）</li>
+<li><code class="inline-code">tools/PowerShellTool/prompt.ts</code> — 145 行（类 0，函数 6）</li>
+<li><code class="inline-code">tools/PowerShellTool/readOnlyValidation.ts</code> — 1823 行（类 0，函数 16）</li>
+<li><code class="inline-code">tools/PowerShellTool/toolName.ts</code> — 2 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/REPLTool/constants.ts</code> — 46 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/REPLTool/primitiveTools.ts</code> — 39 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/ReadMcpResourceTool/ReadMcpResourceTool.ts</code> — 158 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/ReadMcpResourceTool/UI.tsx</code> — 36 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/ReadMcpResourceTool/prompt.ts</code> — 16 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/RemoteTriggerTool/RemoteTriggerTool.ts</code> — 161 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/RemoteTriggerTool/UI.tsx</code> — 16 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/RemoteTriggerTool/prompt.ts</code> — 15 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/ScheduleCronTool/CronCreateTool.ts</code> — 157 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/ScheduleCronTool/CronDeleteTool.ts</code> — 95 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/ScheduleCronTool/CronListTool.ts</code> — 97 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/ScheduleCronTool/UI.tsx</code> — 59 行（类 0，函数 6）</li>
+<li><code class="inline-code">tools/ScheduleCronTool/prompt.ts</code> — 135 行（类 0，函数 12）</li>
+<li><code class="inline-code">tools/SendMessageTool/SendMessageTool.ts</code> — 917 行（类 0，函数 9）</li>
+<li><code class="inline-code">tools/SendMessageTool/UI.tsx</code> — 30 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/SendMessageTool/constants.ts</code> — 1 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/SendMessageTool/prompt.ts</code> — 49 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/SkillTool/SkillTool.ts</code> — 1108 行（类 0，函数 9）</li>
+<li><code class="inline-code">tools/SkillTool/UI.tsx</code> — 127 行（类 0，函数 5）</li>
+<li><code class="inline-code">tools/SkillTool/constants.ts</code> — 1 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/SkillTool/prompt.ts</code> — 241 行（类 0，函数 13）</li>
+<li><code class="inline-code">tools/SleepTool/prompt.ts</code> — 17 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/SyntheticOutputTool/SyntheticOutputTool.ts</code> — 163 行（类 0，函数 5）</li>
+<li><code class="inline-code">tools/TaskCreateTool/TaskCreateTool.ts</code> — 138 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TaskCreateTool/constants.ts</code> — 1 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TaskCreateTool/prompt.ts</code> — 56 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/TaskGetTool/TaskGetTool.ts</code> — 128 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TaskGetTool/constants.ts</code> — 1 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TaskGetTool/prompt.ts</code> — 24 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/TaskListTool/TaskListTool.ts</code> — 116 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TaskListTool/constants.ts</code> — 1 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TaskListTool/prompt.ts</code> — 49 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/TaskOutputTool/TaskOutputTool.tsx</code> — 583 行（类 0，函数 4）</li>
+<li><code class="inline-code">tools/TaskOutputTool/constants.ts</code> — 1 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TaskStopTool/TaskStopTool.ts</code> — 131 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TaskStopTool/UI.tsx</code> — 40 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/TaskStopTool/prompt.ts</code> — 8 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/TaskUpdateTool/TaskUpdateTool.ts</code> — 406 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TaskUpdateTool/constants.ts</code> — 1 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TaskUpdateTool/prompt.ts</code> — 77 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/TeamCreateTool/TeamCreateTool.ts</code> — 240 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/TeamCreateTool/UI.tsx</code> — 5 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TeamCreateTool/constants.ts</code> — 1 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TeamCreateTool/prompt.ts</code> — 113 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TeamDeleteTool/TeamDeleteTool.ts</code> — 139 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TeamDeleteTool/UI.tsx</code> — 19 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/TeamDeleteTool/constants.ts</code> — 1 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TeamDeleteTool/prompt.ts</code> — 16 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TodoWriteTool/TodoWriteTool.ts</code> — 115 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TodoWriteTool/constants.ts</code> — 1 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/TodoWriteTool/prompt.ts</code> — 184 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/ToolSearchTool/ToolSearchTool.ts</code> — 471 行（类 0，函数 12）</li>
+<li><code class="inline-code">tools/ToolSearchTool/constants.ts</code> — 1 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/ToolSearchTool/prompt.ts</code> — 121 行（类 0，函数 4）</li>
+<li><code class="inline-code">tools/WebFetchTool/UI.tsx</code> — 71 行（类 0，函数 4）</li>
+<li><code class="inline-code">tools/WebFetchTool/WebFetchTool.ts</code> — 318 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/WebFetchTool/preapproved.ts</code> — 166 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/WebFetchTool/prompt.ts</code> — 46 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/WebFetchTool/utils.ts</code> — 530 行（类 3，函数 11）</li>
+<li><code class="inline-code">tools/WebSearchTool/UI.tsx</code> — 100 行（类 0，函数 5）</li>
+<li><code class="inline-code">tools/WebSearchTool/WebSearchTool.ts</code> — 435 行（类 0，函数 3）</li>
+<li><code class="inline-code">tools/WebSearchTool/prompt.ts</code> — 34 行（类 0，函数 2）</li>
+<li><code class="inline-code">tools/shared/gitOperationTracking.ts</code> — 277 行（类 0，函数 9）</li>
+<li><code class="inline-code">tools/shared/spawnMultiAgent.ts</code> — 1093 行（类 0，函数 13）</li>
+<li><code class="inline-code">tools/testing/TestingPermissionTool.tsx</code> — 73 行（类 0，函数 1）</li>
+<li><code class="inline-code">tools/utils.ts</code> — 40 行（类 0，函数 2）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">tools/AgentTool/AgentTool.tsx</code></li>
+<li>函数 getAutoBackgroundMs — L72</li>
+<li>函数 resolveTeamName — L1388</li>
+<li>函数 inputSchema — L110</li>
+<li>函数 outputSchema — L141</li>
+<li>函数 AgentTool — L196</li>
+<li>文件 <code class="inline-code">tools/AgentTool/UI.tsx</code></li>
+<li>函数 hasProgressMessage — L40</li>
+<li>函数 getSearchOrReadInfo — L55</li>
+<li>函数 processProgressMessages — L100</li>
+<li>函数 flushGroup — L115</li>
+<li>函数 AgentPromptDisplay — L184</li>
+<li>函数 AgentResponseDisplay — L208</li>
+<li>函数 _temp — L238</li>
+<li>函数 VerboseAgentTranscript — L246</li>
+<li>函数 _temp4 — L299</li>
+<li>函数 _temp3 — L309</li>
+<li>函数 _temp2 — L312</li>
+<li>函数 renderToolResultMessage — L315</li>
+<li>函数 renderToolUseMessage — L411</li>
+<li>函数 renderToolUseTag — L423</li>
+<li>函数 renderToolUseProgressMessage — L445</li>
+<li>函数 renderToolUseRejectedMessage — L571</li>
+<li>函数 renderToolUseErrorMessage — L607</li>
+<li>函数 calculateAgentStats — L627</li>
+<li>函数 renderGroupedAgentToolUse — L649</li>
+<li>函数 userFacingName — L760</li>
+<li>函数 userFacingNameBackgroundColor — L776</li>
+<li>函数 extractLastToolInfo — L788</li>
+<li>函数 isCustomSubagentType — L869</li>
+<li>文件 <code class="inline-code">tools/AgentTool/agentColorManager.ts</code></li>
+<li>函数 getAgentColor — L35</li>
+<li>函数 setAgentColor — L51</li>
+<li>函数 AGENT_COLORS — L13</li>
+<li>函数 AGENT_COLOR_TO_THEME_COLOR — L24</li>
+<li>文件 <code class="inline-code">tools/AgentTool/agentDisplay.ts</code></li>
+<li>函数 resolveAgentOverrides — L46</li>
+<li>函数 resolveAgentModelDisplay — L78</li>
+<li>函数 getOverrideSourceLabel — L90</li>
+<li>函数 compareAgentsByName — L97</li>
+<li>函数 AGENT_SOURCE_GROUPS — L24</li>
+<li>文件 <code class="inline-code">tools/AgentTool/agentMemory.ts</code></li>
+<li>函数 sanitizeAgentTypeForPath — L20</li>
+<li>函数 getLocalAgentMemoryDir — L29</li>
+<li>函数 getAgentMemoryDir — L52</li>
+<li>函数 isAgentMemoryPath — L68</li>
+<li>函数 getAgentMemoryEntrypoint — L109</li>
+<li>函数 getMemoryScopeDisplay — L115</li>
+<li>函数 loadAgentMemoryPrompt — L138</li>
+<li>文件 <code class="inline-code">tools/AgentTool/agentMemorySnapshot.ts</code></li>
+<li>函数 getSnapshotDirForAgent — L31</li>
+<li>函数 getSnapshotJsonPath — L34</li>
+<li>函数 getSyncedJsonPath — L38</li>
+<li>函数 readJsonFile — L42</li>
+<li>函数 copySnapshotToLocal — L55</li>
+<li>函数 saveSyncedMeta — L78</li>
+<li>函数 checkAgentMemorySnapshot — L98</li>
+<li>函数 initializeFromSnapshot — L149</li>
+<li>函数 replaceFromSnapshot — L164</li>
+<li>函数 markSnapshotSynced — L191</li>
+<li>文件 <code class="inline-code">tools/AgentTool/agentToolUtils.ts</code></li>
+<li>函数 filterToolsForAgent — L69</li>
+<li>函数 resolveAgentTools — L122</li>
+<li>函数 countToolUses — L261</li>
+<li>函数 finalizeAgentTool — L275</li>
+<li>函数 getLastToolUseName — L363</li>
+<li>函数 emitTaskProgress — L368</li>
+<li>函数 classifyHandoffIfNeeded — L388</li>
+<li>函数 extractPartialResult — L488</li>
+<li>函数 runAsyncAgentLifecycle — L508</li>
+<li>函数 agentToolResultSchema — L226</li>
+<li>文件 <code class="inline-code">tools/AgentTool/built-in/claudeCodeGuideAgent.ts</code></li>
+<li>函数 getClaudeCodeGuideBasePrompt — L22</li>
+<li>函数 getFeedbackGuideline — L88</li>
+<li>函数 CLAUDE_CODE_GUIDE_AGENT_TYPE — L20</li>
+<li>函数 CLAUDE_CODE_GUIDE_AGENT — L97</li>
+<li>文件 <code class="inline-code">tools/AgentTool/built-in/exploreAgent.ts</code></li>
+<li>函数 getExploreSystemPrompt — L12</li>
+<li>函数 EXPLORE_AGENT_MIN_QUERIES — L58</li>
+<li>函数 EXPLORE_AGENT — L63</li>
+<li>文件 <code class="inline-code">tools/AgentTool/built-in/generalPurposeAgent.ts</code></li>
+<li>函数 getGeneralPurposeSystemPrompt — L19</li>
+<li>函数 GENERAL_PURPOSE_AGENT — L24</li>
+<li>文件 <code class="inline-code">tools/AgentTool/built-in/planAgent.ts</code></li>
+<li>函数 getPlanV2SystemPrompt — L13</li>
+<li>函数 PLAN_AGENT — L72</li>
+<li>文件 <code class="inline-code">tools/AgentTool/built-in/statuslineSetup.ts</code></li>
+<li>函数 STATUSLINE_SETUP_AGENT — L133</li>
+<li>文件 <code class="inline-code">tools/AgentTool/built-in/verificationAgent.ts</code></li>
+<li>函数 VERIFICATION_AGENT — L133</li>
+<li>文件 <code class="inline-code">tools/AgentTool/builtInAgents.ts</code></li>
+<li>函数 areExplorePlanAgentsEnabled — L12</li>
+<li>函数 getBuiltInAgents — L21</li>
+<li>文件 <code class="inline-code">tools/AgentTool/constants.ts</code></li>
+<li>函数 AGENT_TOOL_NAME — L1</li>
+<li>函数 LEGACY_AGENT_TOOL_NAME — L3</li>
+<li>函数 VERIFICATION_AGENT_TYPE — L4</li>
+<li>函数 ONE_SHOT_BUILTIN_AGENT_TYPES — L9</li>
+<li>文件 <code class="inline-code">tools/AgentTool/forkSubagent.ts</code></li>
+<li>函数 isForkSubagentEnabled — L32</li>
+<li>函数 isInForkChild — L78</li>
+<li>函数 buildForkedMessages — L107</li>
+<li>函数 buildChildMessage — L170</li>
+<li>函数 buildWorktreeNotice — L205</li>
+<li>函数 FORK_SUBAGENT_TYPE — L42</li>
+<li>函数 FORK_AGENT — L60</li>
+<li>文件 <code class="inline-code">tools/AgentTool/loadAgentsDir.ts</code></li>
+<li>函数 isBuiltInAgent — L168</li>
+<li>函数 isCustomAgent — L173</li>
+<li>函数 isPluginAgent — L179</li>
+<li>函数 getActiveAgentsFromList — L192</li>
+<li>函数 hasRequiredMcpServers — L229</li>
+<li>函数 filterAgentsByMcpRequirements — L250</li>
+<li>函数 initializeAgentMemorySnapshots — L262</li>
+<li>函数 clearAgentDefinitionsCache — L394</li>
+<li>函数 getParseError — L403</li>
+<li>函数 parseHooksFromFrontmatter — L424</li>
+<li>函数 parseAgentFromJson — L445</li>
+<li>函数 parseAgentsFromJson — L521</li>
+<li>函数 parseAgentFromMarkdown — L541</li>
+<li>函数 getAgentDefinitionsWithOverrides — L295</li>
+<li>文件 <code class="inline-code">tools/AgentTool/prompt.ts</code></li>
+<li>函数 getToolsDescription — L14</li>
+<li>函数 formatAgentLine — L43</li>
+<li>函数 shouldInjectAgentListInMessages — L59</li>
+<li>函数 getPrompt — L65</li>
+<li>函数 isPrime — L167</li>
+<li>文件 <code class="inline-code">tools/AgentTool/resumeAgent.ts</code></li>
+<li>函数 resumeAgentBackground — L42</li>
+<li>文件 <code class="inline-code">tools/AgentTool/runAgent.ts</code></li>
+<li>函数 initializeAgentMcpServers — L95</li>
+<li>函数 isRecordableMessage — L231</li>
+<li>函数 filterIncompleteToolCalls — L866</li>
+<li>函数 getAgentSystemPrompt — L905</li>
+<li>函数 resolveSkillName — L945</li>
+<li>文件 <code class="inline-code">tools/AskUserQuestionTool/AskUserQuestionTool.tsx</code></li>
+<li>函数 AskUserQuestionResultMessage — L83</li>
+<li>函数 _temp — L105</li>
+<li>函数 validateHtmlPreview — L250</li>
+<li>函数 _sdkInputSchema — L78</li>
+<li>函数 _sdkOutputSchema — L79</li>
+<li>函数 AskUserQuestionTool — L109</li>
+<li>文件 <code class="inline-code">tools/AskUserQuestionTool/prompt.ts</code></li>
+<li>函数 ASK_USER_QUESTION_TOOL_NAME — L2</li>
+<li>函数 ASK_USER_QUESTION_TOOL_CHIP_WIDTH — L4</li>
+<li>函数 DESCRIPTION — L6</li>
+<li>函数 PREVIEW_FEATURE_PROMPT — L9</li>
+<li>函数 ASK_USER_QUESTION_TOOL_PROMPT — L31</li>
+<li>文件 <code class="inline-code">tools/BashTool/BashTool.tsx</code></li>
+<li>函数 isSearchOrReadBashCommand — L95</li>
+<li>函数 isSilentBashCommand — L178</li>
+<li>函数 getCommandTypeForLogging — L266</li>
+<li>函数 isAutobackgroundingAllowed — L307</li>
+<li>函数 detectBlockedSleepPattern — L322</li>
+<li>函数 applySedEdit — L360</li>
+<li>函数 createProgressSignal — L871</li>
+<li>函数 spawnBackgroundTask — L904</li>
+<li>函数 startBackgrounding — L924</li>
+<li>函数 BashTool — L420</li>
+<li>文件 <code class="inline-code">tools/BashTool/BashToolResultMessage.tsx</code></li>
+<li>函数 extractSandboxViolations — L24</li>
+<li>函数 extractCwdResetWarning — L45</li>
+<li>文件 <code class="inline-code">tools/BashTool/UI.tsx</code></li>
+<li>函数 BackgroundHint — L31</li>
+<li>函数 renderToolUseMessage — L85</li>
+<li>函数 renderToolUseProgressMessage — L131</li>
+<li>函数 renderToolUseQueuedMessage — L154</li>
+<li>函数 renderToolResultMessage — L159</li>
+<li>函数 renderToolUseErrorMessage — L174</li>
+<li>文件 <code class="inline-code">tools/BashTool/bashCommandHelpers.ts</code></li>
+<li>函数 segmentedCommandPermissionResult — L22</li>
+<li>函数 buildSegmentWithoutRedirections — L163</li>
+<li>函数 checkCommandOperatorPermissions — L181</li>
+<li>函数 bashToolCheckCommandOperatorPermissions — L208</li>
+<li>文件 <code class="inline-code">tools/BashTool/bashPermissions.ts</code></li>
+<li>函数 logClassifierResultForAnts — L117</li>
+<li>函数 getSimpleCommandPrefix — L161</li>
+<li>函数 getFirstWordPrefix — L243</li>
+<li>函数 suggestionForExactCommand — L265</li>
+<li>函数 extractPrefixBeforeHeredoc — L307</li>
+<li>函数 suggestionForPrefix — L338</li>
+<li>函数 matchWildcardPattern — L353</li>
+<li>函数 stripCommentLines — L508</li>
+<li>函数 stripSafeWrappers — L523</li>
+<li>函数 skipTimeoutFlags — L633</li>
+<li>函数 stripWrappersFromArgv — L678</li>
+<li>函数 stripAllLeadingEnvVars — L733</li>
+<li>函数 filterRulesByContentsMatchingInput — L777</li>
+<li>函数 matchingRulesForInput — L936</li>
+<li>函数 checkCommandAndSuggestRules — L1183</li>
+<li>函数 checkSandboxAutoAllow — L1270</li>
+<li>函数 filterCdCwdSubcommands — L1367</li>
+<li>函数 checkEarlyExitDeny — L1391</li>
+<li>函数 checkSemanticsDeny — L1431</li>
+<li>函数 buildPendingClassifierCheck — L1459</li>
+<li>函数 peekSpeculativeClassifierCheck — L1491</li>
+<li>函数 startSpeculativeClassifierCheck — L1496</li>
+<li>函数 consumeSpeculativeClassifierCheck — L1533</li>
+<li>函数 clearSpeculativeChecks — L1542</li>
+<li>函数 awaitClassifierAutoApproval — L1555</li>
+<li>函数 executeAsyncClassifierCheck — L1605</li>
+<li>函数 bashToolHasPermission — L1663</li>
+<li>函数 isNormalizedGitCommand — L2567</li>
+<li>函数 isNormalizedCdCommand — L2603</li>
+<li>函数 commandHasAnyCd — L2617</li>
+<li>函数 MAX_SUBCOMMANDS_FOR_SECURITY_CHECK — L103</li>
+<li>函数 MAX_SUGGESTED_RULES_FOR_COMPOUND — L110</li>
+<li>函数 permissionRuleExtractPrefix — L347</li>
+<li>函数 bashPermissionRule — L364</li>
+<li>函数 BINARY_HIJACK_VARS — L708</li>
+<li>函数 bashToolCheckExactMatchPermission — L991</li>
+<li>函数 bashToolCheckPermission — L1049</li>
+<li>文件 <code class="inline-code">tools/BashTool/bashSecurity.ts</code></li>
+<li>函数 extractQuotedContent — L127</li>
+<li>函数 stripSafeRedirections — L175</li>
+<li>函数 hasUnescapedChar — L209</li>
+<li>函数 validateEmpty — L232</li>
+<li>函数 validateIncompleteCommands — L243</li>
+<li>函数 isSafeHeredoc — L317</li>
+<li>函数 stripSafeHeredocSubstitutions — L521</li>
+<li>函数 hasSafeHeredocSubstitution — L581</li>
+<li>函数 validateSafeCommandSubstitution — L584</li>
+<li>函数 validateGitCommit — L611</li>
+<li>函数 validateJqCommand — L741</li>
+<li>函数 validateShellMetacharacters — L782</li>
+<li>函数 validateDangerousVariables — L822</li>
+<li>函数 validateDangerousPatterns — L845</li>
+<li>函数 validateRedirections — L874</li>
+<li>函数 validateNewlines — L904</li>
+<li>函数 validateCarriageReturn — L971</li>
+<li>函数 validateIFSInjection — L1016</li>
+<li>函数 validateProcEnvironAccess — L1041</li>
+<li>函数 validateMalformedTokenInjection — L1082</li>
+<li>函数 validateObfuscatedFlags — L1129</li>
+<li>函数 hasBackslashEscapedWhitespace — L1549</li>
+<li>函数 validateBackslashEscapedWhitespace — L1582</li>
+<li>函数 hasBackslashEscapedOperator — L1630</li>
+<li>函数 validateBackslashEscapedOperators — L1695</li>
+<li>函数 isEscapedAtPosition — L1727</li>
+<li>函数 validateBraceExpansion — L1751</li>
+<li>函数 validateUnicodeWhitespace — L1901</li>
+<li>函数 validateMidWordHash — L1918</li>
+<li>函数 validateCommentQuoteDesync — L1990</li>
+<li>函数 validateQuotedNewline — L2109</li>
+<li>函数 validateZshDangerousCommands — L2186</li>
+<li>函数 bashCommandIsSafe_DEPRECATED — L2257</li>
+<li>函数 bashCommandIsSafeAsync_DEPRECATED — L2426</li>
+<li>文件 <code class="inline-code">tools/BashTool/commandSemantics.ts</code></li>
+<li>函数 getCommandSemantic — L94</li>
+<li>函数 extractBaseCommand — L104</li>
+<li>函数 heuristicallyExtractBaseCommand — L112</li>
+<li>函数 interpretCommandResult — L124</li>
+<li>文件 <code class="inline-code">tools/BashTool/commentLabel.ts</code></li>
+<li>函数 extractBashCommentLabel — L8</li>
+<li>文件 <code class="inline-code">tools/BashTool/destructiveCommandWarning.ts</code></li>
+<li>函数 getDestructiveCommandWarning — L95</li>
+<li>文件 <code class="inline-code">tools/BashTool/modeValidation.ts</code></li>
+<li>函数 isFilesystemCommand — L18</li>
+<li>函数 validateCommandForMode — L22</li>
+<li>函数 checkPermissionMode — L72</li>
+<li>函数 getAutoAllowedCommands — L110</li>
+<li>文件 <code class="inline-code">tools/BashTool/pathValidation.ts</code></li>
+<li>函数 checkDangerousRemovalPaths — L70</li>
+<li>函数 filterOutFlags — L126</li>
+<li>函数 parsePatternCommand — L142</li>
+<li>函数 validateCommandPaths — L602</li>
+<li>函数 createPathChecker — L702</li>
+<li>函数 parseCommandArguments — L791</li>
+<li>函数 validateSinglePathCommand — L834</li>
+<li>函数 validateSinglePathCommandArgv — L888</li>
+<li>函数 validateOutputRedirections — L923</li>
+<li>函数 checkPathConstraints — L1013</li>
+<li>函数 astRedirectsToOutputRedirections — L1116</li>
+<li>函数 skipTimeoutFlags — L1183</li>
+<li>函数 skipStdbufFlags — L1225</li>
+<li>函数 skipEnvFlags — L1244</li>
+<li>函数 stripWrappersFromArgv — L1263</li>
+<li>函数 PATH_EXTRACTORS — L190</li>
+<li>函数 COMMAND_OPERATION_TYPE — L551</li>
+<li>文件 <code class="inline-code">tools/BashTool/prompt.ts</code></li>
+<li>函数 getDefaultTimeoutMs — L26</li>
+<li>函数 getMaxTimeoutMs — L30</li>
+<li>函数 getBackgroundUsageNote — L34</li>
+<li>函数 getCommitAndPRInstructions — L41</li>
+<li>函数 dedup — L167</li>
+<li>函数 getSimpleSandboxSection — L171</li>
+<li>函数 getSimplePrompt — L274</li>
+<li>文件 <code class="inline-code">tools/BashTool/readOnlyValidation.ts</code></li>
+<li>函数 getCommandAllowlist — L1200</li>
+<li>函数 isCommandSafeViaFlagParsing — L1246</li>
+<li>函数 makeRegexForSafeCommand — L1422</li>
+<li>函数 containsUnquotedExpansion — L1600</li>
+<li>函数 isCommandReadOnly — L1678</li>
+<li>函数 commandHasAnyGit — L1760</li>
+<li>函数 isGitInternalPath — L1781</li>
+<li>函数 extractWritePathsFromSubcommand — L1795</li>
+<li>函数 commandWritesToGitInternalPaths — L1840</li>
+<li>函数 checkReadOnlyConstraints — L1876</li>
+<li>文件 <code class="inline-code">tools/BashTool/sedEditParser.ts</code></li>
+<li>函数 isSedInPlaceEdit — L40</li>
+<li>函数 parseSedEditCommand — L49</li>
+<li>函数 applySedSubstitution — L244</li>
+<li>文件 <code class="inline-code">tools/BashTool/sedValidation.ts</code></li>
+<li>函数 validateFlagsAgainstAllowlist — L13</li>
+<li>函数 isLinePrintingCommand — L44</li>
+<li>函数 isPrintCommand — L128</li>
+<li>函数 isSubstitutionCommand — L142</li>
+<li>函数 sedCommandIsAllowedByAllowlist — L247</li>
+<li>函数 hasFileArgs — L307</li>
+<li>函数 extractSedExpressions — L388</li>
+<li>函数 containsDangerousOperations — L473</li>
+<li>函数 checkSedConstraints — L644</li>
+<li>文件 <code class="inline-code">tools/BashTool/shouldUseSandbox.ts</code></li>
+<li>函数 containsExcludedCommand — L21</li>
+<li>函数 shouldUseSandbox — L129</li>
+<li>文件 <code class="inline-code">tools/BashTool/toolName.ts</code></li>
+<li>函数 BASH_TOOL_NAME — L2</li>
+<li>文件 <code class="inline-code">tools/BashTool/utils.ts</code></li>
+<li>函数 stripEmptyLines — L22</li>
+<li>函数 isImageOutput — L49</li>
+<li>函数 parseDataUri — L59</li>
+<li>函数 buildImageToolResult — L71</li>
+<li>函数 resizeShellImageOutput — L110</li>
+<li>函数 formatOutput — L132</li>
+<li>函数 resetCwdIfOutsideProject — L169</li>
+<li>函数 createContentSummary — L198</li>
+<li>函数 stdErrAppendShellResetMessage — L166</li>
+<li>文件 <code class="inline-code">tools/BriefTool/BriefTool.ts</code></li>
+<li>函数 isBriefEntitled — L88</li>
+<li>函数 isBriefEnabled — L126</li>
+<li>函数 BriefTool — L135</li>
+<li>文件 <code class="inline-code">tools/BriefTool/UI.tsx</code></li>
+<li>函数 renderToolUseMessage — L12</li>
+<li>函数 renderToolResultMessage — L15</li>
+<li>函数 AttachmentList — L72</li>
+<li>函数 _temp — L98</li>
+<li>文件 <code class="inline-code">tools/BriefTool/attachments.ts</code></li>
+<li>函数 validateAttachmentPaths — L25</li>
+<li>函数 resolveAttachments — L62</li>
+<li>文件 <code class="inline-code">tools/BriefTool/prompt.ts</code></li>
+<li>函数 BRIEF_TOOL_NAME — L1</li>
+<li>函数 LEGACY_BRIEF_TOOL_NAME — L2</li>
+<li>函数 DESCRIPTION — L3</li>
+<li>函数 BRIEF_TOOL_PROMPT — L5</li>
+<li>函数 BRIEF_PROACTIVE_SECTION — L11</li>
+<li>文件 <code class="inline-code">tools/BriefTool/upload.ts</code></li>
+<li>函数 guessMimeType — L50</li>
+<li>函数 debug — L55</li>
+<li>函数 getBridgeBaseUrl — L69</li>
+<li>函数 uploadBriefAttachment — L92</li>
+<li>文件 <code class="inline-code">tools/ConfigTool/ConfigTool.ts</code></li>
+<li>函数 getValue — L435</li>
+<li>函数 buildNestedObject — L454</li>
+<li>函数 ConfigTool — L66</li>
+<li>文件 <code class="inline-code">tools/ConfigTool/UI.tsx</code></li>
+<li>函数 renderToolUseMessage — L6</li>
+<li>函数 renderToolResultMessage — L15</li>
+<li>函数 renderToolUseRejectedMessage — L35</li>
+<li>文件 <code class="inline-code">tools/ConfigTool/constants.ts</code></li>
+<li>函数 CONFIG_TOOL_NAME — L1</li>
+<li>文件 <code class="inline-code">tools/ConfigTool/prompt.ts</code></li>
+<li>函数 generatePrompt — L14</li>
+<li>函数 generateModelSection — L78</li>
+<li>函数 DESCRIPTION — L8</li>
+<li>文件 <code class="inline-code">tools/ConfigTool/supportedSettings.ts</code></li>
+<li>函数 isSupported — L187</li>
+<li>函数 getConfig — L191</li>
+<li>函数 getAllKeys — L195</li>
+<li>函数 getOptionsForSetting — L199</li>
+<li>函数 getPath — L207</li>
+<li>函数 SUPPORTED_SETTINGS — L28</li>
+<li>文件 <code class="inline-code">tools/EnterPlanModeTool/EnterPlanModeTool.ts</code></li>
+<li>函数 EnterPlanModeTool — L35</li>
+<li>文件 <code class="inline-code">tools/EnterPlanModeTool/UI.tsx</code></li>
+<li>函数 renderToolUseMessage — L9</li>
+<li>函数 renderToolResultMessage — L12</li>
+<li>函数 renderToolUseRejectedMessage — L27</li>
+<li>文件 <code class="inline-code">tools/EnterPlanModeTool/constants.ts</code></li>
+<li>函数 ENTER_PLAN_MODE_TOOL_NAME — L1</li>
+<li>文件 <code class="inline-code">tools/EnterPlanModeTool/prompt.ts</code></li>
+<li>函数 getEnterPlanModeToolPromptExternal — L15</li>
+<li>函数 getEnterPlanModeToolPromptAnt — L100</li>
+<li>函数 getEnterPlanModeToolPrompt — L165</li>
+<li>文件 <code class="inline-code">tools/EnterWorktreeTool/EnterWorktreeTool.ts</code></li>
+<li>函数 EnterWorktreeTool — L51</li>
+<li>文件 <code class="inline-code">tools/EnterWorktreeTool/UI.tsx</code></li>
+<li>函数 renderToolUseMessage — L7</li>
+<li>函数 renderToolResultMessage — L10</li>
+<li>文件 <code class="inline-code">tools/EnterWorktreeTool/constants.ts</code></li>
+<li>函数 ENTER_WORKTREE_TOOL_NAME — L1</li>
+<li>文件 <code class="inline-code">tools/EnterWorktreeTool/prompt.ts</code></li>
+<li>函数 getEnterWorktreeToolPrompt — L1</li>
+<li>文件 <code class="inline-code">tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts</code></li>
+<li>函数 _sdkInputSchema — L97</li>
+<li>函数 outputSchema — L109</li>
+<li>函数 ExitPlanModeV2Tool — L146</li>
+<li>文件 <code class="inline-code">tools/ExitPlanModeTool/UI.tsx</code></li>
+<li>函数 renderToolUseMessage — L14</li>
+<li>函数 renderToolResultMessage — L17</li>
+<li>函数 renderToolUseRejectedMessage — L68</li>
+<li>文件 <code class="inline-code">tools/ExitPlanModeTool/constants.ts</code></li>
+<li>函数 EXIT_PLAN_MODE_TOOL_NAME — L1</li>
+<li>函数 EXIT_PLAN_MODE_V2_TOOL_NAME — L2</li>
+<li>文件 <code class="inline-code">tools/ExitPlanModeTool/prompt.ts</code></li>
+<li>函数 EXIT_PLAN_MODE_V2_TOOL_PROMPT — L5</li>
+<li>文件 <code class="inline-code">tools/ExitWorktreeTool/ExitWorktreeTool.ts</code></li>
+<li>函数 countWorktreeChanges — L79</li>
+<li>函数 restoreSessionToOriginalCwd — L122</li>
+<li>函数 ExitWorktreeTool — L147</li>
+<li>文件 <code class="inline-code">tools/ExitWorktreeTool/UI.tsx</code></li>
+<li>函数 renderToolUseMessage — L7</li>
+<li>函数 renderToolResultMessage — L10</li>
+<li>文件 <code class="inline-code">tools/ExitWorktreeTool/constants.ts</code></li>
+<li>函数 EXIT_WORKTREE_TOOL_NAME — L1</li>
+<li>文件 <code class="inline-code">tools/ExitWorktreeTool/prompt.ts</code></li>
+<li>函数 getExitWorktreeToolPrompt — L1</li>
+<li>文件 <code class="inline-code">tools/FileEditTool/FileEditTool.ts</code></li>
+<li>函数 readFileForEdit — L598</li>
+<li>函数 FileEditTool — L85</li>
+<li>文件 <code class="inline-code">tools/FileEditTool/UI.tsx</code></li>
+<li>函数 userFacingName — L24</li>
+<li>函数 getToolUseSummary — L46</li>
+<li>函数 renderToolUseMessage — L57</li>
+<li>函数 renderToolResultMessage — L77</li>
+<li>函数 renderToolUseRejectedMessage — L92</li>
+<li>函数 renderToolUseErrorMessage — L128</li>
+<li>函数 EditRejectionDiff — L160</li>
+<li>函数 EditRejectionBody — L213</li>
+<li>函数 loadRejectionDiff — L241</li>
+<li>文件 <code class="inline-code">tools/FileEditTool/constants.ts</code></li>
+<li>函数 FILE_EDIT_TOOL_NAME — L2</li>
+<li>函数 CLAUDE_FOLDER_PERMISSION_PATTERN — L5</li>
+<li>函数 GLOBAL_CLAUDE_FOLDER_PERMISSION_PATTERN — L8</li>
+<li>函数 FILE_UNEXPECTEDLY_MODIFIED_ERROR — L9</li>
+<li>文件 <code class="inline-code">tools/FileEditTool/prompt.ts</code></li>
+<li>函数 getPreReadInstruction — L3</li>
+<li>函数 getEditToolDescription — L7</li>
+<li>函数 getDefaultEditDescription — L11</li>
+<li>文件 <code class="inline-code">tools/FileEditTool/types.ts</code></li>
+<li>函数 hunkSchema — L35</li>
+<li>函数 gitDiffSchema — L45</li>
+<li>文件 <code class="inline-code">tools/FileEditTool/utils.ts</code></li>
+<li>函数 normalizeQuotes — L31</li>
+<li>函数 stripTrailingWhitespace — L44</li>
+<li>函数 findActualString — L73</li>
+<li>函数 preserveQuoteStyle — L104</li>
+<li>函数 isOpeningContext — L137</li>
+<li>函数 applyCurlyDoubleQuotes — L155</li>
+<li>函数 applyCurlySingleQuotes — L172</li>
+<li>函数 applyEditToFile — L206</li>
+<li>函数 getPatchForEdit — L234</li>
+<li>函数 getPatchForEdits — L262</li>
+<li>函数 getSnippetForTwoFileDiff — L362</li>
+<li>函数 getSnippetForPatch — L417</li>
+<li>函数 getSnippet — L468</li>
+<li>函数 getEditsForPatch — L494</li>
+<li>函数 desanitizeMatchString — L557</li>
+<li>函数 normalizeFileEditInput — L581</li>
+<li>函数 areFileEditsEquivalent — L664</li>
+<li>函数 areFileEditsInputsEquivalent — L732</li>
+<li>函数 LEFT_SINGLE_CURLY_QUOTE — L21</li>
+<li>函数 RIGHT_SINGLE_CURLY_QUOTE — L22</li>
+<li>函数 LEFT_DOUBLE_CURLY_QUOTE — L23</li>
+<li>函数 RIGHT_DOUBLE_CURLY_QUOTE — L24</li>
+<li>文件 <code class="inline-code">tools/FileReadTool/FileReadTool.ts</code></li>
+<li>类 MaxFileReadTokenExceededError — L174</li>
+<li>函数 isBlockedDevicePath — L116</li>
+<li>函数 getAlternateScreenshotPath — L147</li>
+<li>函数 registerFileReadListener — L164</li>
+<li>函数 detectSessionFileType — L195</li>
+<li>函数 pickLineFormatInstruction — L719</li>
+<li>函数 formatFileLines — L725</li>
+<li>函数 shouldIncludeFileReadMitigation — L734</li>
+<li>函数 memoryFileFreshnessPrefix — L748</li>
+<li>函数 validateContentTokens — L754</li>
+<li>函数 createImageResponse — L783</li>
+<li>函数 callInner — L804</li>
+<li>函数 readImageWithTokenBudget — L1097</li>
+<li>函数 FileReadTool — L336</li>
+<li>函数 CYBER_RISK_MITIGATION_REMINDER — L728</li>
+<li>文件 <code class="inline-code">tools/FileReadTool/UI.tsx</code></li>
+<li>函数 getAgentOutputTaskId — L18</li>
+<li>函数 renderToolUseMessage — L30</li>
+<li>函数 renderToolUseTag — L66</li>
+<li>函数 renderToolResultMessage — L77</li>
+<li>函数 renderToolUseErrorMessage — L144</li>
+<li>函数 userFacingName — L165</li>
+<li>函数 getToolUseSummary — L174</li>
+<li>文件 <code class="inline-code">tools/FileReadTool/imageProcessor.ts</code></li>
+<li>函数 getImageProcessor — L36</li>
+<li>函数 getImageCreator — L74</li>
+<li>函数 unwrapDefault — L89</li>
+<li>文件 <code class="inline-code">tools/FileReadTool/limits.ts</code></li>
+<li>函数 getEnvMaxTokens — L24</li>
+<li>函数 DEFAULT_MAX_OUTPUT_TOKENS — L18</li>
+<li>函数 getDefaultFileReadingLimits — L53</li>
+<li>文件 <code class="inline-code">tools/FileReadTool/prompt.ts</code></li>
+<li>函数 renderPromptTemplate — L27</li>
+<li>函数 FILE_READ_TOOL_NAME — L5</li>
+<li>函数 FILE_UNCHANGED_STUB — L6</li>
+<li>函数 MAX_LINES_TO_READ — L9</li>
+<li>函数 DESCRIPTION — L11</li>
+<li>函数 LINE_FORMAT_INSTRUCTION — L13</li>
+<li>函数 OFFSET_INSTRUCTION_DEFAULT — L16</li>
+<li>函数 OFFSET_INSTRUCTION_TARGETED — L19</li>
+<li>文件 <code class="inline-code">tools/FileWriteTool/FileWriteTool.ts</code></li>
+<li>函数 FileWriteTool — L93</li>
+<li>文件 <code class="inline-code">tools/FileWriteTool/UI.tsx</code></li>
+<li>函数 countLines — L35</li>
+<li>函数 FileWriteToolCreatedMessage — L39</li>
+<li>函数 userFacingName — L128</li>
+<li>函数 isResultTruncated — L142</li>
+<li>函数 getToolUseSummary — L156</li>
+<li>函数 renderToolUseMessage — L165</li>
+<li>函数 renderToolUseRejectedMessage — L184</li>
+<li>函数 WriteRejectionDiff — L208</li>
+<li>函数 WriteRejectionBody — L271</li>
+<li>函数 loadRejectionDiff — L310</li>
+<li>函数 renderToolUseErrorMessage — L350</li>
+<li>函数 renderToolResultMessage — L362</li>
+<li>文件 <code class="inline-code">tools/FileWriteTool/prompt.ts</code></li>
+<li>函数 getPreReadInstruction — L5</li>
+<li>函数 getWriteToolDescription — L9</li>
+<li>函数 FILE_WRITE_TOOL_NAME — L2</li>
+<li>函数 DESCRIPTION — L4</li>
+<li>文件 <code class="inline-code">tools/GlobTool/GlobTool.ts</code></li>
+<li>函数 GlobTool — L56</li>
+<li>文件 <code class="inline-code">tools/GlobTool/UI.tsx</code></li>
+<li>函数 userFacingName — L11</li>
+<li>函数 renderToolUseMessage — L14</li>
+<li>函数 renderToolUseErrorMessage — L33</li>
+<li>函数 getToolUseSummary — L54</li>
+<li>函数 renderToolResultMessage — L53</li>
+<li>文件 <code class="inline-code">tools/GlobTool/prompt.ts</code></li>
+<li>函数 GLOB_TOOL_NAME — L1</li>
+<li>函数 DESCRIPTION — L2</li>
+<li>文件 <code class="inline-code">tools/GrepTool/GrepTool.ts</code></li>
+<li>函数 applyHeadLimit — L109</li>
+<li>函数 formatLimitInfo — L134</li>
+<li>函数 GrepTool — L159</li>
+<li>文件 <code class="inline-code">tools/GrepTool/UI.tsx</code></li>
+<li>函数 SearchResultSummary — L16</li>
+<li>函数 renderToolUseMessage — L127</li>
+<li>函数 renderToolUseErrorMessage — L147</li>
+<li>函数 renderToolResultMessage — L165</li>
+<li>函数 getToolUseSummary — L188</li>
+<li>文件 <code class="inline-code">tools/GrepTool/prompt.ts</code></li>
+<li>函数 getDescription — L5</li>
+<li>函数 GREP_TOOL_NAME — L3</li>
+<li>文件 <code class="inline-code">tools/LSPTool/LSPTool.ts</code></li>
+<li>函数 getMethodAndParams — L427</li>
+<li>函数 countSymbols — L518</li>
+<li>函数 countUniqueFiles — L531</li>
+<li>函数 uriToFilePath — L538</li>
+<li>函数 filterGitIgnoredLocations — L556</li>
+<li>函数 isLocationLink — L616</li>
+<li>函数 toLocation — L623</li>
+<li>函数 formatResult — L636</li>
+<li>函数 countUniqueFilesFromCallItems — L835</li>
+<li>函数 countUniqueFilesFromIncomingCalls — L844</li>
+<li>函数 countUniqueFilesFromOutgoingCalls — L855</li>
+<li>函数 LSPTool — L126</li>
+<li>文件 <code class="inline-code">tools/LSPTool/UI.tsx</code></li>
+<li>函数 LSPResultSummary — L61</li>
+<li>函数 userFacingName — L160</li>
+<li>函数 renderToolUseMessage — L163</li>
+<li>函数 renderToolUseErrorMessage — L200</li>
+<li>函数 renderToolResultMessage — L212</li>
+<li>文件 <code class="inline-code">tools/LSPTool/formatters.ts</code></li>
+<li>函数 formatUri — L24</li>
+<li>函数 groupByFile — L78</li>
+<li>函数 formatLocation — L99</li>
+<li>函数 locationLinkToLocation — L109</li>
+<li>函数 isLocationLink — L119</li>
+<li>函数 formatGoToDefinitionResult — L127</li>
+<li>函数 formatFindReferencesResult — L174</li>
+<li>函数 extractMarkupText — L223</li>
+<li>函数 formatHoverResult — L253</li>
+<li>函数 symbolKindToString — L272</li>
+<li>函数 formatDocumentSymbolNode — L307</li>
+<li>函数 formatDocumentSymbolResult — L340</li>
+<li>函数 formatWorkspaceSymbolResult — L371</li>
+<li>函数 formatCallHierarchyItem — L428</li>
+<li>函数 formatPrepareCallHierarchyResult — L455</li>
+<li>函数 formatIncomingCallsResult — L478</li>
+<li>函数 formatOutgoingCallsResult — L538</li>
+<li>文件 <code class="inline-code">tools/LSPTool/prompt.ts</code></li>
+<li>函数 LSP_TOOL_NAME — L1</li>
+<li>函数 DESCRIPTION — L2</li>
+<li>文件 <code class="inline-code">tools/LSPTool/schemas.ts</code></li>
+<li>函数 isValidLSPOperation — L201</li>
+<li>函数 lspToolInputSchema — L8</li>
+<li>文件 <code class="inline-code">tools/LSPTool/symbolContext.ts</code></li>
+<li>函数 getSymbolAtPosition — L21</li>
+<li>文件 <code class="inline-code">tools/ListMcpResourcesTool/ListMcpResourcesTool.ts</code></li>
+<li>函数 ListMcpResourcesTool — L39</li>
+<li>文件 <code class="inline-code">tools/ListMcpResourcesTool/UI.tsx</code></li>
+<li>函数 renderToolUseMessage — L9</li>
+<li>函数 renderToolResultMessage — L14</li>
+<li>文件 <code class="inline-code">tools/ListMcpResourcesTool/prompt.ts</code></li>
+<li>函数 LIST_MCP_RESOURCES_TOOL_NAME — L1</li>
+<li>函数 DESCRIPTION — L2</li>
+<li>函数 PROMPT — L11</li>
+<li>文件 <code class="inline-code">tools/MCPTool/MCPTool.ts</code></li>
+<li>函数 inputSchema — L14</li>
+<li>函数 outputSchema — L16</li>
+<li>函数 MCPTool — L26</li>
+<li>文件 <code class="inline-code">tools/MCPTool/UI.tsx</code></li>
+<li>函数 renderToolUseMessage — L41</li>
+<li>函数 renderToolUseProgressMessage — L57</li>
+<li>函数 renderToolResultMessage — L91</li>
+<li>函数 MCPTextOutput — L159</li>
+<li>函数 _temp2 — L258</li>
+<li>函数 _temp — L262</li>
+<li>函数 parseJsonEntries — L266</li>
+<li>函数 tryFlattenJson — L298</li>
+<li>函数 tryUnwrapTextPayload — L327</li>
+<li>函数 trySlackSendCompact — L372</li>
+<li>文件 <code class="inline-code">tools/MCPTool/classifyForCollapse.ts</code></li>
+<li>函数 normalize — L587</li>
+<li>函数 classifyMcpToolForCollapse — L594</li>
+<li>文件 <code class="inline-code">tools/MCPTool/prompt.ts</code></li>
+<li>函数 PROMPT — L2</li>
+<li>函数 DESCRIPTION — L3</li>
+<li>文件 <code class="inline-code">tools/McpAuthTool/McpAuthTool.ts</code></li>
+<li>函数 getConfigUrl — L31</li>
+<li>函数 createMcpAuthTool — L49</li>
+<li>文件 <code class="inline-code">tools/NotebookEditTool/NotebookEditTool.ts</code></li>
+<li>函数 inputSchema — L29</li>
+<li>函数 outputSchema — L59</li>
+<li>函数 NotebookEditTool — L89</li>
+<li>文件 <code class="inline-code">tools/NotebookEditTool/UI.tsx</code></li>
+<li>函数 getToolUseSummary — L16</li>
+<li>函数 renderToolUseMessage — L22</li>
+<li>函数 renderToolUseRejectedMessage — L48</li>
+<li>函数 renderToolUseErrorMessage — L60</li>
+<li>函数 renderToolResultMessage — L72</li>
+<li>文件 <code class="inline-code">tools/NotebookEditTool/constants.ts</code></li>
+<li>函数 NOTEBOOK_EDIT_TOOL_NAME — L2</li>
+<li>文件 <code class="inline-code">tools/NotebookEditTool/prompt.ts</code></li>
+<li>函数 DESCRIPTION — L1</li>
+<li>函数 PROMPT — L3</li>
+<li>文件 <code class="inline-code">tools/PowerShellTool/PowerShellTool.tsx</code></li>
+<li>函数 isSearchOrReadPowerShellCommand — L101</li>
+<li>函数 isAutobackgroundingAllowed — L176</li>
+<li>函数 detectBlockedSleepPattern — L189</li>
+<li>函数 isWindowsSandboxPolicyViolation — L220</li>
+<li>函数 getCommandTypeForLogging — L262</li>
+<li>函数 createProgressSignal — L711</li>
+<li>函数 spawnBackgroundTask — L766</li>
+<li>函数 startBackgrounding — L784</li>
+<li>函数 PowerShellTool — L272</li>
+<li>文件 <code class="inline-code">tools/PowerShellTool/UI.tsx</code></li>
+<li>函数 renderToolUseMessage — L19</li>
+<li>函数 renderToolUseProgressMessage — L50</li>
+<li>函数 renderToolUseQueuedMessage — L73</li>
+<li>函数 renderToolResultMessage — L78</li>
+<li>函数 renderToolUseErrorMessage — L120</li>
+<li>文件 <code class="inline-code">tools/PowerShellTool/clmTypes.ts</code></li>
+<li>函数 normalizeTypeName — L194</li>
+<li>函数 isClmAllowedType — L209</li>
+<li>函数 CLM_ALLOWED_TYPES — L18</li>
+<li>文件 <code class="inline-code">tools/PowerShellTool/commandSemantics.ts</code></li>
+<li>函数 extractBaseCommand — L100</li>
+<li>函数 heuristicallyExtractBaseCommand — L121</li>
+<li>函数 interpretCommandResult — L130</li>
+<li>文件 <code class="inline-code">tools/PowerShellTool/commonParameters.ts</code></li>
+<li>函数 COMMON_SWITCHES — L11</li>
+<li>函数 COMMON_VALUE_PARAMS — L13</li>
+<li>函数 COMMON_PARAMETERS — L26</li>
+<li>文件 <code class="inline-code">tools/PowerShellTool/destructiveCommandWarning.ts</code></li>
+<li>函数 getDestructiveCommandWarning — L102</li>
+<li>文件 <code class="inline-code">tools/PowerShellTool/gitSafety.ts</code></li>
+<li>函数 resolveCwdReentry — L23</li>
+<li>函数 normalizeGitPathArg — L48</li>
+<li>函数 resolveEscapingPathToCwdRelative — L106</li>
+<li>函数 matchesGitInternalPrefix — L123</li>
+<li>函数 isGitInternalPathPS — L139</li>
+<li>函数 isDotGitPathPS — L158</li>
+<li>函数 matchesDotGitPrefix — L169</li>
+<li>文件 <code class="inline-code">tools/PowerShellTool/modeValidation.ts</code></li>
+<li>函数 isAcceptEditsAllowedCmdlet — L39</li>
+<li>函数 isItemTypeParamAbbrev — L64</li>
+<li>函数 isSymlinkCreatingCommand — L82</li>
+<li>函数 checkPermissionMode — L132</li>
+<li>文件 <code class="inline-code">tools/PowerShellTool/pathValidation.ts</code></li>
+<li>函数 matchesParam — L772</li>
+<li>函数 hasComplexColonValue — L793</li>
+<li>函数 formatDirectoryList — L804</li>
+<li>函数 expandTilde — L820</li>
+<li>函数 isDangerousRemovalRawPath — L840</li>
+<li>函数 dangerousRemovalDeny — L847</li>
+<li>函数 isPathAllowed — L863</li>
+<li>函数 checkDenyRuleForGuessedPath — L984</li>
+<li>函数 validatePath — L1013</li>
+<li>函数 getGlobBaseDirectory — L1265</li>
+<li>函数 extractPathsFromCommand — L1304</li>
+<li>函数 checkArgElementType — L1333</li>
+<li>函数 checkPathConstraints — L1528</li>
+<li>函数 checkPathConstraintsForStatement — L1568</li>
+<li>文件 <code class="inline-code">tools/PowerShellTool/powershellPermissions.ts</code></li>
+<li>函数 extractCommandName — L118</li>
+<li>函数 powershellPermissionRule — L132</li>
+<li>函数 suggestionForExactCommand — L150</li>
+<li>函数 filterRulesByContentsMatchingInput — L170</li>
+<li>函数 strEquals — L177</li>
+<li>函数 strStartsWith — L181</li>
+<li>函数 stripModulePrefixForRule — L189</li>
+<li>函数 matchesCommand — L223</li>
+<li>函数 matchingRulesForInput — L338</li>
+<li>函数 powershellToolCheckExactMatchPermission — L385</li>
+<li>函数 powershellToolCheckPermission — L435</li>
+<li>函数 getSubCommandsForPermissionCheck — L539</li>
+<li>函数 powershellToolHasPermission — L639</li>
+<li>函数 extractProviderPathFromArg — L985</li>
+<li>函数 providerOrUncDecisionForArg — L1003</li>
+<li>文件 <code class="inline-code">tools/PowerShellTool/powershellSecurity.ts</code></li>
+<li>函数 isPowerShellExecutable — L46</li>
+<li>函数 psExeHasParamAbbreviation — L83</li>
+<li>函数 checkInvokeExpression — L106</li>
+<li>函数 checkDynamicCommandName — L143</li>
+<li>函数 checkEncodedCommand — L166</li>
+<li>函数 checkPwshCommandOrFile — L192</li>
+<li>函数 isDownloader — L224</li>
+<li>函数 isIex — L228</li>
+<li>函数 checkDownloadCradles — L233</li>
+<li>函数 checkDownloadUtilities — L276</li>
+<li>函数 checkAddType — L321</li>
+<li>函数 checkComObject — L343</li>
+<li>函数 checkDangerousFilePathExecution — L451</li>
+<li>函数 checkForEachMemberName — L499</li>
+<li>函数 checkStartProcess — L550</li>
+<li>函数 checkScriptBlockInjection — L663</li>
+<li>函数 checkSubExpressions — L714</li>
+<li>函数 checkExpandableStrings — L731</li>
+<li>函数 checkSplatting — L746</li>
+<li>函数 checkStopParsing — L761</li>
+<li>函数 checkMemberInvocations — L776</li>
+<li>函数 checkTypeLiterals — L801</li>
+<li>函数 checkInvokeItem — L822</li>
+<li>函数 checkScheduledTask — L850</li>
+<li>函数 checkEnvVarManipulation — L907</li>
+<li>函数 checkModuleLoading — L945</li>
+<li>函数 checkRuntimeStateManipulation — L981</li>
+<li>函数 checkWmiProcessSpawn — L1015</li>
+<li>函数 powershellCommandIsSafe — L1042</li>
+<li>文件 <code class="inline-code">tools/PowerShellTool/prompt.ts</code></li>
+<li>函数 getDefaultTimeoutMs — L17</li>
+<li>函数 getMaxTimeoutMs — L21</li>
+<li>函数 getBackgroundUsageNote — L25</li>
+<li>函数 getSleepGuidance — L32</li>
+<li>函数 getEditionSection — L51</li>
+<li>函数 getPrompt — L72</li>
+<li>文件 <code class="inline-code">tools/PowerShellTool/readOnlyValidation.ts</code></li>
+<li>函数 argLeaksValue — L76</li>
+<li>函数 resolveToCanonical — L984</li>
+<li>函数 isCwdChangingCmdlet — L1017</li>
+<li>函数 isSafeOutputCommand — L1038</li>
+<li>函数 isAllowlistedPipelineTail — L1052</li>
+<li>函数 isProvablySafeStatement — L1072</li>
+<li>函数 lookupAllowlist — L1088</li>
+<li>函数 hasSyncSecurityConcerns — L1112</li>
+<li>函数 isReadOnlyCommand — L1168</li>
+<li>函数 isAllowlistedCommand — L1310</li>
+<li>函数 isExternalCommandSafe — L1521</li>
+<li>函数 isGitSafe — L1583</li>
+<li>函数 isGhSafe — L1702</li>
+<li>函数 isDockerSafe — L1758</li>
+<li>函数 isDotnetSafe — L1808</li>
+<li>函数 CMDLET_ALLOWLIST — L129</li>
+<li>文件 <code class="inline-code">tools/PowerShellTool/toolName.ts</code></li>
+<li>函数 POWERSHELL_TOOL_NAME — L2</li>
+<li>文件 <code class="inline-code">tools/REPLTool/constants.ts</code></li>
+<li>函数 isReplModeEnabled — L23</li>
+<li>函数 REPL_TOOL_NAME — L10</li>
+<li>函数 REPL_ONLY_TOOLS — L37</li>
+<li>文件 <code class="inline-code">tools/REPLTool/primitiveTools.ts</code></li>
+<li>函数 getReplPrimitiveTools — L28</li>
+<li>文件 <code class="inline-code">tools/ReadMcpResourceTool/ReadMcpResourceTool.ts</code></li>
+<li>函数 inputSchema — L21</li>
+<li>函数 outputSchema — L29</li>
+<li>函数 ReadMcpResourceTool — L48</li>
+<li>文件 <code class="inline-code">tools/ReadMcpResourceTool/UI.tsx</code></li>
+<li>函数 renderToolUseMessage — L10</li>
+<li>函数 userFacingName — L16</li>
+<li>函数 renderToolResultMessage — L19</li>
+<li>文件 <code class="inline-code">tools/ReadMcpResourceTool/prompt.ts</code></li>
+<li>函数 DESCRIPTION — L1</li>
+<li>函数 PROMPT — L9</li>
+<li>文件 <code class="inline-code">tools/RemoteTriggerTool/RemoteTriggerTool.ts</code></li>
+<li>函数 RemoteTriggerTool — L45</li>
+<li>文件 <code class="inline-code">tools/RemoteTriggerTool/UI.tsx</code></li>
+<li>函数 renderToolUseMessage — L6</li>
+<li>函数 renderToolResultMessage — L9</li>
+<li>文件 <code class="inline-code">tools/RemoteTriggerTool/prompt.ts</code></li>
+<li>函数 REMOTE_TRIGGER_TOOL_NAME — L1</li>
+<li>函数 DESCRIPTION — L2</li>
+<li>函数 PROMPT — L5</li>
+<li>文件 <code class="inline-code">tools/ScheduleCronTool/CronCreateTool.ts</code></li>
+<li>函数 CronCreateTool — L55</li>
+<li>文件 <code class="inline-code">tools/ScheduleCronTool/CronDeleteTool.ts</code></li>
+<li>函数 CronDeleteTool — L34</li>
+<li>文件 <code class="inline-code">tools/ScheduleCronTool/CronListTool.ts</code></li>
+<li>函数 CronListTool — L36</li>
+<li>文件 <code class="inline-code">tools/ScheduleCronTool/UI.tsx</code></li>
+<li>函数 renderCreateToolUseMessage — L10</li>
+<li>函数 renderCreateResultMessage — L17</li>
+<li>函数 renderDeleteToolUseMessage — L27</li>
+<li>函数 renderDeleteResultMessage — L33</li>
+<li>函数 renderListToolUseMessage — L42</li>
+<li>函数 renderListResultMessage — L46</li>
+<li>文件 <code class="inline-code">tools/ScheduleCronTool/prompt.ts</code></li>
+<li>函数 isKairosCronEnabled — L36</li>
+<li>函数 isDurableCronEnabled — L56</li>
+<li>函数 buildCronCreateDescription — L67</li>
+<li>函数 buildCronCreatePrompt — L73</li>
+<li>函数 buildCronDeletePrompt — L124</li>
+<li>函数 buildCronListPrompt — L131</li>
+<li>函数 DEFAULT_MAX_AGE_DAYS — L7</li>
+<li>函数 CRON_CREATE_TOOL_NAME — L63</li>
+<li>函数 CRON_DELETE_TOOL_NAME — L65</li>
+<li>函数 CRON_LIST_TOOL_NAME — L66</li>
+<li>函数 CRON_DELETE_DESCRIPTION — L122</li>
+<li>函数 CRON_LIST_DESCRIPTION — L129</li>
+<li>文件 <code class="inline-code">tools/SendMessageTool/SendMessageTool.ts</code></li>
+<li>函数 findTeammateColor — L132</li>
+<li>函数 handleMessage — L148</li>
+<li>函数 handleBroadcast — L190</li>
+<li>函数 handleShutdownRequest — L267</li>
+<li>函数 handleShutdownApproval — L304</li>
+<li>函数 handleShutdownRejection — L400</li>
+<li>函数 handlePlanApproval — L433</li>
+<li>函数 handlePlanRejection — L477</li>
+<li>函数 SendMessageTool — L519</li>
+<li>文件 <code class="inline-code">tools/SendMessageTool/UI.tsx</code></li>
+<li>函数 renderToolUseMessage — L6</li>
+<li>函数 renderToolResultMessage — L15</li>
+<li>文件 <code class="inline-code">tools/SendMessageTool/constants.ts</code></li>
+<li>函数 SEND_MESSAGE_TOOL_NAME — L1</li>
+<li>文件 <code class="inline-code">tools/SendMessageTool/prompt.ts</code></li>
+<li>函数 getPrompt — L4</li>
+<li>函数 DESCRIPTION — L2</li>
+<li>文件 <code class="inline-code">tools/SkillTool/SkillTool.ts</code></li>
+<li>函数 getAllCommands — L81</li>
+<li>函数 executeForkedSkill — L122</li>
+<li>函数 skillHasOnlySafeProperties — L909</li>
+<li>函数 isOfficialMarketplaceSkill — L934</li>
+<li>函数 extractUrlScheme — L949</li>
+<li>函数 executeRemoteSkill — L969</li>
+<li>函数 inputSchema — L290</li>
+<li>函数 outputSchema — L300</li>
+<li>函数 SkillTool — L330</li>
+<li>文件 <code class="inline-code">tools/SkillTool/UI.tsx</code></li>
+<li>函数 renderToolResultMessage — L20</li>
+<li>函数 renderToolUseMessage — L47</li>
+<li>函数 renderToolUseProgressMessage — L62</li>
+<li>函数 renderToolUseRejectedMessage — L94</li>
+<li>函数 renderToolUseErrorMessage — L111</li>
+<li>文件 <code class="inline-code">tools/SkillTool/constants.ts</code></li>
+<li>函数 SKILL_TOOL_NAME — L1</li>
+<li>文件 <code class="inline-code">tools/SkillTool/prompt.ts</code></li>
+<li>函数 getCharBudget — L30</li>
+<li>函数 getCommandDescription — L42</li>
+<li>函数 formatCommandDescription — L51</li>
+<li>函数 formatCommandsWithinBudget — L69</li>
+<li>函数 getSkillToolInfo — L197</li>
+<li>函数 getLimitedSkillToolCommands — L213</li>
+<li>函数 clearPromptCache — L216</li>
+<li>函数 getSkillInfo — L220</li>
+<li>函数 SKILL_BUDGET_CONTEXT_PERCENT — L21</li>
+<li>函数 CHARS_PER_TOKEN — L22</li>
+<li>函数 DEFAULT_CHAR_BUDGET — L23</li>
+<li>函数 MAX_LISTING_DESC_CHARS — L29</li>
+<li>函数 getPrompt — L172</li>
+<li>文件 <code class="inline-code">tools/SleepTool/prompt.ts</code></li>
+<li>函数 SLEEP_TOOL_NAME — L2</li>
+<li>函数 DESCRIPTION — L4</li>
+<li>函数 SLEEP_TOOL_PROMPT — L6</li>
+<li>文件 <code class="inline-code">tools/SyntheticOutputTool/SyntheticOutputTool.ts</code></li>
+<li>函数 isSyntheticOutputToolEnabled — L21</li>
+<li>函数 createSyntheticOutputTool — L116</li>
+<li>函数 buildSyntheticOutputTool — L126</li>
+<li>函数 SYNTHETIC_OUTPUT_TOOL_NAME — L19</li>
+<li>函数 SyntheticOutputTool — L27</li>
+<li>文件 <code class="inline-code">tools/TaskCreateTool/TaskCreateTool.ts</code></li>
+<li>函数 TaskCreateTool — L47</li>
+<li>文件 <code class="inline-code">tools/TaskCreateTool/constants.ts</code></li>
+<li>函数 TASK_CREATE_TOOL_NAME — L1</li>
+<li>文件 <code class="inline-code">tools/TaskCreateTool/prompt.ts</code></li>
+<li>函数 getPrompt — L4</li>
+<li>函数 DESCRIPTION — L2</li>
+<li>文件 <code class="inline-code">tools/TaskGetTool/TaskGetTool.ts</code></li>
+<li>函数 TaskGetTool — L37</li>
+<li>文件 <code class="inline-code">tools/TaskGetTool/constants.ts</code></li>
+<li>函数 TASK_GET_TOOL_NAME — L1</li>
+<li>文件 <code class="inline-code">tools/TaskGetTool/prompt.ts</code></li>
+<li>函数 DESCRIPTION — L1</li>
+<li>函数 PROMPT — L2</li>
+<li>文件 <code class="inline-code">tools/TaskListTool/TaskListTool.ts</code></li>
+<li>函数 TaskListTool — L32</li>
+<li>文件 <code class="inline-code">tools/TaskListTool/constants.ts</code></li>
+<li>函数 TASK_LIST_TOOL_NAME — L1</li>
+<li>文件 <code class="inline-code">tools/TaskListTool/prompt.ts</code></li>
+<li>函数 getPrompt — L4</li>
+<li>函数 DESCRIPTION — L2</li>
+<li>文件 <code class="inline-code">tools/TaskOutputTool/TaskOutputTool.tsx</code></li>
+<li>函数 getTaskOutputData — L60</li>
+<li>函数 waitForTaskCompletion — L118</li>
+<li>函数 TaskOutputResultDisplay — L353</li>
+<li>函数 TaskOutputTool — L144</li>
+<li>文件 <code class="inline-code">tools/TaskOutputTool/constants.ts</code></li>
+<li>函数 TASK_OUTPUT_TOOL_NAME — L1</li>
+<li>文件 <code class="inline-code">tools/TaskStopTool/TaskStopTool.ts</code></li>
+<li>函数 TaskStopTool — L38</li>
+<li>文件 <code class="inline-code">tools/TaskStopTool/UI.tsx</code></li>
+<li>函数 renderToolUseMessage — L7</li>
+<li>函数 truncateCommand — L12</li>
+<li>函数 renderToolResultMessage — L23</li>
+<li>文件 <code class="inline-code">tools/TaskStopTool/prompt.ts</code></li>
+<li>函数 TASK_STOP_TOOL_NAME — L1</li>
+<li>函数 DESCRIPTION — L2</li>
+<li>文件 <code class="inline-code">tools/TaskUpdateTool/TaskUpdateTool.ts</code></li>
+<li>函数 TaskUpdateTool — L87</li>
+<li>文件 <code class="inline-code">tools/TaskUpdateTool/constants.ts</code></li>
+<li>函数 TASK_UPDATE_TOOL_NAME — L1</li>
+<li>文件 <code class="inline-code">tools/TaskUpdateTool/prompt.ts</code></li>
+<li>函数 DESCRIPTION — L1</li>
+<li>函数 PROMPT — L2</li>
+<li>文件 <code class="inline-code">tools/TeamCreateTool/TeamCreateTool.ts</code></li>
+<li>函数 generateUniqueTeamName — L64</li>
+<li>函数 TeamCreateTool — L73</li>
+<li>文件 <code class="inline-code">tools/TeamCreateTool/UI.tsx</code></li>
+<li>函数 renderToolUseMessage — L3</li>
+<li>文件 <code class="inline-code">tools/TeamCreateTool/constants.ts</code></li>
+<li>函数 TEAM_CREATE_TOOL_NAME — L1</li>
+<li>文件 <code class="inline-code">tools/TeamCreateTool/prompt.ts</code></li>
+<li>函数 getPrompt — L1</li>
+<li>文件 <code class="inline-code">tools/TeamDeleteTool/TeamDeleteTool.ts</code></li>
+<li>函数 TeamDeleteTool — L31</li>
+<li>文件 <code class="inline-code">tools/TeamDeleteTool/UI.tsx</code></li>
+<li>函数 renderToolUseMessage — L4</li>
+<li>函数 renderToolResultMessage — L7</li>
+<li>文件 <code class="inline-code">tools/TeamDeleteTool/constants.ts</code></li>
+<li>函数 TEAM_DELETE_TOOL_NAME — L1</li>
+<li>文件 <code class="inline-code">tools/TeamDeleteTool/prompt.ts</code></li>
+<li>函数 getPrompt — L1</li>
+<li>文件 <code class="inline-code">tools/TodoWriteTool/TodoWriteTool.ts</code></li>
+<li>函数 TodoWriteTool — L30</li>
+<li>文件 <code class="inline-code">tools/TodoWriteTool/constants.ts</code></li>
+<li>函数 TODO_WRITE_TOOL_NAME — L1</li>
+<li>文件 <code class="inline-code">tools/TodoWriteTool/prompt.ts</code></li>
+<li>函数 PROMPT — L2</li>
+<li>函数 DESCRIPTION — L182</li>
+<li>文件 <code class="inline-code">tools/ToolSearchTool/ToolSearchTool.ts</code></li>
+<li>函数 getDeferredToolsCacheKey — L55</li>
+<li>函数 maybeInvalidateCache — L91</li>
+<li>函数 clearToolSearchDescriptionCache — L101</li>
+<li>函数 buildSearchResult — L110</li>
+<li>函数 parseToolName — L132</li>
+<li>函数 compileTermPatterns — L167</li>
+<li>函数 searchToolsWithKeywords — L186</li>
+<li>函数 getPendingServerNames — L335</li>
+<li>函数 logSearchOutcome — L342</li>
+<li>函数 inputSchema — L20</li>
+<li>函数 outputSchema — L36</li>
+<li>函数 ToolSearchTool — L303</li>
+<li>文件 <code class="inline-code">tools/ToolSearchTool/constants.ts</code></li>
+<li>函数 TOOL_SEARCH_TOOL_NAME — L1</li>
+<li>文件 <code class="inline-code">tools/ToolSearchTool/prompt.ts</code></li>
+<li>函数 getToolLocationHint — L35</li>
+<li>函数 isDeferredTool — L62</li>
+<li>函数 formatDeferredToolLine — L115</li>
+<li>函数 getPrompt — L118</li>
+<li>文件 <code class="inline-code">tools/WebFetchTool/UI.tsx</code></li>
+<li>函数 renderToolUseMessage — L9</li>
+<li>函数 renderToolUseProgressMessage — L29</li>
+<li>函数 renderToolResultMessage — L34</li>
+<li>函数 getToolUseSummary — L63</li>
+<li>文件 <code class="inline-code">tools/WebFetchTool/WebFetchTool.ts</code></li>
+<li>函数 webFetchToolInputToPermissionRuleContent — L49</li>
+<li>函数 buildSuggestions — L308</li>
+<li>函数 WebFetchTool — L65</li>
+<li>文件 <code class="inline-code">tools/WebFetchTool/preapproved.ts</code></li>
+<li>函数 isPreapprovedHost — L153</li>
+<li>函数 PREAPPROVED_HOSTS — L13</li>
+<li>文件 <code class="inline-code">tools/WebFetchTool/prompt.ts</code></li>
+<li>函数 makeSecondaryModelPrompt — L22</li>
+<li>函数 WEB_FETCH_TOOL_NAME — L1</li>
+<li>函数 DESCRIPTION — L2</li>
+<li>文件 <code class="inline-code">tools/WebFetchTool/utils.ts</code></li>
+<li>类 DomainBlockedError — L21</li>
+<li>类 DomainCheckFailedError — L27</li>
+<li>类 EgressBlockedError — L36</li>
+<li>函数 clearWebFetchCache — L79</li>
+<li>函数 getTurndownService — L92</li>
+<li>函数 isPreapprovedUrl — L129</li>
+<li>函数 validateURL — L138</li>
+<li>函数 checkDomainBlocklist — L175</li>
+<li>函数 isPermittedRedirect — L212</li>
+<li>函数 getWithPermittedRedirects — L261</li>
+<li>函数 isRedirectInfo — L330</li>
+<li>函数 getURLMarkdownContent — L346</li>
+<li>函数 applyPromptToMarkdown — L483</li>
+<li>函数 MAX_MARKDOWN_LENGTH — L128</li>
+<li>文件 <code class="inline-code">tools/WebSearchTool/UI.tsx</code></li>
+<li>函数 getSearchSummary — L8</li>
+<li>函数 renderToolUseMessage — L25</li>
+<li>函数 renderToolUseProgressMessage — L55</li>
+<li>函数 renderToolResultMessage — L79</li>
+<li>函数 getToolUseSummary — L93</li>
+<li>文件 <code class="inline-code">tools/WebSearchTool/WebSearchTool.ts</code></li>
+<li>函数 makeToolSchema — L75</li>
+<li>函数 makeOutputFromSearchResponse — L85</li>
+<li>函数 WebSearchTool — L151</li>
+<li>文件 <code class="inline-code">tools/WebSearchTool/prompt.ts</code></li>
+<li>函数 getWebSearchPrompt — L4</li>
+<li>函数 WEB_SEARCH_TOOL_NAME — L2</li>
+<li>文件 <code class="inline-code">tools/shared/gitOperationTracking.ts</code></li>
+<li>函数 gitCmdRe — L23</li>
+<li>函数 parsePrUrl — L58</li>
+<li>函数 findPrInStdout — L73</li>
+<li>函数 parseGitCommitId — L79</li>
+<li>函数 parseGitPushBranch — L93</li>
+<li>函数 parsePrNumberFromText — L104</li>
+<li>函数 parseRefFromCommand — L113</li>
+<li>函数 detectGitOperation — L135</li>
+<li>函数 trackGitOperations — L189</li>
+<li>文件 <code class="inline-code">tools/shared/spawnMultiAgent.ts</code></li>
+<li>函数 getDefaultTeammateModel — L71</li>
+<li>函数 resolveTeammateModel — L93</li>
+<li>函数 hasSession — L159</li>
+<li>函数 ensureSession — L171</li>
+<li>函数 getTeammateCommand — L193</li>
+<li>函数 buildInheritedCliFlags — L208</li>
+<li>函数 generateUniqueTeammateName — L267</li>
+<li>函数 handleSpawnSplitPane — L305</li>
+<li>函数 handleSpawnSeparateWindow — L545</li>
+<li>函数 registerOutOfProcessTeammateTask — L760</li>
+<li>函数 handleSpawnInProcess — L840</li>
+<li>函数 handleSpawn — L1040</li>
+<li>函数 spawnTeammate — L1088</li>
+<li>文件 <code class="inline-code">tools/testing/TestingPermissionTool.tsx</code></li>
+<li>函数 TestingPermissionTool — L12</li>
+<li>文件 <code class="inline-code">tools/utils.ts</code></li>
+<li>函数 tagMessagesWithToolUseID — L12</li>
+<li>函数 getToolUseIDFromParentMessage — L30</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>tools/AgentTool/AgentTool.tsx → import Tool（内部）</li>
+<li>tools/AgentTool/AgentTool.tsx → import types（内部）</li>
+<li>tools/AgentTool/AgentTool.tsx → import utils（内部）</li>
+<li>tools/AgentTool/AgentTool.tsx → import bootstrap（内部）</li>
+<li>tools/AgentTool/AgentTool.tsx → import constants（内部）</li>
+<li>tools/AgentTool/AgentTool.tsx → import coordinator（内部）</li>
+<li>tools/AgentTool/AgentTool.tsx → import services（内部）</li>
+<li>tools/AgentTool/AgentTool.tsx → import tasks（内部）</li>
+<li>tools/AgentTool/AgentTool.tsx → import tools（外部）</li>
+<li>tools/AgentTool/AgentTool.tsx → import proactive（外部）</li>
+<li>tools/AgentTool/UI.tsx → import components（内部）</li>
+<li>tools/AgentTool/UI.tsx → import ink（内部）</li>
+<li>tools/AgentTool/UI.tsx → import services（内部）</li>
+<li>tools/AgentTool/UI.tsx → import Tool（内部）</li>
+<li>tools/AgentTool/UI.tsx → import types（内部）</li>
+<li>tools/AgentTool/UI.tsx → import utils（内部）</li>
+<li>tools/AgentTool/UI.tsx → import tools（外部）</li>
+<li>tools/AgentTool/agentColorManager.ts → import bootstrap（内部）</li>
+<li>tools/AgentTool/agentColorManager.ts → import utils（内部）</li>
+<li>tools/AgentTool/agentDisplay.ts → import utils（内部）</li>
+<li>tools/AgentTool/agentDisplay.ts → import tools（外部）</li>
+<li>tools/AgentTool/agentMemory.ts → import bootstrap（内部）</li>
+<li>tools/AgentTool/agentMemory.ts → import memdir（内部）</li>
+<li>tools/AgentTool/agentMemory.ts → import utils（内部）</li>
+<li>tools/AgentTool/agentMemorySnapshot.ts → import utils（内部）</li>
+<li>tools/AgentTool/agentMemorySnapshot.ts → import tools（外部）</li>
+<li>tools/AgentTool/agentToolUtils.ts → import bootstrap（内部）</li>
+<li>tools/AgentTool/agentToolUtils.ts → import constants（内部）</li>
+<li>tools/AgentTool/agentToolUtils.ts → import services（内部）</li>
+<li>tools/AgentTool/agentToolUtils.ts → import state（内部）</li>
+<li>tools/AgentTool/agentToolUtils.ts → import Tool（内部）</li>
+<li>tools/AgentTool/agentToolUtils.ts → import tasks（内部）</li>
+<li>tools/AgentTool/agentToolUtils.ts → import types（内部）</li>
+<li>tools/AgentTool/agentToolUtils.ts → import utils（内部）</li>
+<li>tools/AgentTool/agentToolUtils.ts → import tools（外部）</li>
+<li>tools/AgentTool/built-in/claudeCodeGuideAgent.ts → import tools（外部）</li>
+<li>tools/AgentTool/built-in/claudeCodeGuideAgent.ts → import utils（内部）</li>
+<li>tools/AgentTool/built-in/exploreAgent.ts → import tools（外部）</li>
+<li>tools/AgentTool/built-in/exploreAgent.ts → import utils（内部）</li>
+<li>tools/AgentTool/built-in/generalPurposeAgent.ts → import tools（外部）</li>
+<li>tools/AgentTool/built-in/planAgent.ts → import tools（外部）</li>
+<li>tools/AgentTool/built-in/planAgent.ts → import utils（内部）</li>
+<li>tools/AgentTool/built-in/statuslineSetup.ts → import tools（外部）</li>
+<li>tools/AgentTool/built-in/verificationAgent.ts → import tools（外部）</li>
+<li>tools/AgentTool/builtInAgents.ts → import bootstrap（内部）</li>
+<li>tools/AgentTool/builtInAgents.ts → import services（内部）</li>
+<li>tools/AgentTool/builtInAgents.ts → import utils（内部）</li>
+<li>tools/AgentTool/builtInAgents.ts → import tools（外部）</li>
+<li>tools/AgentTool/builtInAgents.ts → import coordinator（内部）</li>
+<li>tools/AgentTool/forkSubagent.ts → import bootstrap（内部）</li>
+<li>tools/AgentTool/forkSubagent.ts → import constants（内部）</li>
+<li>tools/AgentTool/forkSubagent.ts → import coordinator（内部）</li>
+<li>tools/AgentTool/forkSubagent.ts → import types（内部）</li>
+<li>tools/AgentTool/forkSubagent.ts → import utils（内部）</li>
+<li>tools/AgentTool/forkSubagent.ts → import tools（外部）</li>
+<li>tools/AgentTool/loadAgentsDir.ts → import utils（内部）</li>
+<li>tools/AgentTool/loadAgentsDir.ts → import memdir（内部）</li>
+<li>tools/AgentTool/loadAgentsDir.ts → import services（内部）</li>
+<li>tools/AgentTool/loadAgentsDir.ts → import Tool（内部）</li>
+<li>tools/AgentTool/loadAgentsDir.ts → import tools（外部）</li>
+<li>tools/AgentTool/prompt.ts → import services（内部）</li>
+<li>tools/AgentTool/prompt.ts → import utils（内部）</li>
+<li>tools/AgentTool/prompt.ts → import tools（外部）</li>
+<li>tools/AgentTool/resumeAgent.ts → import bootstrap（内部）</li>
+<li>tools/AgentTool/resumeAgent.ts → import constants（内部）</li>
+<li>tools/AgentTool/resumeAgent.ts → import coordinator（内部）</li>
+<li>tools/AgentTool/resumeAgent.ts → import hooks（内部）</li>
+<li>tools/AgentTool/resumeAgent.ts → import Tool（内部）</li>
+<li>tools/AgentTool/resumeAgent.ts → import tasks（内部）</li>
+<li>tools/AgentTool/resumeAgent.ts → import tools（外部）</li>
+<li>tools/AgentTool/resumeAgent.ts → import types（内部）</li>
+<li>tools/AgentTool/resumeAgent.ts → import utils（内部）</li>
+<li>tools/AgentTool/runAgent.ts → import utils（内部）</li>
+<li>tools/AgentTool/runAgent.ts → import bootstrap（内部）</li>
+<li>tools/AgentTool/runAgent.ts → import commands（内部）</li>
+<li>tools/AgentTool/runAgent.ts → import constants（内部）</li>
+<li>tools/AgentTool/runAgent.ts → import context（内部）</li>
+<li>tools/AgentTool/runAgent.ts → import hooks（内部）</li>
+<li>tools/AgentTool/runAgent.ts → import query（内部）</li>
+<li>tools/AgentTool/runAgent.ts → import services（内部）</li>
+<li>tools/AgentTool/runAgent.ts → import Tool（内部）</li>
+<li>tools/AgentTool/runAgent.ts → import tasks（内部）</li>
+<li>tools/AgentTool/runAgent.ts → import types（内部）</li>
+<li>tools/AgentTool/runAgent.ts → import tools（外部）</li>
+<li>tools/AskUserQuestionTool/AskUserQuestionTool.tsx → import bootstrap（内部）</li>
+<li>tools/AskUserQuestionTool/AskUserQuestionTool.tsx → import components（内部）</li>
+<li>tools/AskUserQuestionTool/AskUserQuestionTool.tsx → import constants（内部）</li>
+<li>tools/AskUserQuestionTool/AskUserQuestionTool.tsx → import utils（内部）</li>
+<li>tools/AskUserQuestionTool/AskUserQuestionTool.tsx → import ink（内部）</li>
+<li>tools/AskUserQuestionTool/AskUserQuestionTool.tsx → import Tool（内部）</li>
+<li>tools/AskUserQuestionTool/AskUserQuestionTool.tsx → import tools（外部）</li>
+<li>tools/AskUserQuestionTool/prompt.ts → import tools（外部）</li>
+<li>tools/BashTool/BashTool.tsx → import hooks（内部）</li>
+<li>tools/BashTool/BashTool.tsx → import state（内部）</li>
+<li>tools/BashTool/BashTool.tsx → import bootstrap（内部）</li>
+<li>tools/BashTool/BashTool.tsx → import constants（内部）</li>
+<li>tools/BashTool/BashTool.tsx → import services（内部）</li>
+<li>tools/BashTool/BashTool.tsx → import Tool（内部）</li>
+<li>tools/BashTool/BashTool.tsx → import tasks（内部）</li>
+<li>tools/BashTool/BashTool.tsx → import types（内部）</li>
+<li>tools/BashTool/BashTool.tsx → import utils（内部）</li>
+<li>tools/BashTool/BashTool.tsx → import tools（外部）</li>
+<li>tools/BashTool/BashToolResultMessage.tsx → import utils（内部）</li>
+<li>tools/BashTool/BashToolResultMessage.tsx → import components（内部）</li>
+<li>tools/BashTool/BashToolResultMessage.tsx → import ink（内部）</li>
+<li>tools/BashTool/BashToolResultMessage.tsx → import tools（外部）</li>
+<li>tools/BashTool/UI.tsx → import components（内部）</li>
+<li>tools/BashTool/UI.tsx → import ink（内部）</li>
+<li>tools/BashTool/UI.tsx → import keybindings（内部）</li>
+<li>tools/BashTool/UI.tsx → import state（内部）</li>
+<li>tools/BashTool/UI.tsx → import Tool（内部）</li>
+<li>tools/BashTool/UI.tsx → import tasks（内部）</li>
+<li>tools/BashTool/UI.tsx → import types（内部）</li>
+<li>tools/BashTool/UI.tsx → import utils（内部）</li>
+<li>tools/BashTool/UI.tsx → import tools（外部）</li>
+<li>tools/BashTool/bashCommandHelpers.ts → import utils（内部）</li>
+<li>tools/BashTool/bashCommandHelpers.ts → import tools（外部）</li>
+<li>tools/BashTool/bashPermissions.ts → import services（内部）</li>
+<li>tools/BashTool/bashPermissions.ts → import Tool（内部）</li>
+<li>tools/BashTool/bashPermissions.ts → import types（内部）</li>
+<li>tools/BashTool/bashPermissions.ts → import utils（内部）</li>
+<li>tools/BashTool/bashPermissions.ts → import tools（外部）</li>
+<li>tools/BashTool/bashSecurity.ts → import services（内部）</li>
+<li>tools/BashTool/bashSecurity.ts → import utils（内部）</li>
+<li>tools/BashTool/commandSemantics.ts → import utils（内部）</li>
+<li>tools/BashTool/modeValidation.ts → import Tool（内部）</li>
+<li>tools/BashTool/modeValidation.ts → import utils（内部）</li>
+<li>tools/BashTool/modeValidation.ts → import tools（外部）</li>
+<li>tools/BashTool/pathValidation.ts → import Tool（内部）</li>
+<li>tools/BashTool/pathValidation.ts → import utils（内部）</li>
+<li>tools/BashTool/pathValidation.ts → import tools（外部）</li>
+<li>tools/BashTool/prompt.ts → import constants（内部）</li>
+<li>tools/BashTool/prompt.ts → import utils（内部）</li>
+<li>tools/BashTool/prompt.ts → import tools（外部）</li>
+<li>tools/BashTool/readOnlyValidation.ts → import bootstrap（内部）</li>
+<li>tools/BashTool/readOnlyValidation.ts → import utils（内部）</li>
+<li>tools/BashTool/readOnlyValidation.ts → import tools（外部）</li>
+<li>tools/BashTool/sedEditParser.ts → import utils（内部）</li>
+<li>tools/BashTool/sedValidation.ts → import Tool（内部）</li>
+<li>tools/BashTool/sedValidation.ts → import utils（内部）</li>
+<li>tools/BashTool/shouldUseSandbox.ts → import services（内部）</li>
+<li>tools/BashTool/shouldUseSandbox.ts → import utils（内部）</li>
+<li>tools/BashTool/shouldUseSandbox.ts → import tools（外部）</li>
+<li>tools/BashTool/utils.ts → import bootstrap（内部）</li>
+<li>tools/BashTool/utils.ts → import services（内部）</li>
+<li>tools/BashTool/utils.ts → import Tool（内部）</li>
+<li>tools/BashTool/utils.ts → import utils（内部）</li>
+<li>tools/BriefTool/BriefTool.ts → import bootstrap（内部）</li>
+<li>tools/BriefTool/BriefTool.ts → import services（内部）</li>
+<li>tools/BriefTool/BriefTool.ts → import Tool（内部）</li>
+<li>tools/BriefTool/BriefTool.ts → import utils（内部）</li>
+<li>tools/BriefTool/BriefTool.ts → import tools（外部）</li>
+<li>tools/BriefTool/UI.tsx → import components（内部）</li>
+<li>tools/BriefTool/UI.tsx → import constants（内部）</li>
+<li>tools/BriefTool/UI.tsx → import ink（内部）</li>
+<li>tools/BriefTool/UI.tsx → import types（内部）</li>
+<li>tools/BriefTool/UI.tsx → import utils（内部）</li>
+<li>tools/BriefTool/UI.tsx → import tools（外部）</li>
+<li>tools/BriefTool/attachments.ts → import Tool（内部）</li>
+<li>tools/BriefTool/attachments.ts → import utils（内部）</li>
+<li>tools/BriefTool/upload.ts → import bridge（内部）</li>
+<li>tools/BriefTool/upload.ts → import constants（内部）</li>
+<li>tools/BriefTool/upload.ts → import utils（内部）</li>
+<li>tools/ConfigTool/ConfigTool.ts → import services（内部）</li>
+<li>tools/ConfigTool/ConfigTool.ts → import Tool（内部）</li>
+<li>tools/ConfigTool/ConfigTool.ts → import utils（内部）</li>
+<li>tools/ConfigTool/ConfigTool.ts → import tools（外部）</li>
+<li>tools/ConfigTool/UI.tsx → import components（内部）</li>
+<li>tools/ConfigTool/UI.tsx → import ink（内部）</li>
+<li>tools/ConfigTool/UI.tsx → import utils（内部）</li>
+<li>tools/ConfigTool/UI.tsx → import tools（外部）</li>
+<li>tools/ConfigTool/prompt.ts → import utils（内部）</li>
+<li>tools/ConfigTool/prompt.ts → import voice（内部）</li>
+<li>tools/ConfigTool/prompt.ts → import tools（外部）</li>
+<li>tools/ConfigTool/supportedSettings.ts → import utils（内部）</li>
+<li>tools/EnterPlanModeTool/EnterPlanModeTool.ts → import bootstrap（内部）</li>
+<li>tools/EnterPlanModeTool/EnterPlanModeTool.ts → import Tool（内部）</li>
+<li>tools/EnterPlanModeTool/EnterPlanModeTool.ts → import utils（内部）</li>
+<li>tools/EnterPlanModeTool/EnterPlanModeTool.ts → import tools（外部）</li>
+<li>tools/EnterPlanModeTool/UI.tsx → import constants（内部）</li>
+<li>tools/EnterPlanModeTool/UI.tsx → import utils（内部）</li>
+<li>tools/EnterPlanModeTool/UI.tsx → import ink（内部）</li>
+<li>tools/EnterPlanModeTool/UI.tsx → import Tool（内部）</li>
+<li>tools/EnterPlanModeTool/UI.tsx → import types（内部）</li>
+<li>tools/EnterPlanModeTool/UI.tsx → import tools（外部）</li>
+<li>tools/EnterPlanModeTool/prompt.ts → import utils（内部）</li>
+<li>tools/EnterPlanModeTool/prompt.ts → import tools（外部）</li>
+<li>tools/EnterWorktreeTool/EnterWorktreeTool.ts → import bootstrap（内部）</li>
+<li>tools/EnterWorktreeTool/EnterWorktreeTool.ts → import constants（内部）</li>
+<li>tools/EnterWorktreeTool/EnterWorktreeTool.ts → import services（内部）</li>
+<li>tools/EnterWorktreeTool/EnterWorktreeTool.ts → import Tool（内部）</li>
+<li>tools/EnterWorktreeTool/EnterWorktreeTool.ts → import utils（内部）</li>
+<li>tools/EnterWorktreeTool/EnterWorktreeTool.ts → import tools（外部）</li>
+<li>tools/EnterWorktreeTool/UI.tsx → import ink（内部）</li>
+<li>tools/EnterWorktreeTool/UI.tsx → import Tool（内部）</li>
+<li>tools/EnterWorktreeTool/UI.tsx → import types（内部）</li>
+<li>tools/EnterWorktreeTool/UI.tsx → import utils（内部）</li>
+<li>tools/EnterWorktreeTool/UI.tsx → import tools（外部）</li>
+<li>tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts → import bootstrap（内部）</li>
+<li>tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts → import services（内部）</li>
+<li>tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts → import Tool（内部）</li>
+<li>tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts → import utils（内部）</li>
+<li>tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts → import tools（外部）</li>
+<li>tools/ExitPlanModeTool/UI.tsx → import components（内部）</li>
+<li>tools/ExitPlanModeTool/UI.tsx → import constants（内部）</li>
+<li>tools/ExitPlanModeTool/UI.tsx → import utils（内部）</li>
+<li>tools/ExitPlanModeTool/UI.tsx → import ink（内部）</li>
+<li>tools/ExitPlanModeTool/UI.tsx → import Tool（内部）</li>
+<li>tools/ExitPlanModeTool/UI.tsx → import types（内部）</li>
+<li>tools/ExitPlanModeTool/UI.tsx → import tools（外部）</li>
+<li>tools/ExitWorktreeTool/ExitWorktreeTool.ts → import bootstrap（内部）</li>
+<li>tools/ExitWorktreeTool/ExitWorktreeTool.ts → import constants（内部）</li>
+<li>tools/ExitWorktreeTool/ExitWorktreeTool.ts → import services（内部）</li>
+<li>tools/ExitWorktreeTool/ExitWorktreeTool.ts → import Tool（内部）</li>
+<li>tools/ExitWorktreeTool/ExitWorktreeTool.ts → import utils（内部）</li>
+<li>tools/ExitWorktreeTool/ExitWorktreeTool.ts → import tools（外部）</li>
+<li>tools/ExitWorktreeTool/UI.tsx → import ink（内部）</li>
+<li>tools/ExitWorktreeTool/UI.tsx → import Tool（内部）</li>
+<li>tools/ExitWorktreeTool/UI.tsx → import types（内部）</li>
+<li>tools/ExitWorktreeTool/UI.tsx → import utils（内部）</li>
+<li>tools/ExitWorktreeTool/UI.tsx → import tools（外部）</li>
+<li>tools/FileEditTool/FileEditTool.ts → import services（内部）</li>
+<li>tools/FileEditTool/FileEditTool.ts → import skills（内部）</li>
+<li>tools/FileEditTool/FileEditTool.ts → import Tool（内部）</li>
+<li>tools/FileEditTool/FileEditTool.ts → import utils（内部）</li>
+<li>tools/FileEditTool/FileEditTool.ts → import tools（外部）</li>
+<li>tools/FileEditTool/UI.tsx → import components（内部）</li>
+<li>tools/FileEditTool/UI.tsx → import utils（内部）</li>
+<li>tools/FileEditTool/UI.tsx → import ink（内部）</li>
+<li>tools/FileEditTool/UI.tsx → import Tool（内部）</li>
+<li>tools/FileEditTool/UI.tsx → import types（内部）</li>
+<li>tools/FileEditTool/UI.tsx → import tools（外部）</li>
+<li>tools/FileEditTool/prompt.ts → import utils（内部）</li>
+<li>tools/FileEditTool/prompt.ts → import tools（外部）</li>
+<li>tools/FileEditTool/types.ts → import utils（内部）</li>
+<li>tools/FileEditTool/utils.ts → import utils（内部）</li>
+<li>tools/FileEditTool/utils.ts → import tools（外部）</li>
+<li>tools/FileReadTool/FileReadTool.ts → import constants（内部）</li>
+<li>tools/FileReadTool/FileReadTool.ts → import memdir（内部）</li>
+<li>tools/FileReadTool/FileReadTool.ts → import services（内部）</li>
+<li>tools/FileReadTool/FileReadTool.ts → import skills（内部）</li>
+<li>tools/FileReadTool/FileReadTool.ts → import Tool（内部）</li>
+<li>tools/FileReadTool/FileReadTool.ts → import utils（内部）</li>
+<li>tools/FileReadTool/FileReadTool.ts → import tools（外部）</li>
+<li>tools/FileReadTool/UI.tsx → import utils（内部）</li>
+<li>tools/FileReadTool/UI.tsx → import components（内部）</li>
+<li>tools/FileReadTool/UI.tsx → import ink（内部）</li>
+<li>tools/FileReadTool/UI.tsx → import tools（外部）</li>
+<li>tools/FileReadTool/imageProcessor.ts → import utils（内部）</li>
+<li>tools/FileReadTool/limits.ts → import services（内部）</li>
+<li>tools/FileReadTool/limits.ts → import utils（内部）</li>
+<li>tools/FileReadTool/prompt.ts → import utils（内部）</li>
+<li>tools/FileReadTool/prompt.ts → import tools（外部）</li>
+<li>tools/FileWriteTool/FileWriteTool.ts → import services（内部）</li>
+<li>tools/FileWriteTool/FileWriteTool.ts → import skills（内部）</li>
+<li>tools/FileWriteTool/FileWriteTool.ts → import Tool（内部）</li>
+<li>tools/FileWriteTool/FileWriteTool.ts → import utils（内部）</li>
+<li>tools/FileWriteTool/FileWriteTool.ts → import tools（外部）</li>
+<li>tools/FileWriteTool/UI.tsx → import components（内部）</li>
+<li>tools/FileWriteTool/UI.tsx → import utils（内部）</li>
+<li>tools/FileWriteTool/UI.tsx → import hooks（内部）</li>
+<li>tools/FileWriteTool/UI.tsx → import ink（内部）</li>
+<li>tools/FileWriteTool/UI.tsx → import Tool（内部）</li>
+<li>tools/FileWriteTool/UI.tsx → import types（内部）</li>
+<li>tools/FileWriteTool/UI.tsx → import tools（外部）</li>
+<li>tools/FileWriteTool/prompt.ts → import tools（外部）</li>
+<li>tools/GlobTool/GlobTool.ts → import Tool（内部）</li>
+<li>tools/GlobTool/GlobTool.ts → import utils（内部）</li>
+<li>tools/GlobTool/GlobTool.ts → import tools（外部）</li>
+<li>tools/GlobTool/UI.tsx → import components（内部）</li>
+<li>tools/GlobTool/UI.tsx → import utils（内部）</li>
+<li>tools/GlobTool/UI.tsx → import constants（内部）</li>
+<li>tools/GlobTool/UI.tsx → import ink（内部）</li>
+<li>tools/GlobTool/UI.tsx → import tools（外部）</li>
+<li>tools/GrepTool/GrepTool.ts → import Tool（内部）</li>
+<li>tools/GrepTool/GrepTool.ts → import utils（内部）</li>
+<li>tools/GrepTool/GrepTool.ts → import tools（外部）</li>
+<li>tools/GrepTool/UI.tsx → import components（内部）</li>
+<li>tools/GrepTool/UI.tsx → import constants（内部）</li>
+<li>tools/GrepTool/UI.tsx → import ink（内部）</li>
+<li>tools/GrepTool/UI.tsx → import Tool（内部）</li>
+<li>tools/GrepTool/UI.tsx → import types（内部）</li>
+<li>tools/GrepTool/UI.tsx → import utils（内部）</li>
+<li>tools/GrepTool/prompt.ts → import tools（外部）</li>
+<li>tools/LSPTool/LSPTool.ts → import services（内部）</li>
+<li>tools/LSPTool/LSPTool.ts → import Tool（内部）</li>
+<li>tools/LSPTool/LSPTool.ts → import utils（内部）</li>
+<li>tools/LSPTool/LSPTool.ts → import tools（外部）</li>
+<li>tools/LSPTool/UI.tsx → import components（内部）</li>
+<li>tools/LSPTool/UI.tsx → import ink（内部）</li>
+<li>tools/LSPTool/UI.tsx → import utils（内部）</li>
+<li>tools/LSPTool/UI.tsx → import tools（外部）</li>
+<li>tools/LSPTool/formatters.ts → import utils（内部）</li>
+<li>tools/LSPTool/schemas.ts → import utils（内部）</li>
+<li>tools/LSPTool/symbolContext.ts → import utils（内部）</li>
+<li>tools/ListMcpResourcesTool/ListMcpResourcesTool.ts → import services（内部）</li>
+<li>tools/ListMcpResourcesTool/ListMcpResourcesTool.ts → import Tool（内部）</li>
+<li>tools/ListMcpResourcesTool/ListMcpResourcesTool.ts → import utils（内部）</li>
+<li>tools/ListMcpResourcesTool/ListMcpResourcesTool.ts → import tools（外部）</li>
+<li>tools/ListMcpResourcesTool/UI.tsx → import components（内部）</li>
+<li>tools/ListMcpResourcesTool/UI.tsx → import ink（内部）</li>
+<li>tools/ListMcpResourcesTool/UI.tsx → import Tool（内部）</li>
+<li>tools/ListMcpResourcesTool/UI.tsx → import types（内部）</li>
+<li>tools/ListMcpResourcesTool/UI.tsx → import utils（内部）</li>
+<li>tools/ListMcpResourcesTool/UI.tsx → import tools（外部）</li>
+<li>tools/MCPTool/MCPTool.ts → import Tool（内部）</li>
+<li>tools/MCPTool/MCPTool.ts → import utils（内部）</li>
+<li>tools/MCPTool/MCPTool.ts → import tools（外部）</li>
+<li>tools/MCPTool/MCPTool.ts → import types（内部）</li>
+<li>tools/MCPTool/UI.tsx → import components（内部）</li>
+<li>tools/MCPTool/UI.tsx → import ink（内部）</li>
+<li>tools/MCPTool/UI.tsx → import Tool（内部）</li>
+<li>tools/MCPTool/UI.tsx → import types（内部）</li>
+<li>tools/MCPTool/UI.tsx → import utils（内部）</li>
+<li>tools/MCPTool/UI.tsx → import tools（外部）</li>
+<li>tools/McpAuthTool/McpAuthTool.ts → import services（内部）</li>
+<li>tools/McpAuthTool/McpAuthTool.ts → import Tool（内部）</li>
+<li>tools/McpAuthTool/McpAuthTool.ts → import utils（内部）</li>
+<li>tools/NotebookEditTool/NotebookEditTool.ts → import utils（内部）</li>
+<li>tools/NotebookEditTool/NotebookEditTool.ts → import Tool（内部）</li>
+<li>tools/NotebookEditTool/NotebookEditTool.ts → import types（内部）</li>
+<li>tools/NotebookEditTool/NotebookEditTool.ts → import tools（外部）</li>
+<li>tools/NotebookEditTool/UI.tsx → import types（内部）</li>
+<li>tools/NotebookEditTool/UI.tsx → import utils（内部）</li>
+<li>tools/NotebookEditTool/UI.tsx → import components（内部）</li>
+<li>tools/NotebookEditTool/UI.tsx → import ink（内部）</li>
+<li>tools/NotebookEditTool/UI.tsx → import Tool（内部）</li>
+<li>tools/NotebookEditTool/UI.tsx → import tools（外部）</li>
+<li>tools/PowerShellTool/PowerShellTool.tsx → import hooks（内部）</li>
+<li>tools/PowerShellTool/PowerShellTool.tsx → import state（内部）</li>
+<li>tools/PowerShellTool/PowerShellTool.tsx → import bootstrap（内部）</li>
+<li>tools/PowerShellTool/PowerShellTool.tsx → import constants（内部）</li>
+<li>tools/PowerShellTool/PowerShellTool.tsx → import services（内部）</li>
+<li>tools/PowerShellTool/PowerShellTool.tsx → import Tool（内部）</li>
+<li>tools/PowerShellTool/PowerShellTool.tsx → import tasks（内部）</li>
+<li>tools/PowerShellTool/PowerShellTool.tsx → import types（内部）</li>
+<li>tools/PowerShellTool/PowerShellTool.tsx → import utils（内部）</li>
+<li>tools/PowerShellTool/PowerShellTool.tsx → import tools（外部）</li>
+<li>tools/PowerShellTool/UI.tsx → import components（内部）</li>
+<li>tools/PowerShellTool/UI.tsx → import ink（内部）</li>
+<li>tools/PowerShellTool/UI.tsx → import Tool（内部）</li>
+<li>tools/PowerShellTool/UI.tsx → import types（内部）</li>
+<li>tools/PowerShellTool/UI.tsx → import utils（内部）</li>
+<li>tools/PowerShellTool/UI.tsx → import tools（外部）</li>
+<li>tools/PowerShellTool/gitSafety.ts → import utils（内部）</li>
+<li>tools/PowerShellTool/modeValidation.ts → import Tool（内部）</li>
+<li>tools/PowerShellTool/modeValidation.ts → import utils（内部）</li>
+<li>tools/PowerShellTool/modeValidation.ts → import tools（外部）</li>
+<li>tools/PowerShellTool/pathValidation.ts → import Tool（内部）</li>
+<li>tools/PowerShellTool/pathValidation.ts → import types（内部）</li>
+<li>tools/PowerShellTool/pathValidation.ts → import utils（内部）</li>
+<li>tools/PowerShellTool/pathValidation.ts → import tools（外部）</li>
+<li>tools/PowerShellTool/powershellPermissions.ts → import Tool（内部）</li>
+<li>tools/PowerShellTool/powershellPermissions.ts → import types（内部）</li>
+<li>tools/PowerShellTool/powershellPermissions.ts → import utils（内部）</li>
+<li>tools/PowerShellTool/powershellPermissions.ts → import tools（外部）</li>
+<li>tools/PowerShellTool/powershellSecurity.ts → import utils（内部）</li>
+<li>tools/PowerShellTool/powershellSecurity.ts → import tools（外部）</li>
+<li>tools/PowerShellTool/prompt.ts → import utils（内部）</li>
+<li>tools/PowerShellTool/prompt.ts → import tools（外部）</li>
+<li>tools/PowerShellTool/readOnlyValidation.ts → import utils（内部）</li>
+<li>tools/PowerShellTool/readOnlyValidation.ts → import tools（外部）</li>
+<li>tools/REPLTool/constants.ts → import utils（内部）</li>
+<li>tools/REPLTool/constants.ts → import tools（外部）</li>
+<li>tools/REPLTool/primitiveTools.ts → import Tool（内部）</li>
+<li>tools/REPLTool/primitiveTools.ts → import tools（外部）</li>
+<li>tools/ReadMcpResourceTool/ReadMcpResourceTool.ts → import services（内部）</li>
+<li>tools/ReadMcpResourceTool/ReadMcpResourceTool.ts → import Tool（内部）</li>
+<li>tools/ReadMcpResourceTool/ReadMcpResourceTool.ts → import utils（内部）</li>
+<li>tools/ReadMcpResourceTool/ReadMcpResourceTool.ts → import tools（外部）</li>
+<li>tools/ReadMcpResourceTool/UI.tsx → import components（内部）</li>
+<li>tools/ReadMcpResourceTool/UI.tsx → import ink（内部）</li>
+<li>tools/ReadMcpResourceTool/UI.tsx → import Tool（内部）</li>
+<li>tools/ReadMcpResourceTool/UI.tsx → import types（内部）</li>
+<li>tools/ReadMcpResourceTool/UI.tsx → import utils（内部）</li>
+<li>tools/ReadMcpResourceTool/UI.tsx → import tools（外部）</li>
+<li>tools/RemoteTriggerTool/RemoteTriggerTool.ts → import constants（内部）</li>
+<li>tools/RemoteTriggerTool/RemoteTriggerTool.ts → import services（内部）</li>
+<li>tools/RemoteTriggerTool/RemoteTriggerTool.ts → import Tool（内部）</li>
+<li>tools/RemoteTriggerTool/RemoteTriggerTool.ts → import utils（内部）</li>
+<li>tools/RemoteTriggerTool/RemoteTriggerTool.ts → import tools（外部）</li>
+<li>tools/RemoteTriggerTool/UI.tsx → import components（内部）</li>
+<li>tools/RemoteTriggerTool/UI.tsx → import ink（内部）</li>
+<li>tools/RemoteTriggerTool/UI.tsx → import utils（内部）</li>
+<li>tools/RemoteTriggerTool/UI.tsx → import tools（外部）</li>
+<li>tools/ScheduleCronTool/CronCreateTool.ts → import bootstrap（内部）</li>
+<li>tools/ScheduleCronTool/CronCreateTool.ts → import Tool（内部）</li>
+<li>tools/ScheduleCronTool/CronCreateTool.ts → import utils（内部）</li>
+<li>tools/ScheduleCronTool/CronCreateTool.ts → import tools（外部）</li>
+<li>tools/ScheduleCronTool/CronDeleteTool.ts → import Tool（内部）</li>
+<li>tools/ScheduleCronTool/CronDeleteTool.ts → import utils（内部）</li>
+<li>tools/ScheduleCronTool/CronDeleteTool.ts → import tools（外部）</li>
+<li>tools/ScheduleCronTool/CronListTool.ts → import Tool（内部）</li>
+<li>tools/ScheduleCronTool/CronListTool.ts → import utils（内部）</li>
+<li>tools/ScheduleCronTool/CronListTool.ts → import tools（外部）</li>
+<li>tools/ScheduleCronTool/UI.tsx → import components（内部）</li>
+<li>tools/ScheduleCronTool/UI.tsx → import ink（内部）</li>
+<li>tools/ScheduleCronTool/UI.tsx → import utils（内部）</li>
+<li>tools/ScheduleCronTool/UI.tsx → import tools（外部）</li>
+<li>tools/ScheduleCronTool/prompt.ts → import services（内部）</li>
+<li>tools/ScheduleCronTool/prompt.ts → import utils（内部）</li>
+<li>tools/SendMessageTool/SendMessageTool.ts → import bootstrap（内部）</li>
+<li>tools/SendMessageTool/SendMessageTool.ts → import bridge（内部）</li>
+<li>tools/SendMessageTool/SendMessageTool.ts → import Tool（内部）</li>
+<li>tools/SendMessageTool/SendMessageTool.ts → import tasks（内部）</li>
+<li>tools/SendMessageTool/SendMessageTool.ts → import types（内部）</li>
+<li>tools/SendMessageTool/SendMessageTool.ts → import utils（内部）</li>
+<li>tools/SendMessageTool/SendMessageTool.ts → import tools（外部）</li>
+<li>tools/SendMessageTool/UI.tsx → import components（内部）</li>
+<li>tools/SendMessageTool/UI.tsx → import ink（内部）</li>
+<li>tools/SendMessageTool/UI.tsx → import utils（内部）</li>
+<li>tools/SendMessageTool/UI.tsx → import tools（外部）</li>
+<li>tools/SkillTool/SkillTool.ts → import bootstrap（内部）</li>
+<li>tools/SkillTool/SkillTool.ts → import commands（内部）</li>
+<li>tools/SkillTool/SkillTool.ts → import Tool（内部）</li>
+<li>tools/SkillTool/SkillTool.ts → import types（内部）</li>
+<li>tools/SkillTool/SkillTool.ts → import utils（内部）</li>
+<li>tools/SkillTool/SkillTool.ts → import constants（内部）</li>
+<li>tools/SkillTool/SkillTool.ts → import hooks（内部）</li>
+<li>tools/SkillTool/SkillTool.ts → import services（内部）</li>
+<li>tools/SkillTool/SkillTool.ts → import tools（外部）</li>
+<li>tools/SkillTool/UI.tsx → import components（内部）</li>
+<li>tools/SkillTool/UI.tsx → import commands（内部）</li>
+<li>tools/SkillTool/UI.tsx → import ink（内部）</li>
+<li>tools/SkillTool/UI.tsx → import Tool（内部）</li>
+<li>tools/SkillTool/UI.tsx → import types（内部）</li>
+<li>tools/SkillTool/UI.tsx → import utils（内部）</li>
+<li>tools/SkillTool/UI.tsx → import tools（外部）</li>
+<li>tools/SkillTool/prompt.ts → import commands（内部）</li>
+<li>tools/SkillTool/prompt.ts → import constants（内部）</li>
+<li>tools/SkillTool/prompt.ts → import ink（内部）</li>
+<li>tools/SkillTool/prompt.ts → import services（内部）</li>
+<li>tools/SkillTool/prompt.ts → import utils（内部）</li>
+<li>tools/SleepTool/prompt.ts → import constants（内部）</li>
+<li>tools/SyntheticOutputTool/SyntheticOutputTool.ts → import Tool（内部）</li>
+<li>tools/SyntheticOutputTool/SyntheticOutputTool.ts → import utils（内部）</li>
+<li>tools/TaskCreateTool/TaskCreateTool.ts → import Tool（内部）</li>
+<li>tools/TaskCreateTool/TaskCreateTool.ts → import utils（内部）</li>
+<li>tools/TaskCreateTool/TaskCreateTool.ts → import tools（外部）</li>
+<li>tools/TaskCreateTool/prompt.ts → import utils（内部）</li>
+<li>tools/TaskGetTool/TaskGetTool.ts → import Tool（内部）</li>
+<li>tools/TaskGetTool/TaskGetTool.ts → import utils（内部）</li>
+<li>tools/TaskGetTool/TaskGetTool.ts → import tools（外部）</li>
+<li>tools/TaskListTool/TaskListTool.ts → import Tool（内部）</li>
+<li>tools/TaskListTool/TaskListTool.ts → import utils（内部）</li>
+<li>tools/TaskListTool/TaskListTool.ts → import tools（外部）</li>
+<li>tools/TaskListTool/prompt.ts → import utils（内部）</li>
+<li>tools/TaskOutputTool/TaskOutputTool.tsx → import components（内部）</li>
+<li>tools/TaskOutputTool/TaskOutputTool.tsx → import ink（内部）</li>
+<li>tools/TaskOutputTool/TaskOutputTool.tsx → import keybindings（内部）</li>
+<li>tools/TaskOutputTool/TaskOutputTool.tsx → import Task（内部）</li>
+<li>tools/TaskOutputTool/TaskOutputTool.tsx → import Tool（内部）</li>
+<li>tools/TaskOutputTool/TaskOutputTool.tsx → import tasks（内部）</li>
+<li>tools/TaskOutputTool/TaskOutputTool.tsx → import utils（内部）</li>
+<li>tools/TaskOutputTool/TaskOutputTool.tsx → import tools（外部）</li>
+<li>tools/TaskOutputTool/TaskOutputTool.tsx → import types（内部）</li>
+<li>tools/TaskStopTool/TaskStopTool.ts → import Task（内部）</li>
+<li>tools/TaskStopTool/TaskStopTool.ts → import Tool（内部）</li>
+<li>tools/TaskStopTool/TaskStopTool.ts → import tasks（内部）</li>
+<li>tools/TaskStopTool/TaskStopTool.ts → import utils（内部）</li>
+<li>tools/TaskStopTool/TaskStopTool.ts → import tools（外部）</li>
+<li>tools/TaskStopTool/UI.tsx → import components（内部）</li>
+<li>tools/TaskStopTool/UI.tsx → import ink（内部）</li>
+<li>tools/TaskStopTool/UI.tsx → import utils（内部）</li>
+<li>tools/TaskStopTool/UI.tsx → import tools（外部）</li>
+<li>tools/TaskUpdateTool/TaskUpdateTool.ts → import services（内部）</li>
+<li>tools/TaskUpdateTool/TaskUpdateTool.ts → import Tool（内部）</li>
+<li>tools/TaskUpdateTool/TaskUpdateTool.ts → import utils（内部）</li>
+<li>tools/TaskUpdateTool/TaskUpdateTool.ts → import tools（外部）</li>
+<li>tools/TeamCreateTool/TeamCreateTool.ts → import bootstrap（内部）</li>
+<li>tools/TeamCreateTool/TeamCreateTool.ts → import services（内部）</li>
+<li>tools/TeamCreateTool/TeamCreateTool.ts → import Tool（内部）</li>
+<li>tools/TeamCreateTool/TeamCreateTool.ts → import utils（内部）</li>
+<li>tools/TeamCreateTool/TeamCreateTool.ts → import tools（外部）</li>
+<li>tools/TeamCreateTool/UI.tsx → import tools（外部）</li>
+<li>tools/TeamDeleteTool/TeamDeleteTool.ts → import services（内部）</li>
+<li>tools/TeamDeleteTool/TeamDeleteTool.ts → import Tool（内部）</li>
+<li>tools/TeamDeleteTool/TeamDeleteTool.ts → import utils（内部）</li>
+<li>tools/TeamDeleteTool/TeamDeleteTool.ts → import tools（外部）</li>
+<li>tools/TeamDeleteTool/UI.tsx → import utils（内部）</li>
+<li>tools/TeamDeleteTool/UI.tsx → import tools（外部）</li>
+<li>tools/TodoWriteTool/TodoWriteTool.ts → import bootstrap（内部）</li>
+<li>tools/TodoWriteTool/TodoWriteTool.ts → import services（内部）</li>
+<li>tools/TodoWriteTool/TodoWriteTool.ts → import Tool（内部）</li>
+<li>tools/TodoWriteTool/TodoWriteTool.ts → import utils（内部）</li>
+<li>tools/TodoWriteTool/TodoWriteTool.ts → import tools（外部）</li>
+<li>tools/TodoWriteTool/prompt.ts → import tools（外部）</li>
+<li>tools/ToolSearchTool/ToolSearchTool.ts → import services（内部）</li>
+<li>tools/ToolSearchTool/ToolSearchTool.ts → import Tool（内部）</li>
+<li>tools/ToolSearchTool/ToolSearchTool.ts → import utils（内部）</li>
+<li>tools/ToolSearchTool/ToolSearchTool.ts → import tools（外部）</li>
+<li>tools/ToolSearchTool/prompt.ts → import bootstrap（内部）</li>
+<li>tools/ToolSearchTool/prompt.ts → import services（内部）</li>
+<li>tools/ToolSearchTool/prompt.ts → import Tool（内部）</li>
+<li>tools/ToolSearchTool/prompt.ts → import tools（外部）</li>
+<li>tools/WebFetchTool/UI.tsx → import components（内部）</li>
+<li>tools/WebFetchTool/UI.tsx → import constants（内部）</li>
+<li>tools/WebFetchTool/UI.tsx → import ink（内部）</li>
+<li>tools/WebFetchTool/UI.tsx → import Tool（内部）</li>
+<li>tools/WebFetchTool/UI.tsx → import types（内部）</li>
+<li>tools/WebFetchTool/UI.tsx → import utils（内部）</li>
+<li>tools/WebFetchTool/UI.tsx → import tools（外部）</li>
+<li>tools/WebFetchTool/WebFetchTool.ts → import Tool（内部）</li>
+<li>tools/WebFetchTool/WebFetchTool.ts → import types（内部）</li>
+<li>tools/WebFetchTool/WebFetchTool.ts → import utils（内部）</li>
+<li>tools/WebFetchTool/WebFetchTool.ts → import tools（外部）</li>
+<li>tools/WebFetchTool/utils.ts → import services（内部）</li>
+<li>tools/WebFetchTool/utils.ts → import utils（内部）</li>
+<li>tools/WebFetchTool/utils.ts → import tools（外部）</li>
+<li>tools/WebSearchTool/UI.tsx → import components（内部）</li>
+<li>tools/WebSearchTool/UI.tsx → import constants（内部）</li>
+<li>tools/WebSearchTool/UI.tsx → import ink（内部）</li>
+<li>tools/WebSearchTool/UI.tsx → import types（内部）</li>
+<li>tools/WebSearchTool/UI.tsx → import utils（内部）</li>
+<li>tools/WebSearchTool/UI.tsx → import tools（外部）</li>
+<li>tools/WebSearchTool/WebSearchTool.ts → import utils（内部）</li>
+<li>tools/WebSearchTool/WebSearchTool.ts → import services（内部）</li>
+<li>tools/WebSearchTool/WebSearchTool.ts → import Tool（内部）</li>
+<li>tools/WebSearchTool/WebSearchTool.ts → import tools（外部）</li>
+<li>tools/WebSearchTool/WebSearchTool.ts → import types（内部）</li>
+<li>tools/WebSearchTool/prompt.ts → import constants（内部）</li>
+<li>tools/shared/gitOperationTracking.ts → import bootstrap（内部）</li>
+<li>tools/shared/gitOperationTracking.ts → import services（内部）</li>
+<li>tools/shared/spawnMultiAgent.ts → import bootstrap（内部）</li>
+<li>tools/shared/spawnMultiAgent.ts → import state（内部）</li>
+<li>tools/shared/spawnMultiAgent.ts → import Task（内部）</li>
+<li>tools/shared/spawnMultiAgent.ts → import Tool（内部）</li>
+<li>tools/shared/spawnMultiAgent.ts → import tasks（内部）</li>
+<li>tools/shared/spawnMultiAgent.ts → import utils（内部）</li>
+<li>tools/shared/spawnMultiAgent.ts → import tools（外部）</li>
+<li>tools/testing/TestingPermissionTool.tsx → import Tool（内部）</li>
+<li>tools/testing/TestingPermissionTool.tsx → import utils（内部）</li>
+<li>tools/utils.ts → import types（内部）</li>
+</ol>
+<h2 id="5-python-侧候选映射-启发式初版">5. Python 侧候选映射（启发式初版）</h2>
+<ol>
+<li>→ python <code class="inline-code">tool_system</code> — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-未确认项与待核实项">6. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ python 候选映射待逐符号对照核实（symbol 级 map 未生成）</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 python 实现</li>
+<li>☐ 顶层符号提取为启发式正则，需人工抽样验证召回率</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-tools-reference-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

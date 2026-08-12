@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ink（reference）源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-python-侧候选映射-启发式初版" data-nav>5. Python 侧候选映射（启发式初版）</a></li>
+<li><a href="#6-未确认项与待核实项" data-nav>6. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>ink（reference）源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">13</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260811_2337</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">来源</span><span class="meta-value">restored-src/src/ink</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（reference 目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="ink-reference-源码盘点">ink（reference）源码盘点</h1>
+<blockquote>
+<p>编号: 13</p>
+<p>时间戳: 20260811_2337</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>来源: restored-src/src/ink</p>
+<p>类型: package（reference 目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: ink</li>
+<li>类型: package（reference 目录模块）</li>
+<li>TS/JS 文件数: 96</li>
+<li>总行数: 19842</li>
+<li>依赖的 reference 内部模块: bootstrap, native-ts, utils</li>
+<li>Python 侧候选映射: transports, screens（UNVERIFIED）</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">ink/Ansi.tsx</code> — 291 行（类 0，函数 8）</li>
+<li><code class="inline-code">ink/bidi.ts</code> — 139 行（类 0，函数 6）</li>
+<li><code class="inline-code">ink/clearTerminal.ts</code> — 74 行（类 0，函数 5）</li>
+<li><code class="inline-code">ink/colorize.ts</code> — 231 行（类 0，函数 7）</li>
+<li><code class="inline-code">ink/components/AlternateScreen.tsx</code> — 79 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/components/App.tsx</code> — 657 行（类 0，函数 2）</li>
+<li><code class="inline-code">ink/components/AppContext.ts</code> — 21 行（类 0，函数 0）</li>
+<li><code class="inline-code">ink/components/Box.tsx</code> — 213 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/components/Button.tsx</code> — 191 行（类 0，函数 2）</li>
+<li><code class="inline-code">ink/components/ClockContext.tsx</code> — 111 行（类 0，函数 6）</li>
+<li><code class="inline-code">ink/components/CursorDeclarationContext.ts</code> — 32 行（类 0，函数 0）</li>
+<li><code class="inline-code">ink/components/ErrorOverview.tsx</code> — 108 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/components/Link.tsx</code> — 41 行（类 0，函数 0）</li>
+<li><code class="inline-code">ink/components/Newline.tsx</code> — 38 行（类 0，函数 0）</li>
+<li><code class="inline-code">ink/components/NoSelect.tsx</code> — 67 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/components/RawAnsi.tsx</code> — 56 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/components/ScrollBox.tsx</code> — 236 行（类 0，函数 2）</li>
+<li><code class="inline-code">ink/components/Spacer.tsx</code> — 19 行（类 0，函数 0）</li>
+<li><code class="inline-code">ink/components/StdinContext.ts</code> — 49 行（类 0，函数 0）</li>
+<li><code class="inline-code">ink/components/TerminalFocusContext.tsx</code> — 51 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/components/TerminalSizeContext.tsx</code> — 6 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/components/Text.tsx</code> — 253 行（类 0，函数 0）</li>
+<li><code class="inline-code">ink/constants.ts</code> — 2 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/dom.ts</code> — 484 行（类 0，函数 18）</li>
+<li><code class="inline-code">ink/events/click-event.ts</code> — 38 行（类 1，函数 0）</li>
+<li><code class="inline-code">ink/events/dispatcher.ts</code> — 233 行（类 1，函数 4）</li>
+<li><code class="inline-code">ink/events/emitter.ts</code> — 39 行（类 1，函数 0）</li>
+<li><code class="inline-code">ink/events/event-handlers.ts</code> — 73 行（类 0，函数 2）</li>
+<li><code class="inline-code">ink/events/event.ts</code> — 11 行（类 1，函数 0）</li>
+<li><code class="inline-code">ink/events/focus-event.ts</code> — 21 行（类 1，函数 0）</li>
+<li><code class="inline-code">ink/events/input-event.ts</code> — 205 行（类 1，函数 1）</li>
+<li><code class="inline-code">ink/events/keyboard-event.ts</code> — 51 行（类 1，函数 1）</li>
+<li><code class="inline-code">ink/events/terminal-event.ts</code> — 107 行（类 1，函数 0）</li>
+<li><code class="inline-code">ink/events/terminal-focus-event.ts</code> — 19 行（类 1，函数 0）</li>
+<li><code class="inline-code">ink/focus.ts</code> — 181 行（类 1，函数 5）</li>
+<li><code class="inline-code">ink/frame.ts</code> — 124 行（类 0，函数 2）</li>
+<li><code class="inline-code">ink/get-max-width.ts</code> — 27 行（类 0，函数 0）</li>
+<li><code class="inline-code">ink/hit-test.ts</code> — 130 行（类 0，函数 3）</li>
+<li><code class="inline-code">ink/hooks/use-animation-frame.ts</code> — 57 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/hooks/use-app.ts</code> — 8 行（类 0，函数 0）</li>
+<li><code class="inline-code">ink/hooks/use-declared-cursor.ts</code> — 73 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/hooks/use-input.ts</code> — 92 行（类 0，函数 0）</li>
+<li><code class="inline-code">ink/hooks/use-interval.ts</code> — 67 行（类 0，函数 2）</li>
+<li><code class="inline-code">ink/hooks/use-search-highlight.ts</code> — 53 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/hooks/use-selection.ts</code> — 104 行（类 0，函数 2）</li>
+<li><code class="inline-code">ink/hooks/use-stdin.ts</code> — 8 行（类 0，函数 0）</li>
+<li><code class="inline-code">ink/hooks/use-tab-status.ts</code> — 72 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/hooks/use-terminal-focus.ts</code> — 16 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/hooks/use-terminal-title.ts</code> — 31 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/hooks/use-terminal-viewport.ts</code> — 96 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/ink.tsx</code> — 1722 行（类 0，函数 2）</li>
+<li><code class="inline-code">ink/instances.ts</code> — 10 行（类 0，函数 0）</li>
+<li><code class="inline-code">ink/layout/engine.ts</code> — 6 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/layout/geometry.ts</code> — 97 行（类 0，函数 11）</li>
+<li><code class="inline-code">ink/layout/node.ts</code> — 152 行（类 0，函数 10）</li>
+<li><code class="inline-code">ink/layout/yoga.ts</code> — 308 行（类 1，函数 1）</li>
+<li><code class="inline-code">ink/line-width-cache.ts</code> — 24 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/log-update.ts</code> — 773 行（类 2，函数 9）</li>
+<li><code class="inline-code">ink/measure-element.ts</code> — 23 行（类 0，函数 0）</li>
+<li><code class="inline-code">ink/measure-text.ts</code> — 47 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/node-cache.ts</code> — 54 行（类 0，函数 4）</li>
+<li><code class="inline-code">ink/optimizer.ts</code> — 93 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/output.ts</code> — 797 行（类 0，函数 7）</li>
+<li><code class="inline-code">ink/parse-keypress.ts</code> — 801 行（类 0，函数 13）</li>
+<li><code class="inline-code">ink/reconciler.ts</code> — 512 行（类 0，函数 10）</li>
+<li><code class="inline-code">ink/render-border.ts</code> — 231 行（类 0，函数 3）</li>
+<li><code class="inline-code">ink/render-node-to-output.ts</code> — 1462 行（类 0，函数 22）</li>
+<li><code class="inline-code">ink/render-to-screen.ts</code> — 231 行（类 0，函数 3）</li>
+<li><code class="inline-code">ink/renderer.ts</code> — 178 行（类 0，函数 0）</li>
+<li><code class="inline-code">ink/root.ts</code> — 184 行（类 0，函数 2）</li>
+<li><code class="inline-code">ink/screen.ts</code> — 1486 行（类 3，函数 34）</li>
+<li><code class="inline-code">ink/searchHighlight.ts</code> — 93 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/selection.ts</code> — 917 行（类 0，函数 25）</li>
+<li><code class="inline-code">ink/squash-text-nodes.ts</code> — 92 行（类 0，函数 2）</li>
+<li><code class="inline-code">ink/stringWidth.ts</code> — 222 行（类 0，函数 5）</li>
+<li><code class="inline-code">ink/styles.ts</code> — 771 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/supports-hyperlinks.ts</code> — 57 行（类 0，函数 2）</li>
+<li><code class="inline-code">ink/tabstops.ts</code> — 46 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/terminal-focus-state.ts</code> — 47 行（类 0，函数 5）</li>
+<li><code class="inline-code">ink/terminal-querier.ts</code> — 212 行（类 1，函数 7）</li>
+<li><code class="inline-code">ink/terminal.ts</code> — 248 行（类 0，函数 8）</li>
+<li><code class="inline-code">ink/termio/ansi.ts</code> — 75 行（类 0，函数 7）</li>
+<li><code class="inline-code">ink/termio/csi.ts</code> — 319 行（类 0，函数 43）</li>
+<li><code class="inline-code">ink/termio/dec.ts</code> — 60 行（类 0，函数 15）</li>
+<li><code class="inline-code">ink/termio/esc.ts</code> — 67 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/termio/osc.ts</code> — 493 行（类 0，函数 24）</li>
+<li><code class="inline-code">ink/termio/parser.ts</code> — 394 行（类 1，函数 7）</li>
+<li><code class="inline-code">ink/termio/sgr.ts</code> — 308 行（类 0，函数 3）</li>
+<li><code class="inline-code">ink/termio/tokenize.ts</code> — 319 行（类 0，函数 2）</li>
+<li><code class="inline-code">ink/termio/types.ts</code> — 236 行（类 0，函数 3）</li>
+<li><code class="inline-code">ink/termio.ts</code> — 42 行（类 0，函数 0）</li>
+<li><code class="inline-code">ink/useTerminalNotification.ts</code> — 126 行（类 0，函数 3）</li>
+<li><code class="inline-code">ink/warn.ts</code> — 9 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/widest-line.ts</code> — 19 行（类 0，函数 1）</li>
+<li><code class="inline-code">ink/wrap-text.ts</code> — 74 行（类 0，函数 2）</li>
+<li><code class="inline-code">ink/wrapAnsi.ts</code> — 20 行（类 0，函数 0）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">ink/Ansi.tsx</code></li>
+<li>函数 parseToSpans — L118</li>
+<li>函数 textStyleToSpanProps — L158</li>
+<li>函数 colorToString — L196</li>
+<li>函数 propsEqual — L212</li>
+<li>函数 hasAnyProps — L215</li>
+<li>函数 hasAnyTextProps — L218</li>
+<li>函数 StyledText — L233</li>
+<li>函数 Ansi — L32</li>
+<li>文件 <code class="inline-code">ink/bidi.ts</code></li>
+<li>函数 needsBidi — L28</li>
+<li>函数 getBidi — L38</li>
+<li>函数 reorderBidi — L53</li>
+<li>函数 reverseRange — L106</li>
+<li>函数 reverseRangeNumbers — L116</li>
+<li>函数 hasRTLCharacters — L131</li>
+<li>文件 <code class="inline-code">ink/clearTerminal.ts</code></li>
+<li>函数 isWindowsTerminal — L15</li>
+<li>函数 isMintty — L19</li>
+<li>函数 isModernWindowsTerminal — L31</li>
+<li>函数 getClearTerminalSequence — L59</li>
+<li>函数 clearTerminal — L74</li>
+<li>文件 <code class="inline-code">ink/colorize.ts</code></li>
+<li>函数 boostChalkLevelForXtermJs — L20</li>
+<li>函数 clampChalkLevelForTmux — L47</li>
+<li>函数 applyTextStyles — L176</li>
+<li>函数 applyColor — L226</li>
+<li>函数 CHALK_BOOSTED_FOR_XTERMJS — L61</li>
+<li>函数 CHALK_CLAMPED_FOR_TMUX — L62</li>
+<li>函数 colorize — L68</li>
+<li>文件 <code class="inline-code">ink/components/AlternateScreen.tsx</code></li>
+<li>函数 AlternateScreen — L33</li>
+<li>文件 <code class="inline-code">ink/components/App.tsx</code></li>
+<li>函数 processKeysInBatch — L444</li>
+<li>函数 handleMouseEvent — L515</li>
+<li>文件 <code class="inline-code">ink/components/AppContext.ts</code></li>
+<li>文件 <code class="inline-code">ink/components/Box.tsx</code></li>
+<li>函数 Box — L51</li>
+<li>文件 <code class="inline-code">ink/components/Button.tsx</code></li>
+<li>函数 Button — L39</li>
+<li>函数 _temp — L187</li>
+<li>文件 <code class="inline-code">ink/components/ClockContext.tsx</code></li>
+<li>函数 createClock — L10</li>
+<li>函数 tick — L18</li>
+<li>函数 updateInterval — L24</li>
+<li>函数 ClockProvider — L75</li>
+<li>函数 _temp — L109</li>
+<li>函数 ClockContext — L69</li>
+<li>文件 <code class="inline-code">ink/components/CursorDeclarationContext.ts</code></li>
+<li>文件 <code class="inline-code">ink/components/ErrorOverview.tsx</code></li>
+<li>函数 getStackUtils — L16</li>
+<li>文件 <code class="inline-code">ink/components/Link.tsx</code></li>
+<li>文件 <code class="inline-code">ink/components/Newline.tsx</code></li>
+<li>文件 <code class="inline-code">ink/components/NoSelect.tsx</code></li>
+<li>函数 NoSelect — L35</li>
+<li>文件 <code class="inline-code">ink/components/RawAnsi.tsx</code></li>
+<li>函数 RawAnsi — L28</li>
+<li>文件 <code class="inline-code">ink/components/ScrollBox.tsx</code></li>
+<li>函数 ScrollBox — L82</li>
+<li>函数 scrollMutated — L103</li>
+<li>文件 <code class="inline-code">ink/components/Spacer.tsx</code></li>
+<li>文件 <code class="inline-code">ink/components/StdinContext.ts</code></li>
+<li>文件 <code class="inline-code">ink/components/TerminalFocusContext.tsx</code></li>
+<li>函数 TerminalFocusProvider — L20</li>
+<li>文件 <code class="inline-code">ink/components/TerminalSizeContext.tsx</code></li>
+<li>函数 TerminalSizeContext — L6</li>
+<li>文件 <code class="inline-code">ink/components/Text.tsx</code></li>
+<li>文件 <code class="inline-code">ink/constants.ts</code></li>
+<li>函数 FRAME_INTERVAL_MS — L2</li>
+<li>文件 <code class="inline-code">ink/dom.ts</code></li>
+<li>函数 collectRemovedRects — L224</li>
+<li>函数 stylesEqual — L290</li>
+<li>函数 shallowEqual — L294</li>
+<li>函数 isDOMElement — L438</li>
+<li>函数 findOwnerChainAtRow — L465</li>
+<li>函数 walk — L469</li>
+<li>函数 createNode — L109</li>
+<li>函数 appendChildNode — L133</li>
+<li>函数 insertBeforeNode — L154</li>
+<li>函数 removeChildNode — L203</li>
+<li>函数 setAttribute — L246</li>
+<li>函数 setStyle — L265</li>
+<li>函数 setTextStyles — L275</li>
+<li>函数 createTextNode — L317</li>
+<li>函数 markDirty — L393</li>
+<li>函数 scheduleRenderFrom — L419</li>
+<li>函数 setTextNodeValue — L424</li>
+<li>函数 clearYogaNodeReferences — L446</li>
+<li>文件 <code class="inline-code">ink/events/click-event.ts</code></li>
+<li>类 ClickEvent — L10</li>
+<li>文件 <code class="inline-code">ink/events/dispatcher.ts</code></li>
+<li>类 Dispatcher — L161</li>
+<li>函数 getHandler — L18</li>
+<li>函数 collectListeners — L46</li>
+<li>函数 processDispatchQueue — L87</li>
+<li>函数 getEventPriority — L122</li>
+<li>文件 <code class="inline-code">ink/events/emitter.ts</code></li>
+<li>类 EventEmitter — L6</li>
+<li>文件 <code class="inline-code">ink/events/event-handlers.ts</code></li>
+<li>函数 HANDLER_FOR_EVENT — L44</li>
+<li>函数 EVENT_HANDLER_PROPS — L60</li>
+<li>文件 <code class="inline-code">ink/events/event.ts</code></li>
+<li>类 Event — L1</li>
+<li>文件 <code class="inline-code">ink/events/focus-event.ts</code></li>
+<li>类 FocusEvent — L11</li>
+<li>文件 <code class="inline-code">ink/events/input-event.ts</code></li>
+<li>类 InputEvent — L191</li>
+<li>函数 parseKey — L26</li>
+<li>文件 <code class="inline-code">ink/events/keyboard-event.ts</code></li>
+<li>类 KeyboardEvent — L12</li>
+<li>函数 keyFromParsed — L31</li>
+<li>文件 <code class="inline-code">ink/events/terminal-event.ts</code></li>
+<li>类 TerminalEvent — L19</li>
+<li>文件 <code class="inline-code">ink/events/terminal-focus-event.ts</code></li>
+<li>类 TerminalFocusEvent — L12</li>
+<li>文件 <code class="inline-code">ink/focus.ts</code></li>
+<li>类 FocusManager — L15</li>
+<li>函数 collectTabbable — L133</li>
+<li>函数 walkTree — L139</li>
+<li>函数 isInTree — L152</li>
+<li>函数 getRootNode — L166</li>
+<li>函数 getFocusManager — L179</li>
+<li>文件 <code class="inline-code">ink/frame.ts</code></li>
+<li>函数 emptyFrame — L21</li>
+<li>函数 shouldClearScreen — L105</li>
+<li>文件 <code class="inline-code">ink/get-max-width.ts</code></li>
+<li>文件 <code class="inline-code">ink/hit-test.ts</code></li>
+<li>函数 hitTest — L18</li>
+<li>函数 dispatchClick — L49</li>
+<li>函数 dispatchHover — L102</li>
+<li>文件 <code class="inline-code">ink/hooks/use-animation-frame.ts</code></li>
+<li>函数 useAnimationFrame — L30</li>
+<li>文件 <code class="inline-code">ink/hooks/use-app.ts</code></li>
+<li>文件 <code class="inline-code">ink/hooks/use-declared-cursor.ts</code></li>
+<li>函数 useDeclaredCursor — L25</li>
+<li>文件 <code class="inline-code">ink/hooks/use-input.ts</code></li>
+<li>文件 <code class="inline-code">ink/hooks/use-interval.ts</code></li>
+<li>函数 useAnimationTimer — L13</li>
+<li>函数 useInterval — L43</li>
+<li>文件 <code class="inline-code">ink/hooks/use-search-highlight.ts</code></li>
+<li>函数 useSearchHighlight — L18</li>
+<li>文件 <code class="inline-code">ink/hooks/use-selection.ts</code></li>
+<li>函数 useSelection — L14</li>
+<li>函数 useHasSelection — L97</li>
+<li>文件 <code class="inline-code">ink/hooks/use-stdin.ts</code></li>
+<li>文件 <code class="inline-code">ink/hooks/use-tab-status.ts</code></li>
+<li>函数 useTabStatus — L53</li>
+<li>文件 <code class="inline-code">ink/hooks/use-terminal-focus.ts</code></li>
+<li>函数 useTerminalFocus — L13</li>
+<li>文件 <code class="inline-code">ink/hooks/use-terminal-title.ts</code></li>
+<li>函数 useTerminalTitle — L17</li>
+<li>文件 <code class="inline-code">ink/hooks/use-terminal-viewport.ts</code></li>
+<li>函数 useTerminalViewport — L29</li>
+<li>文件 <code class="inline-code">ink/ink.tsx</code></li>
+<li>函数 makeAltScreenParkPatch — L61</li>
+<li>函数 drainStdin — L1664</li>
+<li>文件 <code class="inline-code">ink/instances.ts</code></li>
+<li>文件 <code class="inline-code">ink/layout/engine.ts</code></li>
+<li>函数 createLayoutNode — L3</li>
+<li>文件 <code class="inline-code">ink/layout/geometry.ts</code></li>
+<li>函数 edges — L22</li>
+<li>函数 edges — L23</li>
+<li>函数 edges — L24</li>
+<li>函数 edges — L30</li>
+<li>函数 addEdges — L41</li>
+<li>函数 resolveEdges — L54</li>
+<li>函数 unionRect — L62</li>
+<li>函数 clampRect — L70</li>
+<li>函数 withinBounds — L83</li>
+<li>函数 clamp — L92</li>
+<li>函数 ZERO_EDGES — L51</li>
+<li>文件 <code class="inline-code">ink/layout/node.ts</code></li>
+<li>函数 LayoutEdge — L3</li>
+<li>函数 LayoutGutter — L16</li>
+<li>函数 LayoutDisplay — L23</li>
+<li>函数 LayoutFlexDirection — L29</li>
+<li>函数 LayoutAlign — L38</li>
+<li>函数 LayoutJustify — L47</li>
+<li>函数 LayoutWrap — L57</li>
+<li>函数 LayoutPositionType — L64</li>
+<li>函数 LayoutOverflow — L71</li>
+<li>函数 LayoutMeasureMode — L84</li>
+<li>文件 <code class="inline-code">ink/layout/yoga.ts</code></li>
+<li>类 YogaLayoutNode — L53</li>
+<li>函数 createYogaLayoutNode — L305</li>
+<li>文件 <code class="inline-code">ink/line-width-cache.ts</code></li>
+<li>函数 lineWidth — L9</li>
+<li>文件 <code class="inline-code">ink/log-update.ts</code></li>
+<li>类 LogUpdate — L42</li>
+<li>类 VirtualScreen — L751</li>
+<li>函数 transitionHyperlink — L469</li>
+<li>函数 transitionStyle — L481</li>
+<li>函数 readLine — L494</li>
+<li>函数 fullResetSequence_CAUSES_FLICKER — L502</li>
+<li>函数 renderFrame — L514</li>
+<li>函数 renderFrameSlice — L527</li>
+<li>函数 writeCellWithStyleStr — L638</li>
+<li>函数 moveCursorTo — L692</li>
+<li>函数 needsWidthCompensation — L733</li>
+<li>文件 <code class="inline-code">ink/measure-element.ts</code></li>
+<li>文件 <code class="inline-code">ink/measure-text.ts</code></li>
+<li>函数 measureText — L11</li>
+<li>文件 <code class="inline-code">ink/node-cache.ts</code></li>
+<li>函数 addPendingClear — L33</li>
+<li>函数 consumeAbsoluteRemovedFlag — L49</li>
+<li>函数 nodeCache — L17</li>
+<li>函数 pendingClears — L21</li>
+<li>文件 <code class="inline-code">ink/optimizer.ts</code></li>
+<li>函数 optimize — L16</li>
+<li>文件 <code class="inline-code">ink/output.ts</code></li>
+<li>函数 intersectClip — L104</li>
+<li>函数 maxDefined — L113</li>
+<li>函数 minDefined — L122</li>
+<li>函数 stylesEqual — L533</li>
+<li>函数 styledCharsWithGraphemeClustering — L553</li>
+<li>函数 flushBuffer — L585</li>
+<li>函数 writeLineToScreen — L633</li>
+<li>文件 <code class="inline-code">ink/parse-keypress.ts</code></li>
+<li>函数 createPasteKey — L66</li>
+<li>函数 parseTerminalResponse — L122</li>
+<li>函数 splitNumericParams — L176</li>
+<li>函数 inputToString — L195</li>
+<li>函数 parseMultipleKeypresses — L212</li>
+<li>函数 decodeModifier — L465</li>
+<li>函数 keycodeToName — L487</li>
+<li>函数 parseMouseEvent — L594</li>
+<li>函数 parseKeypress — L610</li>
+<li>函数 createNavKey — L786</li>
+<li>函数 DECRPM_STATUS — L84</li>
+<li>函数 INITIAL_STATE — L189</li>
+<li>函数 nonAlphanumericKeys — L407</li>
+<li>文件 <code class="inline-code">ink/reconciler.ts</code></li>
+<li>函数 setEventHandler — L113</li>
+<li>函数 applyProp — L120</li>
+<li>函数 getOwnerChain — L157</li>
+<li>函数 isDebugRepaintsEnabled — L180</li>
+<li>函数 recordYogaMs — L205</li>
+<li>函数 getLastYogaMs — L208</li>
+<li>函数 markCommitStart — L211</li>
+<li>函数 getLastCommitMs — L214</li>
+<li>函数 resetProfileCounters — L217</li>
+<li>函数 dispatcher — L186</li>
+<li>文件 <code class="inline-code">ink/render-border.ts</code></li>
+<li>函数 embedTextInBorder — L34</li>
+<li>函数 styleBorderLine — L69</li>
+<li>函数 CUSTOM_BORDER_STYLES — L15</li>
+<li>文件 <code class="inline-code">ink/render-node-to-output.ts</code></li>
+<li>函数 isXtermJsHost — L23</li>
+<li>函数 resetLayoutShifted — L35</li>
+<li>函数 didLayoutShift — L39</li>
+<li>函数 resetScrollHint — L59</li>
+<li>函数 getScrollHint — L65</li>
+<li>函数 resetScrollDrainNode — L76</li>
+<li>函数 getScrollDrainNode — L80</li>
+<li>函数 consumeFollowScroll — L99</li>
+<li>函数 drainAdaptive — L124</li>
+<li>函数 drainProportional — L161</li>
+<li>函数 wrapWithOsc8Link — L183</li>
+<li>函数 buildCharToSegmentMap — L192</li>
+<li>函数 applyStylesToWrappedText — L211</li>
+<li>函数 wrapWithSoftWrap — L335</li>
+<li>函数 applyPaddingToText — L365</li>
+<li>函数 renderNodeToOutput — L387</li>
+<li>函数 renderChildren — L1257</li>
+<li>函数 clipsBothAxes — L1295</li>
+<li>函数 siblingSharesY — L1309</li>
+<li>函数 blitEscapingAbsoluteDescendants — L1337</li>
+<li>函数 renderScrolledChildren — L1377</li>
+<li>函数 dropSubtreeCache — L1449</li>
+<li>文件 <code class="inline-code">ink/render-to-screen.ts</code></li>
+<li>函数 renderToScreen — L59</li>
+<li>函数 scanPositions — L149</li>
+<li>函数 applyPositionedHighlight — L212</li>
+<li>文件 <code class="inline-code">ink/renderer.ts</code></li>
+<li>文件 <code class="inline-code">ink/root.ts</code></li>
+<li>函数 createRoot — L129</li>
+<li>函数 renderSync — L76</li>
+<li>文件 <code class="inline-code">ink/screen.ts</code></li>
+<li>类 CharPool — L21</li>
+<li>类 HyperlinkPool — L57</li>
+<li>类 StylePool — L111</li>
+<li>函数 hasVisibleSpaceEffect — L270</li>
+<li>函数 initCharAscii — L324</li>
+<li>函数 packWord1 — L342</li>
+<li>函数 isEmptyCellByIndex — L416</li>
+<li>函数 isEmptyCellAt — L423</li>
+<li>函数 isCellEmpty — L432</li>
+<li>函数 internHyperlink — L445</li>
+<li>函数 createScreen — L450</li>
+<li>函数 resetScreen — L501</li>
+<li>函数 migrateScreenPools — L554</li>
+<li>函数 cellAt — L593</li>
+<li>函数 cellAtIndex — L602</li>
+<li>函数 visibleCellAtIndex — L624</li>
+<li>函数 cellAtCI — L656</li>
+<li>函数 charInCellAt — L665</li>
+<li>函数 setCellAt — L693</li>
+<li>函数 setCellStyleId — L817</li>
+<li>函数 internCharString — L845</li>
+<li>函数 blitRegion — L858</li>
+<li>函数 clearRegion — L959</li>
+<li>函数 shiftRows — L1057</li>
+<li>函数 extractHyperlinkFromStyles — L1098</li>
+<li>函数 filterOutHyperlinkStyles — L1112</li>
+<li>函数 diff — L1126</li>
+<li>函数 diffEach — L1156</li>
+<li>函数 findNextDiff — L1213</li>
+<li>函数 diffRowBoth — L1230</li>
+<li>函数 diffRowRemoved — L1263</li>
+<li>函数 diffRowAdded — L1283</li>
+<li>函数 diffSameWidth — L1305</li>
+<li>函数 diffDifferentWidth — L1378</li>
+<li>函数 markNoSelectRegion — L1471</li>
+<li>函数 enum — L289</li>
+<li>函数 OSC8_PREFIX — L1097</li>
+<li>文件 <code class="inline-code">ink/searchHighlight.ts</code></li>
+<li>函数 applySearchHighlight — L27</li>
+<li>文件 <code class="inline-code">ink/selection.ts</code></li>
+<li>函数 createSelectionState — L64</li>
+<li>函数 startSelection — L78</li>
+<li>函数 updateSelection — L99</li>
+<li>函数 finishSelection — L115</li>
+<li>函数 clearSelection — L121</li>
+<li>函数 charClass — L151</li>
+<li>函数 wordBoundsAt — L162</li>
+<li>函数 comparePoints — L227</li>
+<li>函数 selectWordAt — L240</li>
+<li>函数 isUrlChar — L260</li>
+<li>函数 findPlainTextUrlAt — L272</li>
+<li>函数 selectLineAt — L368</li>
+<li>函数 extendSelection — L389</li>
+<li>函数 moveFocus — L442</li>
+<li>函数 shiftSelection — L470</li>
+<li>函数 shiftAnchor — L573</li>
+<li>函数 shiftSelectionForFollow — L625</li>
+<li>函数 hasSelection — L675</li>
+<li>函数 selectionBounds — L684</li>
+<li>函数 isCellSelected — L698</li>
+<li>函数 extractRowText — L716</li>
+<li>函数 joinRows — L750</li>
+<li>函数 getSelectedText — L773</li>
+<li>函数 captureScrolledRows — L813</li>
+<li>函数 applySelectionOverlay — L893</li>
+<li>文件 <code class="inline-code">ink/squash-text-nodes.ts</code></li>
+<li>函数 squashTextNodesToSegments — L18</li>
+<li>函数 squashTextNodes — L69</li>
+<li>文件 <code class="inline-code">ink/stringWidth.ts</code></li>
+<li>函数 stringWidthJavaScript — L20</li>
+<li>函数 needsSegmentation — L91</li>
+<li>函数 getEmojiWidth — L105</li>
+<li>函数 isZeroWidth — L128</li>
+<li>函数 stringWidth — L219</li>
+<li>文件 <code class="inline-code">ink/styles.ts</code></li>
+<li>函数 applyPositionEdge — L419</li>
+<li>文件 <code class="inline-code">ink/supports-hyperlinks.ts</code></li>
+<li>函数 supportsHyperlinks — L26</li>
+<li>函数 ADDITIONAL_HYPERLINK_TERMINALS — L5</li>
+<li>文件 <code class="inline-code">ink/tabstops.ts</code></li>
+<li>函数 expandTabs — L8</li>
+<li>文件 <code class="inline-code">ink/terminal-focus-state.ts</code></li>
+<li>函数 setTerminalFocused — L11</li>
+<li>函数 getTerminalFocused — L25</li>
+<li>函数 getTerminalFocusState — L29</li>
+<li>函数 subscribeTerminalFocus — L35</li>
+<li>函数 resetTerminalFocusState — L41</li>
+<li>文件 <code class="inline-code">ink/terminal-querier.ts</code></li>
+<li>类 TerminalQuerier — L127</li>
+<li>函数 decrqm — L49</li>
+<li>函数 da1 — L59</li>
+<li>函数 da2 — L67</li>
+<li>函数 kittyKeyboard — L76</li>
+<li>函数 cursorPosition — L87</li>
+<li>函数 oscColor — L96</li>
+<li>函数 xtversion — L108</li>
+<li>文件 <code class="inline-code">ink/terminal.ts</code></li>
+<li>函数 isProgressReportingAvailable — L25</li>
+<li>函数 isSynchronizedOutputSupported — L70</li>
+<li>函数 setXtversionName — L134</li>
+<li>函数 isXtermJs — L143</li>
+<li>函数 supportsExtendedKeys — L167</li>
+<li>函数 hasCursorUpViewportYankBug — L177</li>
+<li>函数 writeDiffToTerminal — L189</li>
+<li>函数 SYNC_OUTPUT_SUPPORTED — L183</li>
+<li>文件 <code class="inline-code">ink/termio/ansi.ts</code></li>
+<li>函数 isC0 — L65</li>
+<li>函数 isEscFinal — L73</li>
+<li>函数 C0 — L10</li>
+<li>函数 ESC — L47</li>
+<li>函数 BEL — L48</li>
+<li>函数 SEP — L49</li>
+<li>函数 ESC_TYPE — L54</li>
+<li>文件 <code class="inline-code">ink/termio/csi.ts</code></li>
+<li>函数 isCSIParam — L24</li>
+<li>函数 isCSIIntermediate — L29</li>
+<li>函数 isCSIFinal — L36</li>
+<li>函数 csi — L45</li>
+<li>函数 cursorUp — L129</li>
+<li>函数 cursorDown — L134</li>
+<li>函数 cursorForward — L139</li>
+<li>函数 cursorBack — L144</li>
+<li>函数 cursorTo — L149</li>
+<li>函数 cursorPosition — L157</li>
+<li>函数 cursorMove — L169</li>
+<li>函数 eraseToEndOfLine — L197</li>
+<li>函数 eraseToStartOfLine — L202</li>
+<li>函数 eraseLine — L207</li>
+<li>函数 eraseToEndOfScreen — L215</li>
+<li>函数 eraseToStartOfScreen — L220</li>
+<li>函数 eraseScreen — L225</li>
+<li>函数 eraseLines — L239</li>
+<li>函数 scrollUp — L255</li>
+<li>函数 scrollDown — L260</li>
+<li>函数 setScrollRegion — L265</li>
+<li>函数 CSI_PREFIX — L8</li>
+<li>函数 CSI_RANGE — L14</li>
+<li>函数 CSI — L56</li>
+<li>函数 ERASE_DISPLAY — L104</li>
+<li>函数 ERASE_LINE_REGION — L109</li>
+<li>函数 CURSOR_STYLES — L115</li>
+<li>函数 CURSOR_LEFT — L154</li>
+<li>函数 CURSOR_HOME — L162</li>
+<li>函数 CURSOR_SAVE — L189</li>
+<li>函数 CURSOR_RESTORE — L192</li>
+<li>函数 ERASE_LINE — L212</li>
+<li>函数 ERASE_SCREEN — L230</li>
+<li>函数 ERASE_SCROLLBACK — L233</li>
+<li>函数 RESET_SCROLL_REGION — L270</li>
+<li>函数 PASTE_START — L277</li>
+<li>函数 PASTE_END — L280</li>
+<li>函数 FOCUS_IN — L287</li>
+<li>函数 FOCUS_OUT — L290</li>
+<li>函数 ENABLE_KITTY_KEYBOARD — L301</li>
+<li>函数 DISABLE_KITTY_KEYBOARD — L307</li>
+<li>函数 ENABLE_MODIFY_OTHER_KEYS — L314</li>
+<li>函数 DISABLE_MODIFY_OTHER_KEYS — L319</li>
+<li>文件 <code class="inline-code">ink/termio/dec.ts</code></li>
+<li>函数 decset — L27</li>
+<li>函数 decreset — L32</li>
+<li>函数 DEC — L13</li>
+<li>函数 BSU — L37</li>
+<li>函数 ESU — L38</li>
+<li>函数 EBP — L39</li>
+<li>函数 DBP — L40</li>
+<li>函数 EFE — L41</li>
+<li>函数 DFE — L42</li>
+<li>函数 SHOW_CURSOR — L43</li>
+<li>函数 HIDE_CURSOR — L44</li>
+<li>函数 ENTER_ALT_SCREEN — L45</li>
+<li>函数 EXIT_ALT_SCREEN — L46</li>
+<li>函数 ENABLE_MOUSE_TRACKING — L51</li>
+<li>函数 DISABLE_MOUSE_TRACKING — L56</li>
+<li>文件 <code class="inline-code">ink/termio/esc.ts</code></li>
+<li>函数 parseEsc — L14</li>
+<li>文件 <code class="inline-code">ink/termio/osc.ts</code></li>
+<li>函数 osc — L18</li>
+<li>函数 wrapForMultiplexer — L35</li>
+<li>函数 getClipboardPath — L63</li>
+<li>函数 tmuxPassthrough — L78</li>
+<li>函数 tmuxLoadBuffer — L90</li>
+<li>函数 setClipboard — L138</li>
+<li>函数 copyNative — L171</li>
+<li>函数 _resetLinuxCopyCache — L222</li>
+<li>函数 parseOSC — L256</li>
+<li>函数 parseOscColor — L317</li>
+<li>函数 parseTabStatus — L349</li>
+<li>函数 link — L403</li>
+<li>函数 osc8Id — L411</li>
+<li>函数 supportsTabStatus — L467</li>
+<li>函数 tabStatus — L476</li>
+<li>函数 OSC_PREFIX — L10</li>
+<li>函数 ST — L14</li>
+<li>函数 OSC — L229</li>
+<li>函数 LINK_END — L420</li>
+<li>函数 ITERM2 — L425</li>
+<li>函数 PROGRESS — L432</li>
+<li>函数 CLEAR_ITERM2_PROGRESS — L444</li>
+<li>函数 CLEAR_TERMINAL_TITLE — L450</li>
+<li>函数 CLEAR_TAB_STATUS — L453</li>
+<li>文件 <code class="inline-code">ink/termio/parser.ts</code></li>
+<li>类 Parser — L272</li>
+<li>函数 isEmoji — L28</li>
+<li>函数 isEastAsianWide — L38</li>
+<li>函数 hasMultipleCodepoints — L53</li>
+<li>函数 graphemeWidth — L62</li>
+<li>函数 parseCSIParams — L80</li>
+<li>函数 parseCSI — L87</li>
+<li>函数 identifySequence — L245</li>
+<li>文件 <code class="inline-code">ink/termio/sgr.ts</code></li>
+<li>函数 parseParams — L40</li>
+<li>函数 parseExtendedColor — L78</li>
+<li>函数 applySGR — L126</li>
+<li>文件 <code class="inline-code">ink/termio/tokenize.ts</code></li>
+<li>函数 createTokenizer — L57</li>
+<li>函数 tokenize — L98</li>
+<li>文件 <code class="inline-code">ink/termio/types.ts</code></li>
+<li>函数 defaultStyle — L68</li>
+<li>函数 stylesEqual — L86</li>
+<li>函数 colorsEqual — L104</li>
+<li>文件 <code class="inline-code">ink/termio.ts</code></li>
+<li>文件 <code class="inline-code">ink/useTerminalNotification.ts</code></li>
+<li>函数 useTerminalNotification — L24</li>
+<li>函数 TerminalWriteContext — L7</li>
+<li>函数 TerminalWriteProvider — L9</li>
+<li>文件 <code class="inline-code">ink/warn.ts</code></li>
+<li>函数 ifNotInteger — L2</li>
+<li>文件 <code class="inline-code">ink/widest-line.ts</code></li>
+<li>函数 widestLine — L2</li>
+<li>文件 <code class="inline-code">ink/wrap-text.ts</code></li>
+<li>函数 sliceFit — L10</li>
+<li>函数 truncate — L14</li>
+<li>文件 <code class="inline-code">ink/wrapAnsi.ts</code></li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>ink/Ansi.tsx → import ink（外部）</li>
+<li>ink/clearTerminal.ts → import ink（外部）</li>
+<li>ink/colorize.ts → import ink（外部）</li>
+<li>ink/components/AlternateScreen.tsx → import ink（外部）</li>
+<li>ink/components/App.tsx → import bootstrap（内部）</li>
+<li>ink/components/App.tsx → import utils（内部）</li>
+<li>ink/components/App.tsx → import ink（外部）</li>
+<li>ink/components/Box.tsx → import ink（外部）</li>
+<li>ink/components/Button.tsx → import ink（外部）</li>
+<li>ink/components/ClockContext.tsx → import ink（外部）</li>
+<li>ink/components/CursorDeclarationContext.ts → import ink（外部）</li>
+<li>ink/components/ErrorOverview.tsx → import ink（外部）</li>
+<li>ink/components/Link.tsx → import ink（外部）</li>
+<li>ink/components/NoSelect.tsx → import ink（外部）</li>
+<li>ink/components/ScrollBox.tsx → import bootstrap（内部）</li>
+<li>ink/components/ScrollBox.tsx → import ink（外部）</li>
+<li>ink/components/Spacer.tsx → import ink（外部）</li>
+<li>ink/components/StdinContext.ts → import ink（外部）</li>
+<li>ink/components/TerminalFocusContext.tsx → import ink（外部）</li>
+<li>ink/components/Text.tsx → import ink（外部）</li>
+<li>ink/dom.ts → import ink（外部）</li>
+<li>ink/events/click-event.ts → import ink（外部）</li>
+<li>ink/events/dispatcher.ts → import utils（内部）</li>
+<li>ink/events/dispatcher.ts → import ink（外部）</li>
+<li>ink/events/emitter.ts → import ink（外部）</li>
+<li>ink/events/event-handlers.ts → import ink（外部）</li>
+<li>ink/events/focus-event.ts → import ink（外部）</li>
+<li>ink/events/input-event.ts → import ink（外部）</li>
+<li>ink/events/keyboard-event.ts → import ink（外部）</li>
+<li>ink/events/terminal-event.ts → import ink（外部）</li>
+<li>ink/events/terminal-focus-event.ts → import ink（外部）</li>
+<li>ink/focus.ts → import ink（外部）</li>
+<li>ink/frame.ts → import ink（外部）</li>
+<li>ink/get-max-width.ts → import ink（外部）</li>
+<li>ink/hit-test.ts → import ink（外部）</li>
+<li>ink/hooks/use-animation-frame.ts → import ink（外部）</li>
+<li>ink/hooks/use-app.ts → import ink（外部）</li>
+<li>ink/hooks/use-declared-cursor.ts → import ink（外部）</li>
+<li>ink/hooks/use-input.ts → import ink（外部）</li>
+<li>ink/hooks/use-interval.ts → import ink（外部）</li>
+<li>ink/hooks/use-search-highlight.ts → import ink（外部）</li>
+<li>ink/hooks/use-selection.ts → import ink（外部）</li>
+<li>ink/hooks/use-stdin.ts → import ink（外部）</li>
+<li>ink/hooks/use-tab-status.ts → import ink（外部）</li>
+<li>ink/hooks/use-terminal-focus.ts → import ink（外部）</li>
+<li>ink/hooks/use-terminal-title.ts → import ink（外部）</li>
+<li>ink/hooks/use-terminal-viewport.ts → import ink（外部）</li>
+<li>ink/ink.tsx → import bootstrap（内部）</li>
+<li>ink/ink.tsx → import native-ts（内部）</li>
+<li>ink/ink.tsx → import utils（内部）</li>
+<li>ink/ink.tsx → import ink（外部）</li>
+<li>ink/instances.ts → import ink（外部）</li>
+<li>ink/layout/engine.ts → import ink（外部）</li>
+<li>ink/layout/yoga.ts → import native-ts（内部）</li>
+<li>ink/layout/yoga.ts → import ink（外部）</li>
+<li>ink/line-width-cache.ts → import ink（外部）</li>
+<li>ink/log-update.ts → import utils（内部）</li>
+<li>ink/log-update.ts → import ink（外部）</li>
+<li>ink/measure-element.ts → import ink（外部）</li>
+<li>ink/measure-text.ts → import ink（外部）</li>
+<li>ink/node-cache.ts → import ink（外部）</li>
+<li>ink/optimizer.ts → import ink（外部）</li>
+<li>ink/output.ts → import utils（内部）</li>
+<li>ink/output.ts → import ink（外部）</li>
+<li>ink/parse-keypress.ts → import ink（外部）</li>
+<li>ink/reconciler.ts → import native-ts（内部）</li>
+<li>ink/reconciler.ts → import utils（内部）</li>
+<li>ink/reconciler.ts → import ink（外部）</li>
+<li>ink/render-border.ts → import ink（外部）</li>
+<li>ink/render-node-to-output.ts → import ink（外部）</li>
+<li>ink/render-to-screen.ts → import utils（内部）</li>
+<li>ink/render-to-screen.ts → import ink（外部）</li>
+<li>ink/renderer.ts → import utils（内部）</li>
+<li>ink/renderer.ts → import ink（外部）</li>
+<li>ink/root.ts → import utils（内部）</li>
+<li>ink/root.ts → import ink（外部）</li>
+<li>ink/screen.ts → import ink（外部）</li>
+<li>ink/searchHighlight.ts → import ink（外部）</li>
+<li>ink/selection.ts → import ink（外部）</li>
+<li>ink/squash-text-nodes.ts → import ink（外部）</li>
+<li>ink/stringWidth.ts → import utils（内部）</li>
+<li>ink/styles.ts → import ink（外部）</li>
+<li>ink/tabstops.ts → import ink（外部）</li>
+<li>ink/terminal-querier.ts → import ink（外部）</li>
+<li>ink/terminal.ts → import utils（内部）</li>
+<li>ink/terminal.ts → import ink（外部）</li>
+<li>ink/termio/csi.ts → import ink（外部）</li>
+<li>ink/termio/dec.ts → import ink（外部）</li>
+<li>ink/termio/esc.ts → import ink（外部）</li>
+<li>ink/termio/osc.ts → import utils（内部）</li>
+<li>ink/termio/osc.ts → import ink（外部）</li>
+<li>ink/termio/parser.ts → import utils（内部）</li>
+<li>ink/termio/parser.ts → import ink（外部）</li>
+<li>ink/termio/sgr.ts → import ink（外部）</li>
+<li>ink/termio/tokenize.ts → import ink（外部）</li>
+<li>ink/termio.ts → import ink（外部）</li>
+<li>ink/useTerminalNotification.ts → import ink（外部）</li>
+<li>ink/warn.ts → import utils（内部）</li>
+<li>ink/widest-line.ts → import ink（外部）</li>
+<li>ink/wrap-text.ts → import utils（内部）</li>
+<li>ink/wrap-text.ts → import ink（外部）</li>
+</ol>
+<h2 id="5-python-侧候选映射-启发式初版">5. Python 侧候选映射（启发式初版）</h2>
+<ol>
+<li>→ python <code class="inline-code">transports</code> — 候选（启发式），状态 UNVERIFIED</li>
+<li>→ python <code class="inline-code">screens</code> — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-未确认项与待核实项">6. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ python 候选映射待逐符号对照核实（symbol 级 map 未生成）</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 python 实现</li>
+<li>☐ 顶层符号提取为启发式正则，需人工抽样验证召回率</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-ink-reference-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

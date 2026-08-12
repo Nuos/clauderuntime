@@ -1,0 +1,78 @@
+{
+  "schema_version": "B3",
+  "date": "2026-08-11",
+  "program": "clauderuntime-source-aligned-7x5x14",
+  "single_objective": "Complete and verify all Reference-7 core components, Reference-5 subsystem layers, and CCR-14 cross-cutting runtime mechanisms against Claude Code 2.1.88 recovered source semantics.",
+  "clauderuntime_baseline": "def709361a86900920bf1d6b75134fdc9bc59def",
+  "reference_source": {
+    "repository": "ChinaSiro/claude-code-sourcemap",
+    "commit": "a8a678cb6244e6770e1e421767ff0987a1d95549",
+    "claude_code_version": "2.1.88"
+  },
+  "paper": "arXiv:2604.14228v2",
+  "reference_7": [
+    "User",
+    "Interfaces",
+    "Agent Loop",
+    "Permission System",
+    "Tools",
+    "State & Persistence",
+    "Execution Environment"
+  ],
+  "reference_5": [
+    "Surface Layer",
+    "Core Layer",
+    "Safety / Action Layer",
+    "State Layer",
+    "Backend Layer"
+  ],
+  "ccr_14": [
+    "Hook Runtime",
+    "Authorization Pipeline",
+    "Context Shaping Pipeline",
+    "Context Assembly / Injection",
+    "Tool Pool / Capability Assembly",
+    "Tool Orchestration",
+    "Streaming Tool Execution",
+    "Recovery / Resilience Controller",
+    "Result Normalization / Result Budget",
+    "Session / Transcript Runtime",
+    "Subagent Orchestration",
+    "Isolation Runtime",
+    "Trust Lifecycle",
+    "Runtime Config / Feature Gate Control Plane"
+  ],
+  "allowed_completion_statuses": [
+    "EXACT",
+    "SEMANTIC_EQUIVALENT",
+    "PYTHON_ADAPTATION_VERIFIED"
+  ],
+  "incomplete_statuses": [
+    "PARTIAL",
+    "UNKNOWN",
+    "MISSING"
+  ],
+  "non_core_completion_statuses": [
+    "PRODUCT_EXTENSION",
+    "INTENTIONAL_DIVERGENCE"
+  ],
+  "work_classes": [
+    "CORE_REQUIRED",
+    "EVIDENCE_REQUIRED",
+    "DEFERRED"
+  ],
+  "exit_gate": {
+    "reference_7_complete": "7/7",
+    "reference_5_complete": "5/5",
+    "ccr_14_complete": "14/14",
+    "critical_unknown": 0,
+    "critical_partial": 0,
+    "critical_missing": 0,
+    "critical_undocumented_divergence": 0,
+    "source_map": "complete",
+    "callgraph": "complete",
+    "behavior_safety_state_fault_tests": "green",
+    "cross_surface": "equivalent",
+    "head_validation": "reproducible"
+  }
+}

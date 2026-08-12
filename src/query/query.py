@@ -69,6 +69,7 @@ from .terminal import (
     TerminalHolder,
     set_terminal,
 )
+from .turn_steps import TURN_STEPS, TurnTracer
 from .transitions import QueryState, Transition
 from ..services.compact.pipeline import (
     CompressionPipeline,
@@ -137,6 +138,11 @@ class QueryParams:
     # query.ts:276; --fallback-model in headless). Session-sticky switch
     # via provider.model; never persisted to settings.
     fallback_model: str | None = None
+    # Wave 1 F1 — 9-step turn trace. Default off (near-zero overhead);
+    # when enabled the query loop records each turn's 9-step sequence
+    # (settings → state → context → shapers → model → tool dispatch →
+    # permission → execution → stop/continue) via src/query/turn_steps.py.
+    trace_steps: bool = False
     # ch05 round-4 note — N/A-by-architecture on the LIVE paths: the
     # adapter's build_effective_system_prompt already injects CLAWCODEX.md
     # ("## Project Instructions") and the date via the SYSTEM prompt, so
@@ -719,7 +725,10 @@ async def query(
         tool_use_context=params.tool_use_context,
         max_output_tokens_override=params.max_output_tokens_override,
     )
+    # Wave 1 F1 — 9-step turn trace（默认关闭，零开销）
+    trace = TurnTracer(enabled=params.trace_steps)
     config = build_query_config()
+    trace.emit(TURN_STEPS.SETTINGS_RESOLUTION, 0, "build_query_config")
     # Created once per query() call, persisting across turns — mirrors TS
     # query.ts:311 (state built before the while(true) at :327). Any
     # successful tool result resets the counters inside the guard.
@@ -820,6 +829,7 @@ async def query(
         has_attempted_reactive_compact = state.has_attempted_reactive_compact
         max_output_tokens_override = state.max_output_tokens_override
         turn_count = state.turn_count
+        trace.emit(TURN_STEPS.MUTABLE_STATE_INIT, turn_count, f"messages={len(messages)}")
 
         violation = _budget_violation()
         if violation is not None:
@@ -838,10 +848,12 @@ async def query(
                 )
                 return
 
+        trace.emit(TURN_STEPS.CONTEXT_ASSEMBLY, turn_count, f"messages={len(messages)}")
         yield StreamEvent(type="stream_request_start")
 
         # --- Phase 0: Compression Pipeline ---
         # Mirrors TS query loop Phase 0: toolResultBudget → snip → microcompact → collapse → autocompact
+        trace.emit(TURN_STEPS.PRE_MODEL_SHAPERS, turn_count, "compression_pipeline")
         snip_tokens_freed = 0
         if params.pipeline_config is not None:
             try:
@@ -1013,6 +1025,7 @@ async def query(
                     )
                     return
                 _streamed_any[0] = False
+                trace.emit(TURN_STEPS.MODEL_CALL, turn_count, f"attempt={_general_attempts}")
                 try:
                     returned_assistants, returned_tool_blocks = await _call_model_sync(
                         provider=params.provider,
@@ -1785,6 +1798,8 @@ async def query(
         # to avoid touching ToolContext's public surface.
         setattr(tool_use_context, "_active_provider", params.provider)
 
+        trace.emit(TURN_STEPS.TOOL_DISPATCH, turn_count, f"tool_blocks={len(tool_use_blocks)}")
+        trace.emit(TURN_STEPS.PERMISSION_GATE, turn_count, "execute_tool_round")
         round_state = ToolRoundState(context=tool_use_context)
         async for message in execute_tool_round(
             tool_use_blocks=tool_use_blocks,
@@ -1796,6 +1811,7 @@ async def query(
         tool_use_context = round_state.context
         tool_results = round_state.results
         hook_stopped = round_state.hook_stopped
+        trace.emit(TURN_STEPS.TOOL_EXECUTION, turn_count, f"results={len(tool_results)}")
 
         if _diag:
             logger.warning(
@@ -1911,6 +1927,7 @@ async def query(
         for inj in injected_messages:
             yield inj
 
+        trace.emit(TURN_STEPS.STOP_CONTINUE, turn_count, "continue:next_turn")
         state = QueryState(
             messages=[
                 *messages,

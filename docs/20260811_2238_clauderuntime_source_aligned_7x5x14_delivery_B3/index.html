@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>ClaudeRuntime B3 总交付包</title>
+<style>
+:root{
+ --bg:#f5f7fb;--paper:#fff;--ink:#172033;--muted:#667085;--blue:#0b4da2;
+ --blue2:#153b75;--teal:#0b7f77;--line:#d7deea;--soft:#eef4ff;
+ --warn:#fff7e8;--danger:#fff1f1;--code:#0f1e34;
+}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;line-height:1.72;font-size:14px}
+.layout{display:grid;grid-template-columns:300px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow:auto;background:#0d2346;color:#eaf2ff;padding:22px 18px;border-right:1px solid #193968}
+.brand{font-size:18px;font-weight:800;line-height:1.35;margin:0 0 8px}.subbrand{font-size:12px;color:#bcd0ef;margin-bottom:18px}
+nav a{display:block;color:#e7effc;padding:7px 9px;border-radius:8px;font-size:12px;margin:1px 0;text-decoration:none}
+nav a.l2{padding-left:18px;color:#cfe0fa}nav a.l3{padding-left:30px;color:#aec6e8;font-size:11px}nav a:hover{background:#173865}
+main{padding:34px 42px 70px;max-width:1500px;width:100%}
+.hero{background:linear-gradient(135deg,#0f356f,#0b4da2 58%,#0b7f77);color:#fff;border-radius:18px;padding:32px 36px;margin-bottom:22px;box-shadow:0 10px 30px rgba(24,53,101,.16)}
+.hero h1{margin:0 0 8px;font-size:30px}.hero p{margin:0;color:#e4efff}
+article{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:28px 34px;box-shadow:0 4px 18px rgba(29,48,84,.05)}
+h1{font-size:29px;color:#0f2f61}h2{font-size:23px;color:#0f2f61;margin-top:34px;padding-top:8px;border-top:1px solid #edf0f4}
+h3{font-size:18px;color:#174d91;margin-top:25px}h4{font-size:15px;color:#315681}
+a{color:var(--blue)}blockquote{margin:16px 0;padding:13px 17px;border-left:4px solid var(--teal);background:#f1fbf9}
+pre{white-space:pre-wrap;background:var(--code);color:#e7f0ff;padding:16px 18px;border-radius:12px;overflow:auto;font-size:13px;line-height:1.55}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#f0f3f8;padding:1px 5px;border-radius:4px}
+pre code{background:transparent;padding:0}
+table{border-collapse:collapse;width:100%;margin:12px 0 22px;font-size:13px}th,td{border:1px solid #d8dfeb;padding:9px 11px;vertical-align:top}th{background:#edf4ff;text-align:left;color:#153b75}
+strong{color:#112d55}.meta{font-size:12px;color:#e4efff}.footer{font-size:12px;color:#667085;text-align:center;margin-top:22px}
+.notice{background:#fff7e8;border:1px solid #f3d49a;padding:12px 15px;border-radius:10px;margin-bottom:18px}
+@media(max-width:980px){.layout{grid-template-columns:1fr}aside{position:relative;height:auto}main{padding:18px 12px 40px}article{padding:22px 18px}.hero{padding:24px 20px}}
+@media print{aside{display:none}.layout{display:block}main{padding:0}article{box-shadow:none;border:0}.hero{box-shadow:none}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <div class="brand">ClaudeRuntime B3 总交付包</div>
+  <div class="subbrand">Source-Aligned 7×5×14</div>
+  <nav><a class="" href="#b3-总交付包入口">B3 总交付包入口</a>
+<a class="l2" href="#唯一开发目标">唯一开发目标</a>
+<a class="l2" href="#主文档">主文档</a>
+<a class="l2" href="#ccr-14">CCR-14</a>
+<a class="l2" href="#html-兼容说明">HTML 兼容说明</a></nav>
+</aside>
+<main>
+  <div class="hero">
+    <h1>ClaudeRuntime B3 总交付包</h1>
+    <p>Source-Aligned 7×5×14</p>
+  </div>
+  <div class="notice"><strong>离线可查看：</strong>本文件 CSS 全部内联，不依赖图片、CDN 或外部脚本。直接双击即可打开。</div>
+  <article><h1 id="b3-总交付包入口">B3 总交付包入口</h1>
+<blockquote>
+<p><strong>直接打开本文件即可。</strong> 本页及两份主 HTML 都是 standalone 文件，不依赖任何外部资源。</p>
+</blockquote>
+<h2 id="唯一开发目标">唯一开发目标</h2>
+<p>完整实现并验证：</p>
+<ul>
+<li><strong>Reference-7：7 个核心功能组件</strong></li>
+<li><strong>Reference-5：5 层系统架构</strong></li>
+<li><strong>CCR-14：14 个 Runtime 横切机制</strong></li>
+</ul>
+<p>并使关键运行语义与 Claude Code <code>2.1.88</code> recovered source 一致。</p>
+<h2 id="主文档">主文档</h2>
+<ul>
+<li><a href="03_CLAUDE_CODE_SOURCE_ALIGNED_RULE_BIBLE_v4.0.html">规则圣经 v4.0</a></li>
+<li><a href="02_SINGLE_OBJECTIVE_DEVELOPMENT_PLAN_B3.html">唯一目标开发计划</a></li>
+<li><a href="01_CURRENT_BASELINE_DIAGNOSTIC_B3.md">完整诊断基线</a></li>
+<li><a href="04_7x5x14_CLOSURE_MATRIX_B3.md">7×5×14 Closure Matrix</a></li>
+<li><a href="05_TAXONOMY_AND_TERMINOLOGY_CONSTITUTION_B3.md">分类与术语宪法</a></li>
+<li><a href="06_BASELINE_MANIFEST_B3.json">机器可读 Baseline Manifest</a></li>
+<li><a href="07_SOURCE_ALIGNMENT_CHANGELOG_B3.md">B2→B3 Changelog</a></li>
+</ul>
+<h2 id="ccr-14">CCR-14</h2>
+<ol>
+<li>Hook Runtime</li>
+<li>Authorization Pipeline</li>
+<li>Context Shaping Pipeline</li>
+<li>Context Assembly / Injection</li>
+<li>Tool Pool / Capability Assembly</li>
+<li>Tool Orchestration</li>
+<li>Streaming Tool Execution</li>
+<li>Recovery / Resilience Controller</li>
+<li>Result Normalization / Result Budget</li>
+<li>Session / Transcript Runtime</li>
+<li>Subagent Orchestration</li>
+<li>Isolation Runtime</li>
+<li>Trust Lifecycle</li>
+<li>Runtime Config / Feature Gate Control Plane</li>
+</ol>
+<h2 id="html-兼容说明">HTML 兼容说明</h2>
+<p>若从 ZIP 内直接点击 HTML，某些系统/应用不会渲染压缩包内部网页。<strong>请先解压 ZIP，再打开 <code>index.html</code>。</strong></p>
+<p>规则圣经和开发计划的 HTML 均：</p>
+<ul>
+<li>UTF-8；</li>
+<li>inline CSS；</li>
+<li>无图片依赖；</li>
+<li>无 CDN；</li>
+<li>无外部 JavaScript；</li>
+<li>可通过 <code>file://</code> 直接打开。</li>
+</ul>
+</article>
+  <div class="footer">ClaudeRuntime Source-Aligned 7×5×14 — B3</div>
+</main>
+</div>
+</body>
+</html>
