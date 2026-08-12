@@ -10,14 +10,75 @@
 
 | Wave | 阶段 | 状态 |
 |---|---|---|
-| 0 | Reference Contract Freeze | **进行中**（阶段一盘点基础设施已完成；reference 侧盘点与双向映射核实待办） |
-| 1 | Canonical Core Spine | 未开始 |
-| 2 | Safety / Action Spine | 未开始 |
-| 3 | State / Session / Trust Spine | 未开始 |
-| 4 | Isolation / Backend Spine | 未开始 |
+| 0 | Reference Contract Freeze | **主体完成**（盘点基础设施 + 全模块盘点 + reference 侧盘点 + 双向映射 + P0 三包 symbol 对照 + callgraph + Exit Gate 检查表） |
+| 1 | Canonical Core Spine | **完成**（F1 9-step trace / F2 config 快照 / F3 abort 清理 / F4 recovery 差分 / F5 terminal 差分，全量 10053） |
+| 2 | Safety / Action Spine | **完成**（F6 权限链 / F7 tool pool / F8 双路径 / F9 result 契约，全量 10076） |
+| 3 | State / Session / Trust Spine | **第一批完成**（F11 transcript / F12 resume 现状锁定 / F13 trust，全量 10088；resume 真重入接线登记 UNKNOWN 缺口） |
+| 4 | Isolation / Backend Spine | **未开始**（Real Sandbox 五边界为下一优先级，B3 诊断 7.1 已坐实） |
 | 5 | Cross-Surface / Crosscut Closure | 未开始 |
 
 ## 变更日志
+
+### 2026-08-12 — W0~W3 整体核验（功能/模块结构/目录结构/7 组件/规则圣经合规）
+
+**核验结果（详见 `16_W0_W3_VERIFICATION_REPORT.md`）**
+
+| 维度 | 判定 |
+|---|---|
+| 功能 | ✅ 全量 **10088 passed / 0 failed**（两次复跑稳定），本次新增 82 项测试（12 文件） |
+| 模块结构 | ✅ 55 模块 R5 五层归类清晰，无第二套 core（agent_loop_compat 为适配器） |
+| 目录结构 | ✅ Python 合理边界（docs/src/scripts/tests/ui-desktop/ui-tui），未为 TS 目录外观破坏 Python 结构 |
+| 7 核心组件 | ⚠️ 6/7 有实现+验证；**R7-07 Real Sandbox 缺口**（NoSandboxBackend 唯一 backend，execution/sandbox.py） |
+| 规则圣经合规 | ⚠️ 9-step/双路径/Stop/Safety 已验证；**Exit Gate 未通过**（R7-07 + resume 真重入 + 大量 UNKNOWN） |
+
+**关键发现（如实登记，不冒充完成）**
+
+1. B3 诊断 7.1 坐实：Real Sandbox 未实现 → Wave 4 核心工作；
+2. B3 诊断 7.3 坐实：resume 真重入未接线（RunAgentParams.context_messages 已就绪，接线点已定位）；
+3. 术语澄清：`STRUCTURAL_VERIFIED` = 映射证据状态 ≠ 完成状态（EXACT/SEMANTIC_EQUIVALENT/PYTHON_ADAPTATION_VERIFIED），所有标注处均同步写明"行为差分留 Wave X"，未冒充 complete；
+4. 既有 flaky 已修复/登记：test_review_fork（Memory 工具 enabled 依赖全局 settings 顺序）、test_unknown_fails_closed（workspace_trusted=None 读全局会话信任状态，测试显式传参修复）。
+
+**最终结论**：W0~W3 开发内容整体核验通过（功能/结构/目录/合规），但 7×5×14 Exit Gate 未达到——按规则圣经 §18，继续完成 7×5×14，**Wave 4 Isolation/Backend 为下一优先级**。
+
+### 2026-08-12 — Wave 3 第一批：State/Session/Trust 验证（F11–F13 + F12 现状锁定）
+
+**完成项**
+
+1. **F11 transcript 契约**（`tests/test_transcript_contract.py` 5 项）：append-oriented 读写回环、**tail crash tolerance**（残缺 JSONL 尾行不抛）、resume_session 重建（messages/metadata/success）、缺 metadata fail-closed、snip boundary（compact 标记）处理。
+2. **F12 resume 现状锁定**（`tests/test_resume_agent_contract.py` 4 项）：race-safe re-registration（非终态拒绝/任务缺失原因）、transcript replay 计数、损坏 transcript 容错（resume without history）。
+3. **F13 trust lifecycle**（`tests/test_pre_trust_gate.py` 6 项）：trusted 来源放行、project/local 需 workspace trust、**unknown fail-closed**、**session trust 不因 resume 恢复**（workspace_trusted=False → project 仍拒）。
+4. **缺口登记（不冒充完成）**：B3 诊断 7.3 坐实——`resume_agent_background` 不驱动 model call（docstring 声明），`RunAgentParams.context_messages` 已就绪但 resume→run_agent 接线未完成（需扩展参数来源：agent_definition/provider），登记 UNKNOWN 遗留项。
+
+**验证结果**
+
+- Wave 3 新测试 15/15；相关回归 190 passed（1 项既有 flaky：test_review_fork 的 Memory 工具 enabled 依赖全局 settings 顺序，非本次引入，全量顺序下通过）
+- 全量 pytest：后台验证中
+
+**已知缺口（保持 UNKNOWN）**
+
+1. resume 真重入 model 驱动未接线（接线点已定位：resume_agent_background → RunAgentParams.context_messages）；
+2. subagent summary return / sidechain 结构由既有 transcript 机制承载（TranscriptWriter=sidechain 载体），专项测试留 Wave 3 后续。
+
+### 2026-08-12 — Wave 2 第一批：Safety/Action Spine 功能开发（F6–F9）
+
+**完成项**
+
+1. **F6 权限安全链差分**（`tests/test_permission_safety_parity.py` 4 项）：classifier 不可用 + headless → deny（不 silent allow）；classifier 不可用 + 交互 → 保持 ask；headless fail-closed 决策带可解释 reason（F10 附带验证）；**hook allow 只产出 marker 不直接决定**（deny/safety 不可被 hook 越过，tool_hooks.py 不变式验证）。
+2. **F7 tool pool 四阶段投影**（`tests/test_tool_pool_assembly.py` 5 项）：builtin 排序连续前缀、MCP 后置、deny 同时过滤 builtin/MCP、同名 dedupe builtin 胜出、get_tools 的 deny+enabled 过滤。
+3. **F8 Streaming/Batched 双路径**（`tests/test_dual_path_parity.py` 6 项）：并发分类 fail-closed（未知工具/非 dict 输入 → serial）、safe 合并/交替拆分、concurrent batch 并行执行（完成乱序证明）、streaming 复用同一并发判定（执行中工具阻塞 unsafe 新工具）。
+4. **F9 result 契约**（`tests/test_tool_result_contract.py` 7 项）：tool_use_id 配对、抛错 RAW 无包裹、40KB 截断、stderr 追加、小内容内联/大内容落盘（'x' 模式防重写）/JSON 持久化。
+5. 测试中确认的既有实现质量：deny-first 5 步链、tool pool 缓存语义（builtin 前缀防 prompt-cache 失效）、can_use_tool 缺省 fail-closed——均与 reference 语义一致，无需代码修改。
+
+**验证结果**
+
+- Wave 2 新测试 22/22；相关回归（含既有 permission/tool parity）= 57 passed
+- 全量 pytest：后台验证中
+
+**已知缺口（保持 UNKNOWN）**
+
+1. 权限链行为差分（deny-first 语义 vs reference permissions.ts 全向量）由既有 parity 测试覆盖，本轮补边界；
+2. F10 权限链 trace 深化（决策 reason 覆盖已随 F6 验证）——如需显式 trace 基础设施留后续；
+3. Wave 3 State/Session/Trust 未开始。
 
 ### 2026-08-12 — Wave 0 收尾：tools/permissions symbol 对照 + callgraph（w0g 完成主体）
 

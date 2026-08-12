@@ -86,6 +86,20 @@
 
 记录格式：每个模块按时间顺序追加动作条目；状态升级时同步更新第 2 节总表。当前全部模块仅有 Wave 0 初始动作：
 
+### 2026-08-12 — state/memory/agent Wave 3 验证（F11–F13）
+
+1. F11 transcript 契约 5 项（append/tail 容错/resume 重建/snip boundary）。
+2. F12 resume 现状锁定 4 项（race guard/replay 计数/损坏容错）；**resume 真重入未接线登记为 UNKNOWN 缺口**（接线点：resume_agent_background → RunAgentParams.context_messages，需补 agent_definition/provider 来源）。
+3. F13 trust lifecycle 6 项（pre_trust gate：trusted 来源/workspace trust 门/fail-closed/session trust 不恢复）。
+
+### 2026-08-12 — permissions/tool_system Wave 2 功能开发（F6–F9）
+
+1. F6 权限安全链差分 4 项：classifier fail-closed、headless fail-closed、hook marker 不变式（deny 不可被 hook 越过）。
+2. F7 tool pool 投影 5 项：builtin 前缀/MCP 后置/dedupe/deny 过滤。
+3. F8 双路径 6 项：并发分类 fail-closed、并行执行、streaming 并发判定复用。
+4. F9 result 契约 7 项：tool_use_id 配对、RAW 错误、持久化。
+5. 既有实现与 reference 语义一致（无需代码修改）；两模块开发状态维持 MAPPING_VERIFYING，行为差分已覆盖核心路径。
+
 ### 2026-08-12 — tools/permissions symbol 对照 + callgraph（Wave 0 收尾主体完成）
 
 1. permissions 落点定位：reference `utils/permissions/` ↔ python `permissions/`（PY_ONLY 缺口消除）。
