@@ -587,7 +587,10 @@ def make_agent_tool(
             description=description,
             prompt=prompt,
             agent_type=agent_type,
+            selected_agent=run_params.agent_definition,
+            model=run_params.model,
             abort_controller=_async_abort,
+            resume_run_params=run_params,
             registry=context.runtime_tasks,
         )
         # ``register_async_agent`` populated ``output_file`` with the

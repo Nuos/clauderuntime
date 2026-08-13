@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from ...context import ToolContext
+from src.tool_system.errors import ToolPermissionError
 from src.tasks.local_shell import LocalShellTaskState
 from src.tasks_core import generate_task_id
 from src.utils.shell_platform import (
@@ -77,6 +78,36 @@ def spawn_background_bash(
     # Resolve the argv BEFORE opening the log handle so a missing Git Bash
     # (BashNotFoundError, Windows) propagates without leaking the open file.
     argv = bash_argv(wrapped)
+
+    # 后台命令必须执行与前台 Bash 相同的隔离判定。Monitor 和直接调用方也会进入此处，
+    # 因此在进程创建入口统一加固，避免业务通过“转后台”绕过沙箱；这里只调整启动参数，
+    # 后台进程登记、日志回收和退出监管仍由本模块负责。
+    try:
+        from src.execution import (
+            SandboxRequest,
+            sandbox_command_argv,
+            sandbox_policy_from_settings,
+        )
+        from src.permissions.sandbox_guard import is_sandbox_requested
+        from src.settings.settings import get_settings
+
+        settings = get_settings()
+        if is_sandbox_requested(settings):
+            policy = sandbox_policy_from_settings(settings)
+            invocation = context.execution_boundary.prepare_sandbox(
+                SandboxRequest(argv=tuple(argv), cwd=cwd), policy,
+            )
+            if not invocation.allowed:
+                raise ToolPermissionError(invocation.reason)
+            if invocation.isolated:
+                argv = list(sandbox_command_argv(invocation, policy))
+    except ToolPermissionError:
+        raise
+    except Exception:  # noqa: BLE001 - 隔离准备异常时保留原有启动兼容路径
+        import logging as _logging
+        _logging.getLogger(__name__).debug(
+            "[sandbox] background Bash boundary preparation failed", exc_info=True,
+        )
 
     output_path = _bg_output_dir() / f"{task_id}.log"
     output_path.touch(exist_ok=True)

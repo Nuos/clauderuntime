@@ -169,6 +169,46 @@ class TestCompressionPipelineBehavior(unittest.TestCase):
 
         self.assertIn("snip_compact", result.layers_applied)
 
+    def test_microcompact_default_gate_is_a_noop(self) -> None:
+        """C3 contract: main-thread MC remains off unless explicitly gated on."""
+        called = False
+
+        def mock_microcompact(msgs, **kwargs):
+            nonlocal called
+            called = True
+            return msgs, 1
+
+        with patch("src.services.compact.pipeline.microcompact_typed_messages", mock_microcompact):
+            result = asyncio.run(run_compression_pipeline(
+                _make_messages(), config=PipelineConfig(provider=None),
+            ))
+
+        self.assertFalse(called)
+        self.assertNotIn("microcompact", result.layers_applied)
+
+    def test_autocompact_receives_tokens_after_cheap_layer_savings(self) -> None:
+        """C3 accounting: layer 5 sees the remaining, not original, budget."""
+        observed_input_tokens: list[int] = []
+
+        async def mock_autocompact(messages, input_tokens, *args, **kwargs):
+            observed_input_tokens.append(input_tokens)
+            return None
+
+        config = PipelineConfig(
+            provider=MagicMock(), model="test-model", early_exit_tokens=999_999,
+        )
+        with patch(
+            "src.services.compact.pipeline.apply_tool_result_budget",
+            lambda msgs, **kwargs: (msgs, 23),
+        ), patch(
+            "src.services.compact.pipeline.auto_compact_if_needed", mock_autocompact,
+        ):
+            asyncio.run(run_compression_pipeline(
+                _make_messages(), input_token_count=100, config=config,
+            ))
+
+        self.assertEqual(observed_input_tokens, [77])
+
 
 class TestCompressionResultStructure(unittest.TestCase):
     """CompressionResult has expected fields."""

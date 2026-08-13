@@ -1,0 +1,19 @@
+schema_version: 1
+reference_target: claude-code-2.1.88
+status: VERIFIED
+layers:
+  - {order: 1, name: tool_result_budget, python: src/services/compact/pipeline.py, trigger: oversized_tool_results, noop: within_budget, durable: replacement_records}
+  - {order: 2, name: snip_compact, python: src/services/compact/pipeline.py, trigger: history_snip_threshold, noop: insufficient_history, durable: boundary_message}
+  - {order: 3, name: microcompact, python: src/context_system/microcompact.py, trigger: explicit_gate_or_time_config, noop: default_disabled, durable: local_projection_only}
+  - {order: 4, name: context_collapse, python: src/context_system/context_collapse.py, trigger: enabled_commits_present, noop: no_commits, durable: collapse_store}
+  - {order: 5, name: autocompact, python: src/services/compact/autocompact.py, trigger: context_threshold, noop: under_threshold, durable: compact_summary}
+invariants:
+  - cheap_layers_run_before_expensive_layers
+  - token_savings_are_subtracted_before_autocompact
+  - default_microcompact_is_noop
+  - layer_failure_does_not_skip_unrelated_later_layers
+tests:
+  - tests/parity/test_compression_pipeline_parity.py
+  - tests/test_compression_pipeline.py
+  - tests/test_microcompact.py
+  - tests/test_autocompact.py

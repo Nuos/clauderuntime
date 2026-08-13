@@ -1,0 +1,32 @@
+schema_version: 1
+reference_target: claude-code-2.1.88
+baseline_commit: 4a77f068649e18351e4c51d97e5a6667c9c4a5fd
+transitions:
+  - id: ST-RESUME-01
+    mechanism: resume-background-agent
+    reference: "terminal → transcript/meta reconstruct → running → runAgent → terminal"
+    python: "terminal → race-safe claim → transcript read → running registration → terminal"
+    missing: "Running registration must invoke canonical agent/query loop with reconstructed typed messages and resume prompt."
+    status: BLOCKED
+    verifies: [R7-06, R5-04, CCR-10, CCR-11]
+  - id: ST-SANDBOX-01
+    mechanism: sandbox-command
+    reference: "settings/config → dependency/platform gate → sandbox wrapper → isolated command → diagnostic/exit"
+    python: "settings/policy → MacOSSandboxBackend capability probe → sandbox-exec profile → dedicated process tree → TERM→grace→KILL/exit"
+    missing: "Network domain allowlist translation (binary allowAll is implemented), Linux/Windows real backends, and expanded secret-scrub coverage for background paths."
+    status: PARTIAL
+    verifies: [R7-07, R5-05, CCR-12]
+  - id: ST-TOOL-01
+    mechanism: streaming-tool-execution
+    reference: "queued → authorized → executing → completed → ordered yield"
+    python: "tool intent → execute_tool_round → result → query continuation"
+    missing: "Cross-surface runtime and fault differential evidence."
+    status: PARTIAL
+    verifies: [CCR-06, CCR-07, CCR-09]
+  - id: ST-SCHEDULE-01
+    mechanism: scheduled-task
+    reference: "configured → due → wakeup → queued → execute → persist/reschedule|cancel"
+    python: "CronJob → due → PendingWakeup → SessionCronScheduler → snapshot/restore"
+    missing: "Permission and isolation propagation through a real scheduled action."
+    status: PARTIAL
+    verifies: [CCR-14]

@@ -21,19 +21,19 @@ from src.execution.policy import (
     ConfigurableNetworkPolicy,
     MinimalEnvPolicy,
 )
-from src.execution.sandbox import NoSandboxBackend, default_sandbox_backend
+from src.execution.sandbox import MacOSSandboxBackend, NoSandboxBackend, default_sandbox_backend
 
 
 class TestIsolationBoundaryIndependence(unittest.TestCase):
     """Permission ≠ Isolation、五边界独立。"""
 
     def test_permission_is_not_isolation(self):
-        """sandbox backend 与 permission 层分离：NoSandbox 存在但不提供隔离。"""
+        """sandbox backend 与 permission 层分离，能力必须显式报告。"""
         backend = default_sandbox_backend()
-        self.assertIsInstance(backend, NoSandboxBackend)
+        self.assertIsInstance(backend, (NoSandboxBackend, MacOSSandboxBackend))
         cap = backend.capability()
-        self.assertFalse(cap.provides_isolation)
-        self.assertIn("no", cap.reason.lower())
+        self.assertIsInstance(cap.provides_isolation, bool)
+        self.assertTrue(cap.reason)
 
     def test_five_boundaries_independent(self):
         """ExecutionBoundary 组合五个独立可替换组件。"""

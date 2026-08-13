@@ -72,6 +72,16 @@ class SandboxSettings:
     # specific platforms; on a platform NOT listed, TS treats sandbox as
     # disabled (no gate, no warning). Empty = all platforms.
     enabled_platforms: list[str] = field(default_factory=list)
+    # B4 C1：本地执行边界当前可准确实现的沙箱文件系统规则。路径由实际操作系统后端
+    # 解释，尚未支持的字段继续保留在 ``extra``，避免升级配置时丢失业务策略。
+    allow_read_paths: list[str] = field(default_factory=list)
+    deny_read_paths: list[str] = field(default_factory=list)
+    allow_write_paths: list[str] = field(default_factory=list)
+    deny_write_paths: list[str] = field(default_factory=list)
+    # Seatbelt 当前只可靠支持“全开/全关”网络能力。域名白名单先保留为配置数据，在完成
+    # 安全的域名到地址固定规则前不下发，绝不能把域名白名单静默放宽为全网络访问。
+    allow_all_network: bool = False
+    allowed_network_hosts: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -334,6 +344,21 @@ class SettingsSchema:
                 allow_unsandboxed_commands=bool(_sb.get("allowUnsandboxedCommands", _sb.get("allow_unsandboxed_commands", True))),
                 excluded_commands=list(_sb.get("excludedCommands", _sb.get("excluded_commands", [])) or []),
                 enabled_platforms=list(_sb.get("enabledPlatforms", _sb.get("enabled_platforms", [])) or []),
+                allow_read_paths=list(_sb.get("allowReadPaths", _sb.get("allow_read_paths", [])) or []),
+                deny_read_paths=list(_sb.get("denyReadPaths", _sb.get("deny_read_paths", [])) or []),
+                allow_write_paths=list(_sb.get("allowWritePaths", _sb.get("allow_write_paths", [])) or []),
+                deny_write_paths=list(_sb.get("denyWritePaths", _sb.get("deny_write_paths", [])) or []),
+                allow_all_network=bool(
+                    (_sb.get("network", {}) or {}).get("allowAll", False)
+                    if isinstance(_sb.get("network", {}), dict)
+                    else _sb.get("allowAllNetwork", _sb.get("allow_all_network", False))
+                ),
+                allowed_network_hosts=list(
+                    ((_sb.get("network", {}) or {}).get("allowedDomains", [])
+                    if isinstance(_sb.get("network", {}), dict)
+                    else _sb.get("allowedNetworkHosts", _sb.get("allowed_network_hosts", [])))
+                    or []
+                ),
             )
         if "spinner_verbs" in known and isinstance(known["spinner_verbs"], dict):
             known["spinner_verbs"] = SpinnerVerbsSettings(**known["spinner_verbs"])

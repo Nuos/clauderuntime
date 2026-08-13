@@ -713,6 +713,39 @@ def _bash_call(tool_input: dict[str, Any], context: ToolContext) -> ToolResult:
                 output={"error": str(exc)},
                 is_error=True,
             )
+        # 保留 Bash 已有的中止控制和进程树监管。执行边界只有在确认操作系统沙箱真实可用
+        # 后才改写启动参数，不额外创建第二套进程执行器。
+        try:
+            from src.execution import (
+                SandboxRequest,
+                sandbox_command_argv,
+                sandbox_policy_from_settings,
+            )
+            from src.permissions.sandbox_guard import is_sandbox_requested
+            from src.settings.settings import get_settings
+
+            settings = get_settings()
+            if is_sandbox_requested(settings):
+                sandbox_policy = sandbox_policy_from_settings(settings)
+                invocation = context.execution_boundary.prepare_sandbox(
+                    SandboxRequest(
+                        argv=tuple(argv),
+                        cwd=Path(cwd),
+                        timeout_s=timeout_s,
+                    ),
+                    sandbox_policy,
+                )
+                if not invocation.allowed:
+                    raise ToolPermissionError(invocation.reason)
+                if invocation.isolated:
+                    argv = list(sandbox_command_argv(invocation, sandbox_policy))
+        except ToolPermissionError:
+            raise
+        except Exception:  # noqa: BLE001 - 隔离准备异常时保留既有 shell 路径
+            import logging as _logging
+            _logging.getLogger(__name__).debug(
+                "[sandbox] Bash boundary preparation failed", exc_info=True,
+            )
         run_result = _run_bash_with_abort(
             argv,
             cwd=str(cwd),

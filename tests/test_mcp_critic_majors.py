@@ -440,6 +440,38 @@ class TestConnectionManagerWriteMethods:
         assert "ghost" in (result.error or "")
 
     @pytest.mark.asyncio
+    async def test_reconnect_tool_discovery_failure_is_terminal_and_releases_client(self):
+        """A handshake is not Connected until its callable tool surface exists."""
+        mgr = MCPConnectionManager()
+        client = MagicMock()
+        client.list_tools = AsyncMock(side_effect=RuntimeError("tool listing down"))
+        client.close = AsyncMock()
+        config = ScopedMcpServerConfig(
+            config=McpStdioServerConfig(command="echo"), scope="user"
+        )
+        conn = ConnectedMCPServer(name="srv", config=config)
+
+        async def fake_connect(name, conf, *, auth_provider=None):
+            return client, conn
+
+        with patch(
+            "src.services.mcp.connection_manager.get_mcp_config_by_name",
+            return_value=config,
+        ), patch(
+            "src.services.mcp.connection_manager.connect_to_server",
+            new=fake_connect,
+        ):
+            with pytest.raises(RuntimeError, match="tool listing down"):
+                await mgr.reconnect_mcp_server("srv")
+
+        terminal = mgr.get_state("srv")
+        assert isinstance(terminal, FailedMCPServer)
+        assert "Tool discovery failed" in (terminal.error or "")
+        assert mgr.get_tools("srv") == []
+        assert "srv" not in mgr._clients
+        client.close.assert_awaited_once()
+
+    @pytest.mark.asyncio
     async def test_toggle_disabled_to_enabled_reconnects_atomically(self):
         mgr = MCPConnectionManager()
         config = ScopedMcpServerConfig(

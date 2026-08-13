@@ -1,0 +1,6 @@
+schema_version: 1
+history_of: ../latest.yaml
+snapshot_commit: 4a77f068649e18351e4c51d97e5a6667c9c4a5fd
+snapshot_date: 2026-08-13
+status: B4_C0_INITIALIZED
+note: "Frozen B4 starting scorecard. See latest.yaml for current counts."

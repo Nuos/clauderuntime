@@ -1,0 +1,36 @@
+schema_version: 1
+reference_target: claude-code-2.1.88
+baseline_commit: 4a77f068649e18351e4c51d97e5a6667c9c4a5fd
+divergences:
+  - id: B4-D01
+    class: MISSING_BEHAVIOR
+    severity: P0
+    reference: "utils/sandbox/sandbox-adapter.ts wraps commands in @anthropic-ai/sandbox-runtime."
+    python: "src/execution/sandbox.py::MacOSSandboxBackend probes and launches sandbox-exec with default-deny profile and cwd-scoped writes; other platforms retain NoSandboxBackend."
+    affected: [R7-07, R5-05, CCR-12]
+    required_resolution: "Complete network-domain allowlist translation, add Linux/Windows backends, and expand background secret/kill-tree E2E coverage."
+    status: OPEN
+  - id: B4-D02
+    class: MISSING_BEHAVIOR
+    severity: P0
+    reference: "tools/AgentTool/resumeAgent.ts reconstructs state then calls runAgent with promptMessages."
+    python: "src/agent/resume_agent.py::resume_agent_background rebuilds RunAgentParams, hydrates transcript messages, starts canonical run_agent, and persists terminal status."
+    affected: [R7-06, R5-04, CCR-10, CCR-11]
+    required_resolution: "Completed with explicit failure when live restart dependencies are unavailable."
+    status: CLOSED
+  - id: B4-D03
+    class: EVIDENCE_GAP
+    severity: P1
+    reference: "services/compact and context assembly paths"
+    python: "src/services/compact + src/context_system/prompt_assembly.py"
+    affected: [R5-02, CCR-03, CCR-04]
+    required_resolution: "Completed in compact-5-matrix.yaml and context-9-matrix.yaml with C3 tests."
+    status: CLOSED
+  - id: B4-D04
+    class: EVIDENCE_GAP
+    severity: P1
+    reference: "surfaces, hooks, MCP and scheduled-task lifecycles"
+    python: "ui-tui + ui-desktop + src/hooks + src/services/mcp + src/scheduled_tasks"
+    affected: [R7-01, R7-02, CCR-01, CCR-05, CCR-07, CCR-08, CCR-11, CCR-14]
+    required_resolution: "Completed: same-input core/server comparison, streaming abort/error tests, Hook fault tests, and Subagent/MCP/Scheduler lifecycle tests."
+    status: CLOSED

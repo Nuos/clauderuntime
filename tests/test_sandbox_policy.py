@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from src.execution.sandbox import (
+    MacOSSandboxBackend,
     NoSandboxBackend,
     SandboxPolicy,
     SandboxRequest,
@@ -108,9 +109,11 @@ class TestSandboxPolicyFromSettings(unittest.TestCase):
         policy = sandbox_policy_from_settings(settings, platform="macos")
         self.assertFalse(policy.require_isolation)
 
-    def test_default_backend_is_no_sandbox(self):
-        """default_sandbox_backend 返回 NoSandboxBackend。"""
-        self.assertIsInstance(default_sandbox_backend(), NoSandboxBackend)
+    def test_default_backend_is_platform_selected(self):
+        """default_sandbox_backend 按平台选择真实 backend 或显式 fallback。"""
+        self.assertIsInstance(
+            default_sandbox_backend(), (NoSandboxBackend, MacOSSandboxBackend),
+        )
 
 
 if __name__ == "__main__":

@@ -75,6 +75,28 @@ class TestConnectionManager:
         await mgr.close_all()
         await mgr.close_all()  # no error
 
+    @pytest.mark.asyncio
+    async def test_close_all_removes_stale_connected_capabilities(self):
+        """Shutdown must not advertise tools whose client was closed."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from src.services.mcp.types import ConnectedMCPServer
+
+        mgr = MCPConnectionManager()
+        client = MagicMock()
+        client.close = AsyncMock()
+        tool = MagicMock()
+        mgr._clients["srv"] = client
+        mgr._tools["srv"] = [tool]
+        mgr._state["srv"] = ConnectedMCPServer(name="srv")
+
+        await mgr.close_all()
+
+        client.close.assert_awaited_once()
+        assert mgr.get_state("srv") is None
+        assert mgr.get_tools("srv") == []
+        assert mgr.all_tools() == []
+
 
 # ----------------------------------------------------------------------
 # WI-10.2 normalization 64-char truncation

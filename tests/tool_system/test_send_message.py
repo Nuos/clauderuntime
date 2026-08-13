@@ -277,26 +277,12 @@ async def test_concurrent_resume_race_only_one_winner(tmp_path: Path) -> None:
         ),
     )
 
-    # ch10 round-4 (critic M1) — the atomic claim still yields exactly one
-    # winner + one loser, but the winner now reports the honest "not yet
-    # supported" error (was a false "resumed" success) while the loser
-    # queues onto the re-registered running state.
+    # This fixture intentionally has no live resume recipe. Both callers must
+    # receive an explicit error; neither may observe a false running state.
     error_count = sum(1 for r in results if r.is_error)
-    queued_count = sum(
-        1 for r in results if not r.is_error
-        and "queued" in r.output["message"].lower()
-    )
-    assert error_count == 1, f"expected exactly 1 honest-error winner: {results}"
-    assert queued_count == 1, f"expected exactly 1 queued loser: {results}"
-
-    # The fresh state still has the resume prompt + the queued message in
-    # pending_messages (resume_agent_background's re-registration is
-    # unchanged; only the tool's message is honest).
+    assert error_count == 2, f"expected explicit errors without a recipe: {results}"
     final = ctx.runtime_tasks.get("a-race")
-    assert final.status == "running"
-    assert final.prompt in {"msg-A", "msg-B"}
-    other_msg = "msg-B" if final.prompt == "msg-A" else "msg-A"
-    assert other_msg in final.pending_messages
+    assert final.status == "completed"
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,6 @@
+schema_version: 1
+reference_target: claude-code-2.1.88
+baseline_commit: 4a77f068649e18351e4c51d97e5a6667c9c4a5fd
+symbols:
+  - {id: UMS-001, path: "utils/sandbox/sandbox-adapter.ts", symbol: "convertToSandboxRuntimeConfig", criticality: P0, target: B4-C1-real-sandbox-process-boundary, reason: "No Python config-to-real-isolation equivalent."}
+  - {id: UMS-002, path: "utils/sandbox/sandbox-adapter.ts", symbol: "SandboxManager.wrapWithSandbox", criticality: P0, target: B4-C1-real-sandbox-process-boundary, reason: "No isolated launcher/process-tree lifecycle equivalent."}

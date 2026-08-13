@@ -37,6 +37,8 @@ winner just registered).
 """
 from __future__ import annotations
 
+import asyncio
+import copy
 import logging
 from dataclasses import dataclass, replace
 from typing import Any, TYPE_CHECKING
@@ -44,6 +46,8 @@ from typing import Any, TYPE_CHECKING
 from src.agent.transcript import TranscriptReader
 from src.tasks.local_agent import (
     LocalAgentTaskState,
+    complete_agent_task,
+    fail_agent_task,
     register_async_agent,
 )
 from src.tasks_core import is_terminal_task_status
@@ -159,15 +163,9 @@ async def resume_agent_background(
     * Target not terminal / not present → ``resumed=False`` with a
       reason like ``"task not terminal"`` or ``"task not found"``.
 
-    **The resume run does NOT actually drive a model call in this
-    chunk.** Wiring the resumed lifecycle into ``run_agent`` requires
-    threading the reconstructed messages and the resume prompt through
-    ``RunAgentParams`` — that's a subsequent integration step. This
-    chunk lands the structural primitive (race-safe re-registration +
-    transcript replay scaffolding) so SendMessage's auto-resume
-    branch has something to call. The resumed entry's ``status`` is
-    ``"running"`` so other callers see it and queue rather than
-    re-resume.
+    返回成功表示已经启动真实的后台 ``run_agent`` 生命周期。如果原任务的运行依赖
+    已丢失（例如服务进程重启），则恢复终态并向调用方返回明确失败，避免业务侧看到
+    虚假的“运行中”状态。
     """
     runtime = context.runtime_tasks
     state = runtime.get(agent_id)
@@ -214,6 +212,40 @@ async def resume_agent_background(
             agent_id,
         )
 
+    recipe = getattr(prev, "resume_run_params", None)
+    if recipe is None:
+        runtime.update(
+            agent_id,
+            lambda current: replace(current, is_resuming=False)
+            if isinstance(current, LocalAgentTaskState) else current,
+        )
+        return ResumeResult(
+            resumed=False,
+            agent_id=agent_id,
+            replayed_message_count=len(replayed),
+            reason="live resume dependencies are unavailable; spawn a fresh agent",
+        )
+
+    from src.types.messages import Message, message_from_dict
+    from src.utils.abort_controller import AbortController
+
+    hydrated: list[Message] = []
+    for raw in replayed:
+        if isinstance(raw, Message):
+            hydrated.append(raw)
+        elif isinstance(raw, dict):
+            try:
+                hydrated.append(message_from_dict(raw))
+            except (TypeError, ValueError):
+                logger.warning("skipping invalid resumed message for %s", agent_id)
+
+    run_params = copy.copy(recipe)
+    run_params.prompt = prompt
+    run_params.agent_id = agent_id
+    run_params.is_async = True
+    run_params.context_messages = hydrated
+    run_params.abort_controller = AbortController()
+
     # Re-register the agent with a fresh running state. ``register_async_agent``
     # ``upsert``s, replacing the terminal entry. The new state has
     # ``is_resuming=False`` (default) so a future resume can fire if
@@ -228,8 +260,68 @@ async def resume_agent_background(
         selected_agent=prev.selected_agent,
         model=prev.model,
         tool_use_id=prev.tool_use_id,
+        abort_controller=run_params.abort_controller,
+        resume_run_params=run_params,
         registry=runtime,
     )
+
+    async def _drive_resumed_run() -> None:
+        from src.agent.run_agent import run_agent
+        from src.agent.transcript import TranscriptWriter
+        from src.utils.task_notification import enqueue_agent_notification
+
+        messages: list[Message] = []
+        transcript: TranscriptWriter | None = None
+        try:
+            transcript = TranscriptWriter(fresh_state.output_file)
+            async for message in run_agent(run_params):
+                messages.append(message)
+                transcript.append(message)
+
+            result_text = ""
+            for message in reversed(messages):
+                if getattr(message, "role", None) != "assistant":
+                    continue
+                content = getattr(message, "content", "")
+                if isinstance(content, str):
+                    result_text = content.strip()
+                elif isinstance(content, list):
+                    result_text = "\n".join(
+                        str(block.get("text", ""))
+                        for block in content
+                        if isinstance(block, dict) and block.get("type") == "text"
+                    ).strip()
+                if result_text:
+                    break
+            result_text = result_text or "(Subagent completed with no textual output.)"
+            complete_agent_task(agent_id, result_text=result_text, registry=runtime)
+            enqueue_agent_notification(
+                task_id=agent_id,
+                description=prev.description,
+                status="completed",
+                output_file=fresh_state.output_file,
+                final_message=result_text,
+                registry=runtime,
+            )
+        except Exception as exc:
+            fail_agent_task(agent_id, error=str(exc), registry=runtime)
+            enqueue_agent_notification(
+                task_id=agent_id,
+                description=prev.description,
+                status="failed",
+                output_file=fresh_state.output_file,
+                error=str(exc),
+                registry=runtime,
+            )
+            logger.exception("resumed agent %s failed", agent_id)
+        finally:
+            if transcript is not None:
+                transcript.close()
+
+    def _runner(_stop_event: Any) -> None:
+        asyncio.run(_drive_resumed_run())
+
+    context.task_manager.start(name=f"agent-resume:{agent_id}", target=_runner)
 
     return ResumeResult(
         resumed=True,

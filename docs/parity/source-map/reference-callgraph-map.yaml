@@ -1,0 +1,33 @@
+schema_version: 1
+reference_target: claude-code-2.1.88
+baseline_commit: 4a77f068649e18351e4c51d97e5a6667c9c4a5fd
+edges:
+  - id: CG-QUERY-TOOL
+    reference: {caller: "query.ts::query", callee: "services/tools/toolOrchestration.ts", evidence: SOURCE_EXTRACTED}
+    python: {caller: "src/query/query.py::query", callee: "src/query/tool_round.py::execute_tool_round"}
+    status: PARTIAL
+    verifies: [R7-03, R7-05, CCR-06]
+  - id: CG-SANDBOX-DECISION
+    reference: {caller: "tools/BashTool/shouldUseSandbox.ts::shouldUseSandbox", callee: "utils/sandbox/sandbox-adapter.ts::SandboxManager.isSandboxingEnabled", evidence: SOURCE_EXTRACTED}
+    python: {caller: "src/permissions/sandbox_guard.py::is_sandbox_requested", callee: "src/execution/sandbox.py::sandbox_policy_from_settings"}
+    status: BLOCKED
+    divergence: B4-D01
+    verifies: [R7-07, R5-05, CCR-12]
+  - id: CG-SANDBOX-WRAP
+    reference: {caller: "utils/sandbox/sandbox-adapter.ts::SandboxManager.wrapWithSandbox", callee: "utils/sandbox/sandbox-adapter.ts::BaseSandboxManager.wrapWithSandbox", evidence: SOURCE_EXTRACTED}
+    python: {caller: "src/execution/boundary.py::ExecutionBoundary.run_sandbox", callee: "src/execution/sandbox.py::NoSandboxBackend.run"}
+    status: PARTIAL
+    divergence: B4-D01
+    verifies: [R7-07, R5-05, CCR-12]
+    notes: "macOS default backend now probes and launches through sandbox-exec with a cwd-scoped write boundary and denied-by-default profile. Foreground Bash now obtains its launch argv through ExecutionBoundary while retaining its established abort supervisor; settings-to-profile translation remains incomplete."
+  - id: CG-RESUME-RUN
+    reference: {caller: "tools/AgentTool/resumeAgent.ts::resumeAgentBackground", callee: "tools/AgentTool/runAgent", evidence: SOURCE_EXTRACTED}
+    python: {caller: "src/agent/resume_agent.py::resume_agent_background", callee: "src/tasks/local_agent.py::register_async_agent"}
+    status: BLOCKED
+    divergence: B4-D02
+    verifies: [R7-06, R5-04, CCR-10, CCR-11]
+  - id: CG-MCP-TOOL
+    reference: {caller: "services/mcp/MCPConnectionManager.tsx", callee: "services/tools/toolOrchestration.ts", evidence: PENDING_SYMBOL_EXTRACTION}
+    python: {caller: "src/services/mcp", callee: "src/tool_system"}
+    status: PARTIAL
+    verifies: [CCR-05, CCR-11, CCR-14]

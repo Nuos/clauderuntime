@@ -147,6 +147,26 @@ class TestExecuteCommandHook:
         assert "timed out" in result.blocking_error.lower()
 
     @pytest.mark.asyncio
+    async def test_timeout_terminates_hook_process_tree_before_child_side_effect(self, tmp_path):
+        """A timed-out shell must not leave its background child alive."""
+        marker = tmp_path / "child-survived-timeout"
+        hook = HookConfig(
+            type="command",
+            command=(
+                "(sleep 0.4; touch " + str(marker) + ") & "
+                "sleep 10"
+            ),
+            timeout=80,
+        )
+        result = await _execute_command_hook(
+            hook, {"hook_event": "PreToolUse"}, timeout_ms=80
+        )
+
+        assert result.exit_code == -1
+        await asyncio.sleep(0.5)
+        assert not marker.exists(), "timed-out hook child must be terminated"
+
+    @pytest.mark.asyncio
     async def test_stdin_data_passed(self):
         hook = HookConfig(
             type="command",

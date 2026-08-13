@@ -13,6 +13,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 from src.agent.resume_agent import resume_agent_background
 from src.agent.transcript import TranscriptWriter
@@ -31,7 +32,15 @@ def _terminal_agent_state(agent_id: str, output_file: str) -> LocalAgentTaskStat
         agent_id=agent_id,
         agent_type="general-purpose",
         prompt="do the thing",
+        resume_run_params=SimpleNamespace(),
     )
+
+
+class _DeferredTaskManager:
+    def start(self, *, name, target):
+        self.name = name
+        self.target = target
+        return SimpleNamespace(name=name)
 
 
 class TestResumeAgentContract(unittest.TestCase):
@@ -41,6 +50,7 @@ class TestResumeAgentContract(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.tmp_dir = Path(self.tmp.name)
         self.context = ToolContext(workspace_root=self.tmp_dir)
+        self.context.task_manager = _DeferredTaskManager()
 
     def tearDown(self):
         self.tmp.cleanup()

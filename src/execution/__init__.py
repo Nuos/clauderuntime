@@ -21,6 +21,7 @@ from .policy import (
     default_network_policy,
 )
 from .sandbox import (
+    MacOSSandboxBackend,
     NoSandboxBackend,
     SandboxBackend,
     SandboxCapability,
@@ -30,6 +31,7 @@ from .sandbox import (
     SandboxRequest,
     current_sandbox_platform,
     default_sandbox_backend,
+    sandbox_command_argv,
     sandbox_policy_from_settings,
 )
 
@@ -42,6 +44,7 @@ __all__ = [
     "EnvPolicy",
     "ExecutionBoundary",
     "MinimalEnvPolicy",
+    "MacOSSandboxBackend",
     "NetworkDecision",
     "NetworkMode",
     "NetworkPolicy",
@@ -60,6 +63,7 @@ __all__ = [
     "default_execution_boundary",
     "default_network_policy",
     "default_sandbox_backend",
+    "sandbox_command_argv",
     "minimal_execution_boundary",
     "sandbox_policy_from_settings",
 ]

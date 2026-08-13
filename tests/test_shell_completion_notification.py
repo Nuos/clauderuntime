@@ -126,14 +126,25 @@ class TestSpawnReapIntegration:
     """critic #4: a REAL spawn_background_bash → reap → notification, not just
     the unit builder."""
 
-    def test_bg_bash_completion_notifies_the_model(self, tmp_path):
+    def test_bg_bash_completion_notifies_the_model(self, tmp_path, monkeypatch):
         import time
         from pathlib import Path
 
         from src.tool_system.context import ToolContext, ToolUseOptions
         from src.tool_system.tools.bash.background import spawn_background_bash
+        import src.utils.task_notification as notification_module
 
         clear_pending_notifications()
+        delivered: list[str] = []
+        real_enqueue = notification_module.enqueue_pending_notification
+
+        def record_enqueue(*, value, mode="task-notification"):
+            delivered.append(value)
+            real_enqueue(value=value, mode=mode)
+
+        monkeypatch.setattr(
+            notification_module, "enqueue_pending_notification", record_enqueue
+        )
         ctx = ToolContext(workspace_root=tmp_path)
         ctx.options = ToolUseOptions(tools=[])
         out = spawn_background_bash(
@@ -143,12 +154,11 @@ class TestSpawnReapIntegration:
         task_id = out["backgroundTaskId"]
         # wait for the reap thread to deliver
         for _ in range(100):
-            if peek_pending_notifications():
+            if delivered:
                 break
             time.sleep(0.05)
-        q = peek_pending_notifications()
-        assert q, "no completion notification delivered"
-        joined = "\n".join(str(n) for n in q)
+        assert delivered, "no completion notification delivered"
+        joined = "\n".join(delivered)
         assert 'Background command "quick fail" failed with exit code 3' in joined
         clear_pending_notifications()
 

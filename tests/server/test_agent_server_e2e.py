@@ -24,6 +24,7 @@ from unittest.mock import patch
 import pytest
 
 from src.providers.base import ChatResponse
+from src.query.agent_loop_compat import run_query_as_agent_loop
 from src.server.agent_server import PROTOCOL_VERSION, AgentServerConfig, make_spawn_agent
 from src.server.direct_connect_manager import (
     DirectConnectCallbacks,
@@ -34,7 +35,9 @@ from src.server.server import DirectConnectServer
 from src.server.session_manager import SessionManager
 from src.server.types import ServerConfig
 from src.tool_system.build_tool import build_tool
+from src.tool_system.context import ToolContext
 from src.tool_system.protocol import ToolResult
+from src.types.messages import UserMessage
 
 
 pytestmark = pytest.mark.integration
@@ -259,6 +262,51 @@ async def test_turn_streams_assistant_and_result(tmp_path):
             assert result["subtype"] == "success"
         finally:
             await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_same_input_has_same_result_in_core_and_server_surfaces(tmp_path):
+    """The core API and server API must report the same canonical result."""
+    from src.tool_system.registry import ToolRegistry
+
+    core_result = await run_query_as_agent_loop(
+        initial_messages=[UserMessage(content="hello")],
+        provider=_TextProvider(model="fake"),
+        tool_registry=ToolRegistry([]),
+        tool_context=ToolContext(workspace_root=tmp_path),
+        system_prompt="You are a test assistant.",
+        max_turns=5,
+    )
+
+    async with _running_server(tmp_path, _TextProvider, ToolRegistry([])) as config:
+        cfg, _ = await create_direct_connect_session(
+            server_url=f"http://127.0.0.1:{config.port}", cwd=str(tmp_path)
+        )
+        received: list[dict] = []
+        callbacks = DirectConnectCallbacks(
+            on_message=lambda message: received.append(message),
+            on_permission_request=lambda request, request_id: None,
+        )
+        client = DirectConnectSessionManager(cfg, callbacks)
+        await client.connect()
+        try:
+            await client.send_message("hello")
+            assert await _wait_for(
+                lambda: any(message.get("type") == "result" for message in received)
+            ), "no server result received"
+            server_result = next(
+                message for message in received if message.get("type") == "result"
+            )
+        finally:
+            await client.disconnect()
+
+    assert core_result.response_text == server_result["result"] == "hi back"
+    assert core_result.terminal is not None
+    assert core_result.terminal.reason == "completed"
+    assert server_result["subtype"] == "success"
+    assert core_result.num_turns == server_result["num_turns"]
+    assert core_result.usage["input_tokens"] == server_result["usage"]["input_tokens"]
+    assert core_result.usage["output_tokens"] == server_result["usage"]["output_tokens"]
 
 
 @pytest.mark.asyncio

@@ -370,9 +370,17 @@ class TestGlobalScopeEmission(unittest.TestCase):
         import os
         from src.context_system.prompt_assembly import build_full_system_prompt_blocks
         from src.providers.anthropic_provider import AnthropicProvider
-        os.environ["CLAUDE_CODE_ENABLE_GLOBAL_CACHE_SCOPE"] = "1"
-        provider = AnthropicProvider(api_key="test")
-        blocks = build_full_system_prompt_blocks(cwd="/tmp", provider=provider)
+        # This test covers the first-party branch. A developer/CI-level
+        # ANTHROPIC_BASE_URL means a custom endpoint and correctly disables
+        # global scope, so isolate that ambient setting here.
+        with patch.dict(
+            os.environ,
+            {"CLAUDE_CODE_ENABLE_GLOBAL_CACHE_SCOPE": "1"},
+            clear=False,
+        ):
+            os.environ.pop("ANTHROPIC_BASE_URL", None)
+            provider = AnthropicProvider(api_key="test")
+            blocks = build_full_system_prompt_blocks(cwd="/tmp", provider=provider)
 
         # Locate the boundary marker; everything before it is GLOBAL-tier.
         from src.context_system.cache_boundary import SYSTEM_PROMPT_DYNAMIC_BOUNDARY

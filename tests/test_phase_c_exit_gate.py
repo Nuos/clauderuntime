@@ -13,6 +13,7 @@ from src.execution import (
     WorkspaceDecision,
     minimal_execution_boundary,
 )
+from src.execution.sandbox import NoSandboxBackend
 from src.permissions.types import ToolPermissionContext
 from src.tool_system.context import ToolContext
 from src.tool_system.errors import ToolPermissionError
@@ -111,7 +112,7 @@ def test_exit_gate_c_allowlist_blocks_unlisted_redirect_target():
 
 
 def test_exit_gate_c_no_sandbox_backend_refuses_required_isolation(tmp_path):
-    boundary = minimal_execution_boundary()
+    boundary = ExecutionBoundary(sandbox_backend=NoSandboxBackend())
     request = SandboxRequest(
         argv=(sys.executable, "-c", "print('should-not-run')"),
         cwd=tmp_path,

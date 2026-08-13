@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -27,13 +28,25 @@ from src.tasks_core import generate_task_id
 from src.tool_system.context import ToolContext
 
 
+class _DeferredTaskManager:
+    """Capture the background target without running it in state-only tests."""
+
+    def start(self, *, name, target):
+        self.name = name
+        self.target = target
+        return SimpleNamespace(name=name)
+
+
 def _make_terminal_agent(ctx: ToolContext, terminal_status: str = "completed") -> str:
     """Spawn → terminal. Returns the agent_id."""
     agent_id = generate_task_id("local_agent")
     register_async_agent(
         agent_id=agent_id, description="x", prompt="initial",
-        agent_type="general-purpose", registry=ctx.runtime_tasks,
+        agent_type="general-purpose",
+        resume_run_params=SimpleNamespace(),
+        registry=ctx.runtime_tasks,
     )
+    ctx.task_manager = _DeferredTaskManager()
     if terminal_status == "completed":
         complete_agent_task(agent_id, result_text="done", registry=ctx.runtime_tasks)
     elif terminal_status == "failed":
@@ -109,6 +122,59 @@ def test_resume_handles_missing_transcript_gracefully(tmp_path: Path) -> None:
     ))
     assert result.resumed is True
     assert result.replayed_message_count == 0
+
+
+def test_resume_without_live_dependencies_fails_without_false_running_state(tmp_path: Path) -> None:
+    ctx = ToolContext(workspace_root=tmp_path)
+    agent_id = generate_task_id("local_agent")
+    register_async_agent(
+        agent_id=agent_id, description="x", prompt="initial",
+        agent_type="general-purpose", registry=ctx.runtime_tasks,
+    )
+    complete_agent_task(agent_id, result_text="done", registry=ctx.runtime_tasks)
+
+    result = asyncio.run(resume_agent_background(
+        agent_id=agent_id, prompt="continue", context=ctx,
+    ))
+
+    assert result.resumed is False
+    assert "dependencies" in result.reason
+    assert ctx.runtime_tasks.get(agent_id).status == "completed"
+
+
+def test_resume_drives_agent_and_persists_terminal_result(tmp_path: Path, monkeypatch) -> None:
+    import importlib
+
+    from src.types.messages import AssistantMessage
+
+    ctx = ToolContext(workspace_root=tmp_path)
+    agent_id = generate_task_id("local_agent")
+    recipe = SimpleNamespace()
+    register_async_agent(
+        agent_id=agent_id, description="x", prompt="initial",
+        agent_type="general-purpose", resume_run_params=recipe,
+        registry=ctx.runtime_tasks,
+    )
+    complete_agent_task(agent_id, result_text="done", registry=ctx.runtime_tasks)
+    ran = []
+
+    async def fake_run_agent(params):
+        ran.append(params)
+        yield AssistantMessage(content="resumed answer")
+
+    run_agent_module = importlib.import_module("src.agent.run_agent")
+    monkeypatch.setattr(run_agent_module, "run_agent", fake_run_agent)
+    result = asyncio.run(resume_agent_background(
+        agent_id=agent_id, prompt="continue now", context=ctx,
+    ))
+    assert result.resumed is True
+
+    for task in ctx.task_manager.list():
+        task.thread.join(timeout=2.0)
+    final = ctx.runtime_tasks.get(agent_id)
+    assert ran and ran[0].prompt == "continue now"
+    assert final.status == "completed"
+    assert final.result_text == "resumed answer"
 
 
 # ---------------------------------------------------------------------------

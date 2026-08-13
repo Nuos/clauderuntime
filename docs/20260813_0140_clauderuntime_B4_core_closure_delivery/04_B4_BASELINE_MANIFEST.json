@@ -1,0 +1,28 @@
+{
+  "document_id": "CR-B4-CORE-CLOSURE-DELIVERY",
+  "date": "2026-08-13",
+  "clauderuntime_head": "4a77f068649e18351e4c51d97e5a6667c9c4a5fd",
+  "reference_source": {
+    "repo": "ChinaSiro/claude-code-sourcemap",
+    "version": "2.1.88",
+    "commit": "a8a678cb6244e6770e1e421767ff0987a1d95549"
+  },
+  "paper": "arXiv:2604.14228v2",
+  "audit_estimates": {
+    "engineering_maturity": 90,
+    "7x5x14_implementation_maturity": 85,
+    "source_evidence_completeness": 60,
+    "strict_exit_gate_readiness": 72
+  },
+  "hard_blockers": [
+    "real sandbox isolation",
+    "resume true model/query re-entry",
+    "canonical process lifecycle",
+    "Compact-5 differential",
+    "Context-9 differential",
+    "Subagent/MCP/Scheduler lifecycle differential",
+    "runtime cross-surface differential",
+    "machine-readable callgraph/state/runtime maps"
+  ],
+  "program_priority": "7/7 Reference-7 + 5/5 Reference-5 + 14/14 CCR-14 final source-aligned closure; unrelated work deferred"
+}

@@ -135,14 +135,7 @@ class MCPConnectionManager:
                 )
                 self._tools.pop(name, None)
                 raise
-            self._state[name] = conn
-            if isinstance(conn, ConnectedMCPServer):
-                self._clients[name] = client
-                tools_raw = await client.list_tools()
-                self._tools[name] = wrap_mcp_tools_for_server(conn, tools_raw, client)
-            else:
-                self._tools.pop(name, None)
-            return conn
+            return await self._install_connection(name, client, conn)
 
     async def toggle_mcp_server(self, name: str) -> MCPServerConnection:
         """Flip the enabled/disabled bit and reconcile the state.
@@ -193,16 +186,7 @@ class MCPConnectionManager:
                     )
                     self._tools.pop(name, None)
                     raise
-                self._state[name] = conn
-                if isinstance(conn, ConnectedMCPServer):
-                    self._clients[name] = client
-                    tools_raw = await client.list_tools()
-                    self._tools[name] = wrap_mcp_tools_for_server(
-                        conn, tools_raw, client
-                    )
-                else:
-                    self._tools.pop(name, None)
-                return conn
+                return await self._install_connection(name, client, conn)
             set_mcp_server_enabled(name, False)
             await self._drop_client(name)
             clear_connection_cache(name)
@@ -284,11 +268,18 @@ class MCPConnectionManager:
         return await self.reconnect_mcp_server(name)
 
     async def close_all(self) -> None:
-        """Tear down every active client. Idempotent."""
-        names = list(self._clients.keys())
+        """关闭全部活动客户端，并清除其可调用状态。
+
+        ``ConnectedMCPServer`` 表示当前真实连接，不是历史连接记录。客户端关闭后若仍
+        保留连接状态和工具缓存，后续任务会选中已经失去传输通道的旧工具。因此关闭时
+        同步清除活动服务状态和工具缓存，并保持重复调用安全。
+        """
+        names = set(self._clients) | set(self._tools)
         for name in names:
             async with self._lock_for(name):
                 await self._drop_client(name)
+                self._tools.pop(name, None)
+                self._state.pop(name, None)
 
     async def bootstrap_all_servers(
         self, *, batch_size: int = 5
@@ -350,6 +341,44 @@ class MCPConnectionManager:
                 "MCP connection_manager: client.close raised for %r: %s",
                 name, exc,
             )
+
+    async def _install_connection(
+        self, name: str, client: McpClient, conn: MCPServerConnection
+    ) -> MCPServerConnection:
+        """仅在工具发现成功后发布可用连接。
+
+        只完成传输握手并不代表 MCP 已可供业务调用；运行时实际向任务暴露的是封装后的
+        工具。工具发现失败时关闭新客户端并记录失败终态，不能发布一个工具为空或缓存
+        已过期的“已连接”状态。
+        """
+        self._state[name] = conn
+        if not isinstance(conn, ConnectedMCPServer):
+            self._tools.pop(name, None)
+            return conn
+
+        try:
+            tools_raw = await client.list_tools()
+            tools = wrap_mcp_tools_for_server(conn, tools_raw, client)
+        except BaseException as exc:
+            self._tools.pop(name, None)
+            try:
+                await client.close()
+            except Exception as close_exc:  # pragma: no cover - shutdown variance
+                logger.debug(
+                    "MCP connection_manager: client.close raised after discovery failure for %r: %s",
+                    name, close_exc,
+                )
+            self._clients.pop(name, None)
+            self._state[name] = FailedMCPServer(
+                name=name,
+                config=conn.config,
+                error=f"Tool discovery failed: {type(exc).__name__}: {exc}",
+            )
+            raise
+
+        self._clients[name] = client
+        self._tools[name] = tools
+        return conn
 
 
 async def bootstrap_mcp_runtime(

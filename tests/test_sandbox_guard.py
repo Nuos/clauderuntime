@@ -133,6 +133,75 @@ class TestBashHardGateRefusal:
         assert res.is_error is False
         assert "sandbox-ok" in res.output["stdout"]  # ran unsandboxed, with the warning
 
+    def test_bash_uses_real_sandbox_when_backend_is_available(self, monkeypatch, tmp_path):
+        from src.execution.sandbox import MacOSSandboxBackend
+        from src.settings.types import SettingsSchema
+        from src.tool_system.context import ToolContext, ToolUseOptions
+        from src.tool_system.tools.bash.bash_tool import _bash_call
+
+        if not MacOSSandboxBackend().capability().provides_isolation:
+            return
+        enabled = SettingsSchema.from_dict({"sandbox": {"enabled": True}})
+        monkeypatch.setattr("src.settings.settings.get_settings", lambda *a, **k: enabled)
+        ctx = ToolContext(workspace_root=tmp_path)
+        ctx.options = ToolUseOptions(tools=[])
+
+        res = _bash_call({"command": "echo sandboxed-bash"}, ctx)
+
+        assert res.is_error is False
+        assert "sandboxed-bash" in res.output["stdout"]
+
+    def test_background_bash_uses_real_sandbox_when_backend_is_available(self, monkeypatch, tmp_path):
+        import shlex
+        import time
+
+        from src.execution.sandbox import MacOSSandboxBackend
+        from src.settings.types import SettingsSchema
+        from src.tool_system.context import ToolContext, ToolUseOptions
+        from src.tool_system.tools.bash.bash_tool import _bash_call
+
+        if not MacOSSandboxBackend().capability().provides_isolation:
+            return
+        enabled = SettingsSchema.from_dict({"sandbox": {"enabled": True}})
+        monkeypatch.setattr("src.settings.settings.get_settings", lambda *a, **k: enabled)
+        ctx = ToolContext(workspace_root=tmp_path)
+        ctx.options = ToolUseOptions(tools=[])
+        outside = tmp_path.parent / "background-sandbox-escape.txt"
+
+        result = _bash_call(
+            {"command": f"touch {shlex.quote(str(outside))}", "run_in_background": True},
+            ctx,
+        )
+        task_id = result.output["backgroundTaskId"]
+        for _ in range(100):
+            state = ctx.runtime_tasks.get(task_id)
+            if getattr(state, "status", None) in {"completed", "failed", "killed"}:
+                break
+            time.sleep(0.02)
+
+        assert not outside.exists()
+        assert getattr(ctx.runtime_tasks.get(task_id), "status", None) == "failed"
+
+    def test_sandboxed_bash_child_cannot_observe_scrubbed_secret(self, monkeypatch, tmp_path):
+        from src.execution.sandbox import MacOSSandboxBackend
+        from src.settings.types import SettingsSchema
+        from src.tool_system.context import ToolContext, ToolUseOptions
+        from src.tool_system.tools.bash.bash_tool import _bash_call
+
+        if not MacOSSandboxBackend().capability().provides_isolation:
+            return
+        monkeypatch.setenv("CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "1")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "never-print-this")
+        enabled = SettingsSchema.from_dict({"sandbox": {"enabled": True}})
+        monkeypatch.setattr("src.settings.settings.get_settings", lambda *a, **k: enabled)
+        ctx = ToolContext(workspace_root=tmp_path)
+        ctx.options = ToolUseOptions(tools=[])
+
+        result = _bash_call({"command": "printf '%s' \"$ANTHROPIC_API_KEY\""}, ctx)
+
+        assert result.is_error is False
+        assert result.output["stdout"] == ""
+
 
 class TestBackgroundBashAlsoGuarded:
     """The hard gate must cover BACKGROUND bash too — else it's a false gate.

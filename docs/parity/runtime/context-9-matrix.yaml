@@ -1,0 +1,25 @@
+schema_version: 1
+reference_target: claude-code-2.1.88
+status: VERIFIED
+sources:
+  - {order: 1, name: system_prompt, python: src/context_system/prompt_assembly.py, scope: global, load: startup, insertion: system_blocks, trust: built_in, compact: retained}
+  - {order: 2, name: environment, python: src/context_system/prompt_assembly.py, scope: session, load: startup, insertion: system_blocks, trust: runtime, compact: retained}
+  - {order: 3, name: project_instructions, python: src/context_system/clawcodex_md.py, scope: managed_user_project_local, load: session_cached, insertion: user_reminder, trust: workspace_gated, compact: reloaded}
+  - {order: 4, name: path_rules, python: src/permissions, scope: request, load: tool_boundary, insertion: permission_context, trust: policy, compact: retained}
+  - {order: 5, name: auto_memory, python: src/memory, scope: user_project, load: lazy, insertion: user_reminder, trust: workspace_gated, compact: summarized}
+  - {order: 6, name: tool_metadata, python: src/tool_system, scope: request, load: tool_pool_build, insertion: api_tools, trust: registry, compact: rebuilt}
+  - {order: 7, name: conversation, python: src/types/messages.py, scope: session, load: turn, insertion: messages, trust: transcript, compact: summarized}
+  - {order: 8, name: tool_results, python: src/services/compact/tool_result_budget.py, scope: turn, load: tool_completion, insertion: user_tool_result, trust: tool_runtime, compact: budgeted_or_externalized}
+  - {order: 9, name: compact_summaries, python: src/services/compact, scope: session, load: compact_boundary, insertion: messages, trust: compact_runtime, compact: retained}
+invariants:
+  - system_and_project_context_precede_current_user_turn
+  - volatile_git_context_is_outside_cached_prefix
+  - workspace_context_is_trust_gated
+  - tool_results_are_budgeted_before_expensive_compaction
+  - compact_reloads_context_caches_without_changing_session_start_date
+tests:
+  - tests/parity/test_context_parity.py
+  - tests/test_prompt_assembly.py
+  - tests/test_context_system.py
+  - tests/test_post_compact_attachments.py
+  - tests/memory/test_prompt_section.py

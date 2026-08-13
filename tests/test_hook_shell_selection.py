@@ -264,7 +264,7 @@ class TestExecutorBashPath:
     async def test_default_uses_platform_bash_spawn(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured: dict[str, object] = {}
 
-        async def fake_shell(cmd, *, stdin, stdout, stderr, env):
+        async def fake_shell(cmd, *, stdin, stdout, stderr, env, **_kwargs):
             captured["used"] = "shell"
             captured["cmd"] = cmd
             return _StubProcess(stdout=b"ok\n", returncode=0)
@@ -289,7 +289,7 @@ class TestExecutorBashPath:
     async def test_explicit_bash_uses_platform_bash_spawn(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured: dict[str, object] = {}
 
-        async def fake_shell(cmd, *, stdin, stdout, stderr, env):
+        async def fake_shell(cmd, *, stdin, stdout, stderr, env, **_kwargs):
             captured["used"] = "shell"
             return _StubProcess(returncode=0)
 
@@ -315,7 +315,7 @@ class TestExecutorPowerShellPath:
     async def test_spawns_pwsh_with_canonical_argv(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured: dict[str, object] = {}
 
-        async def fake_exec(prog, *args, stdin, stdout, stderr, env):
+        async def fake_exec(prog, *args, stdin, stdout, stderr, env, **_kwargs):
             captured["prog"] = prog
             captured["args"] = list(args)
             return _StubProcess(stdout=b"", returncode=0)

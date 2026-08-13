@@ -98,6 +98,10 @@ class LocalAgentTaskState(TaskStateBase):
     # message onto the resumed agent's pending_messages instead.
     # Reset to False on the fresh state ``register_async_agent`` upserts.
     is_resuming: bool = False
+    # 真正恢复后台 Agent 所需的内存运行参数，包含原任务已经解析的模型提供方、工具、
+    # Agent 定义和父上下文。该对象不做持久化；服务进程重启后必须重新构建实时依赖，
+    # 不能用不完整参数伪造“恢复成功”。
+    resume_run_params: Any = field(default=None, repr=False, compare=False)
 
 
 def is_local_agent_task(state: Any) -> bool:
@@ -124,6 +128,7 @@ def register_async_agent(
     model: str | None = None,
     tool_use_id: str | None = None,
     abort_controller: Any = None,
+    resume_run_params: Any = None,
     registry: "RuntimeTaskRegistry",
 ) -> LocalAgentTaskState:
     """Register a brand-new background agent on the runtime registry.
@@ -163,6 +168,7 @@ def register_async_agent(
         model=model,
         tool_use_id=tool_use_id,
         abort_controller=abort_controller,
+        resume_run_params=resume_run_params,
         is_backgrounded=True,
     )
     registry.upsert(state)

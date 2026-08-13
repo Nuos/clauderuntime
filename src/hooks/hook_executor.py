@@ -35,6 +35,7 @@ from src.types.messages import (
     create_attachment_message,
     create_progress_message,
 )
+from src.utils.shell_platform import kill_process_tree, popen_tree_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -456,6 +457,7 @@ async def _execute_command_hook(
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=_build_hook_env(hook, stdin_data, tool_use_context),
+                **popen_tree_kwargs(),
             )
         else:
             # Default (bash on POSIX via /bin/sh, the historical path).
@@ -479,6 +481,7 @@ async def _execute_command_hook(
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     env=bash_env(hook_env),
+                    **popen_tree_kwargs(),
                 )
             else:
                 process = await asyncio.create_subprocess_shell(
@@ -487,6 +490,7 @@ async def _execute_command_hook(
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     env=hook_env,
+                    **popen_tree_kwargs(),
                 )
 
         try:
@@ -495,10 +499,15 @@ async def _execute_command_hook(
                 timeout=effective_timeout,
             )
         except asyncio.TimeoutError:
+            # Hook 可执行任意 shell 内容。超时后若只结束外层 shell，后台子进程仍可能
+            # 在调用方收到失败结果后修改工作区，因此必须按 Bash/沙箱相同策略终止
+            # 整棵进程树，等待后仍未退出再强制结束。
+            kill_process_tree(process.pid, force=False)
             try:
-                process.kill()
-            except Exception:
-                pass
+                await asyncio.wait_for(process.wait(), timeout=0.5)
+            except asyncio.TimeoutError:
+                kill_process_tree(process.pid, force=True)
+                await process.wait()
             duration_ms = int((time.monotonic() - start_time) * 1000)
             return HookResult(
                 blocking_error=f"Hook timed out after {duration_ms}ms",
