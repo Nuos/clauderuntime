@@ -619,7 +619,7 @@ def render_reference_index_markdown(reports: list[ModuleReport], ts: str) -> str
         )
         lines.append(
             f"1. {r.spec.index:02d} {r.spec.name} — {len(r.files)} 文件 "
-            f"{r.total_lines} 行 → [{fname}]({fname})（候选: {cand}）"
+            f"{r.total_lines} 行 → [{fname}](../{fname})（候选: {cand}）"
         )
     lines += [
         "",
@@ -793,7 +793,7 @@ def render_index_markdown(reports: list[ModuleReport], ts: str) -> str:
         fname = f"{r.spec.index:02d}-{r.spec.name}-{ts}.html"
         lines.append(
             f"1. {r.spec.index:02d} {r.spec.name} — {len(r.files)} 文件 "
-            f"{r.total_lines} 行 — [{fname}]({fname})"
+            f"{r.total_lines} 行 — [{fname}](../{fname})"
         )
     lines += [
         "",

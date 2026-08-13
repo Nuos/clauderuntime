@@ -21,6 +21,7 @@ ROOT_MARKDOWN_ALLOWLIST = {
 }
 
 DOCS_TOP_LEVEL_ALLOWLIST = {
+    "20260811_2238_clauderuntime_source_aligned_7x5x14_delivery_B3",
     "README.md",
     "architecture",
     "archive",
@@ -33,6 +34,7 @@ DOCS_TOP_LEVEL_ALLOWLIST = {
     "progress",
     "reference",
     "status",
+    "sourcemap",
 }
 
 DATE_DOC_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-.+\.(?:md|html)$")

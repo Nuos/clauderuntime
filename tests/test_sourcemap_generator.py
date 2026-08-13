@@ -167,7 +167,7 @@ class TestRender:
         md = smg.render_index_markdown(reports, TEST_TS)
         for r in reports:
             fname = f"{r.spec.index:02d}-{r.spec.name}-{TEST_TS}.html"
-            assert fname in md, f"index 缺少 {fname}"
+            assert f"](../{fname})" in md, f"index 缺少有效链接 {fname}"
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +232,14 @@ class TestReference:
         md = smg.render_reference_index_markdown(reports, TEST_TS)
         for mod in ("permissions", "memory", "compact_service"):
             assert mod in md
+
+    def test_ref_index_links_parent_html(self):
+        """reference markdown 索引必须指向父目录中的 HTML 产物。"""
+        reports = [smg.scan_reference_module(s, self.ref_root) for s in self.ref_specs]
+        md = smg.render_reference_index_markdown(reports, TEST_TS)
+        for report in reports:
+            fname = f"{report.spec.index:02d}-{report.spec.name}-{TEST_TS}.html"
+            assert f"](../{fname})" in md
 
     @pytest.mark.skipif(
         not smg.MD2HTML_SCRIPT.exists(), reason="md2html_sidebar.py 不可用"

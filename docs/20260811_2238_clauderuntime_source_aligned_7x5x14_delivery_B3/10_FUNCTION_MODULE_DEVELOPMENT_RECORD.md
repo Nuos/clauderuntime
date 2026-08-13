@@ -86,6 +86,28 @@
 
 记录格式：每个模块按时间顺序追加动作条目；状态升级时同步更新第 2 节总表。当前全部模块仅有 Wave 0 初始动作：
 
+### 2026-08-12 — Wave 4/5 最终测试核验
+
+1. `execution`：F14–F18 共 32 项通过；NoSandboxBackend/DefaultProcessPolicy 仍为已登记边界缺口，不升级 SOURCE_ALIGNED。
+2. `entrypoints/query/hooks`：F19/F20 共 8 项通过；其中 cross-surface 与 hook 部分断言是源码结构证据，不能替代完整 runtime differential。
+3. `workflow`：bundled workflow 通过专用 DSL 编译器回归；顶层 await/return 不是普通 Python 模块语法，禁止用 compileall 单独判错。
+4. `command_system`：修复 4 条 async unittest 假绿，26 项真实执行通过。
+5. `docs/sourcemap`：修复 146 条 Markdown 索引相对链接，文档治理恢复通过。
+6. 当前源码 650 个 Python 文件，盘点快照记录 648 个；模块仍为 55 个，文件级盘点需后续重生成，状态保持 MAPPING_VERIFYING/UNVERIFIED。
+
+### 2026-08-12 — Wave 5 cross-surface/fault 验证（F19/F20）— 收官
+
+1. F19 cross-surface 等价 5 项：适配器/无第二 core/tui 间接汇入/daemon 占位。
+2. F20 fault-injection 3 项：retry 有界、sandbox deny 无副作用、hook 异常容器。
+3. **7×5×14 五个阶段主体开发全部完成**；Real Sandbox/resume 真重入为诚实登记缺口。
+
+### 2026-08-12 — execution/sandbox Wave 4 验证（F14–F18）
+
+1. F14/F18 isolation 边界 + workspace guard：五边界独立、symlink 解析、canonical path。
+2. F15 sandbox fail-closed：NoSandboxBackend require_isolation/禁 unsandboxed 时 deny。
+3. F16/F17 env/network policy：secret scrub + INPUT twins、网络四模式。
+4. 32 项测试全绿；**Real Sandbox 真实隔离登记 UNKNOWN 缺口**（NoSandboxBackend 唯一 backend）。
+
 ### 2026-08-12 — state/memory/agent Wave 3 验证（F11–F13）
 
 1. F11 transcript 契约 5 项（append/tail 容错/resume 重建/snip boundary）。

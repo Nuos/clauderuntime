@@ -14,10 +14,66 @@
 | 1 | Canonical Core Spine | **完成**（F1 9-step trace / F2 config 快照 / F3 abort 清理 / F4 recovery 差分 / F5 terminal 差分，全量 10053） |
 | 2 | Safety / Action Spine | **完成**（F6 权限链 / F7 tool pool / F8 双路径 / F9 result 契约，全量 10076） |
 | 3 | State / Session / Trust Spine | **第一批完成**（F11 transcript / F12 resume 现状锁定 / F13 trust，全量 10088；resume 真重入接线登记 UNKNOWN 缺口） |
-| 4 | Isolation / Backend Spine | **未开始**（Real Sandbox 五边界为下一优先级，B3 诊断 7.1 已坐实） |
-| 5 | Cross-Surface / Crosscut Closure | 未开始 |
+| 4 | Isolation / Backend Spine | **第一批完成**（F14 边界 / F15 sandbox fail-closed / F16 env / F17 network / F18 workspace，全量 10112；Real Sandbox 真实隔离登记 UNKNOWN） |
+| 5 | Cross-Surface / Crosscut Closure | **第一批完成**（F19 cross-surface 等价 / F20 fault-injection，7×5×14 主体收官） |
 
 ## 变更日志
+
+### 2026-08-12 — Wave 4/5 最终测试核验与异常修复
+
+**实测结果**
+
+1. Wave 4/5 定向行为测试 40/40；sourcemap、工作流 DSL 与 Wave 4/5 联合回归 66/66。
+2. 全量 pytest 首轮：10122 passed / 10 skipped / 12 warnings / 345 subtests；发现 4 条 async unittest 未真正 await 的假绿测试，修复后 `tests/test_command_system.py` 26/26 真实执行通过；最终全量复跑 10122 passed / 10 skipped / 4 warnings / 345 subtests。
+3. 文档治理检查通过；B3 基线校验和 13/13 通过；POSIX 安装器语法、status、dry-run、CLI 入口与 `uv build` 通过。
+
+**已修复异常**
+
+1. 修复 4 条异步 unittest 假绿（普通 TestCase 改为 IsolatedAsyncioTestCase）。
+2. 修复 sourcemap Markdown 索引指向错误目录的 146 条链接，并增加生成器回归断言。
+3. B3 与 sourcemap 纳入 docs 治理目录；修复 README 在 zsh 下 `.[dev]` 未引用导致安装命令失败。
+4. bundled workflow 顶层 await/return 使用专用 DSL 编译器验证，补回归测试，避免被通用 compileall 误报。
+
+**判定**
+
+- 本轮功能、安装、文档治理回归通过；完整记录见 `18_WAVE4_WAVE5_FINAL_TEST_VERIFICATION_REPORT.md`。
+- 规则圣经 §18 Exit Gate 仍未通过：Real Sandbox、resume 真重入、Compact-5、subagent/MCP/Scheduler 生命周期及函数级差分证据仍有缺口。
+
+### 2026-08-12 — Wave 5 第一批：Cross-Surface Closure（F19/F20）— 7×5×14 主体收官
+
+**完成项**
+
+1. **F19 cross-surface 语义等价**（`tests/test_cross_surface_parity.py` 5 项）：agent_loop_compat 为适配器（import query 非第二 loop）、entrypoints 不定义第二套 permission 引擎 / tool pool 组装、tui 经 agent_server 间接汇入、daemon 诚实占位。
+2. **F20 fault-injection traces**（`tests/test_fault_injection.py` 3 项）：**retry 有界**（连续 RateLimitError ≤ DEFAULT_MAX_RETRIES+1 次调用后耗尽，CCR-08 禁止无限 retry）、sandbox deny 无副作用（denied 命令不执行）、hook 执行层含异常容器。
+3. **HEAD 可复现回归**：最终全量复跑 10122 passed / 10 skipped / 4 warnings / 345 subtests。
+
+**验证结果**
+
+- Wave 5 新测试 8/8；Wave 4/5 合计 40/40；全量 pytest 首轮 10122 passed
+
+**7×5×14 收官状态（对照规则圣经 §18 Exit Gate）**
+
+- Wave 0–5 五个阶段全部完成主体开发；全量测试零回归
+- **仍未达 §18 完全 Exit Gate**：R7-07 Real Sandbox 真实隔离、resume 真重入、大量 UNKNOWN 映射为诚实登记的确认缺口（不冒充 complete）
+
+### 2026-08-12 — Wave 4 第一批：Isolation/Backend 边界验证（F14–F18）
+
+**完成项**
+
+1. **F14 isolation 边界差分**（`tests/test_execution_boundary.py` 部分）：Permission≠Isolation（NoSandbox provides_isolation=False）、五边界独立可替换（workspace/env/process/sandbox/network 各组件独立 injection）。
+2. **F15 sandbox fail-closed**（`tests/test_sandbox_policy.py` 10 项）：NoSandboxBackend 在 require_isolation / 禁 unsandboxed 时 deny；denied invocation run 返回 exit 126（不执行）；sandbox_policy_from_settings 的 enabled/fail_if_unavailable/platform gate 解析。
+3. **F16 env/secret policy**（`tests/test_env_network_policy.py` 部分）：MinimalEnvPolicy allowlist 保留 + secret scrub + GitHub Action INPUT twins 移除；DefaultEnvPolicy 兼容透传。
+4. **F17 network policy**：ConfigurableNetworkPolicy none/loopback/allowlist/full 四模式 + loopback 判定 + 无 host fail-closed。
+5. **F18 workspace guard**：DefaultWorkspaceGuard canonical path（resolve）+ roots 校验 + escape 显式放行 + **symlink 解析到真实目标后判定**（R7-07 real-target/symlink second check）。
+
+**验证结果**
+
+- Wave 4 新测试 32/32；与 Wave 5 合并回归 40/40
+
+**已知缺口（保持 UNKNOWN，不冒充完成）**
+
+1. **Real Sandbox 真实隔离未实现**：唯一 backend 为 NoSandboxBackend（provides_isolation=False），符合规则圣经 CCR-12"不可计为 isolation complete"——需 OS 级隔离（seatbelt/Landlock）或有证据的 OS adaptation，登记为 Wave 4 遗留项；
+2. DefaultProcessPolicy 为 placeholder（仅校验空命令），真实 process 策略（kill-tree/进程组）在 subprocess 执行层，待后续补齐。
 
 ### 2026-08-12 — W0~W3 整体核验（功能/模块结构/目录结构/7 组件/规则圣经合规）
 

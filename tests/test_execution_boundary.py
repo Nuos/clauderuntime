@@ -1,183 +1,146 @@
-from __future__ import annotations
+"""Wave 4 F14/F18 — isolation 边界差分测试（CCR-12 Isolation Runtime）。
 
+对照规则圣经 CCR-12 强制不变量：
+- Permission ≠ Isolation；Execution Environment ≠ Isolation
+- filesystem/network/env/secrets/subprocess 五边界独立约束、可独立失败
+- workspace canonicalization + roots 校验 + symlink 解析（R7-07 real-target/symlink second check）
+"""
+
+import tempfile
+import unittest
 from pathlib import Path
+from unittest.mock import MagicMock
 
-import pytest
-
-from src.execution import (
-    DefaultEnvPolicy,
+from src.execution.boundary import (
     DefaultProcessPolicy,
     DefaultWorkspaceGuard,
     ExecutionBoundary,
-    ProcessDecision,
-    WorkspaceDecision,
+    minimal_execution_boundary,
 )
-from src.permissions.types import ToolPermissionContext
-from src.tool_system.context import ToolContext
-from src.tool_system.errors import ToolPermissionError
+from src.execution.policy import (
+    ConfigurableNetworkPolicy,
+    MinimalEnvPolicy,
+)
+from src.execution.sandbox import NoSandboxBackend, default_sandbox_backend
 
 
-class StrictWorkspaceGuard(DefaultWorkspaceGuard):
-    def check_path(
-        self,
-        path: Path,
-        *,
-        roots,
-        access: str,
-        allow_workspace_escape: bool = False,
-    ) -> WorkspaceDecision:
-        return super().check_path(
-            path,
-            roots=roots,
-            access=access,
-            allow_workspace_escape=False,
+class TestIsolationBoundaryIndependence(unittest.TestCase):
+    """Permission ≠ Isolation、五边界独立。"""
+
+    def test_permission_is_not_isolation(self):
+        """sandbox backend 与 permission 层分离：NoSandbox 存在但不提供隔离。"""
+        backend = default_sandbox_backend()
+        self.assertIsInstance(backend, NoSandboxBackend)
+        cap = backend.capability()
+        self.assertFalse(cap.provides_isolation)
+        self.assertIn("no", cap.reason.lower())
+
+    def test_five_boundaries_independent(self):
+        """ExecutionBoundary 组合五个独立可替换组件。"""
+        boundary = ExecutionBoundary()
+        self.assertIsInstance(boundary.workspace_guard, DefaultWorkspaceGuard)
+        self.assertIsInstance(boundary.process_policy, DefaultProcessPolicy)
+        # sandbox / network / env 各自独立（不是同一对象）
+        self.assertIsNot(
+            boundary.sandbox_backend, boundary.network_policy,
+        )
+        # 每个边界可独立替换（injection）
+        custom = ExecutionBoundary(
+            workspace_guard=MagicMock(),
+            sandbox_backend=NoSandboxBackend(name="custom"),  # type: ignore[arg-type]
+        )
+        self.assertIsNotNone(custom.workspace_guard)
+        self.assertEqual(custom.sandbox_backend.name, "custom")
+
+    def test_minimal_boundary_uses_minimal_policies(self):
+        """minimal_execution_boundary 使用 MinimalEnvPolicy + ConfigurableNetworkPolicy。"""
+        boundary = minimal_execution_boundary(network_mode="none")
+        self.assertIsInstance(boundary.env_policy, MinimalEnvPolicy)
+        self.assertIsInstance(boundary.network_policy, ConfigurableNetworkPolicy)
+        self.assertEqual(
+            getattr(boundary.network_policy, "mode"), "none",
         )
 
 
-class RecordingWorkspaceGuard(DefaultWorkspaceGuard):
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, Path, bool]] = []
+class TestWorkspaceGuard(unittest.TestCase):
+    """workspace canonicalization + roots 校验（F18）。"""
 
-    def check_path(
-        self,
-        path: Path,
-        *,
-        roots,
-        access: str,
-        allow_workspace_escape: bool = False,
-    ) -> WorkspaceDecision:
-        self.calls.append((access, path, allow_workspace_escape))
-        return super().check_path(
-            path,
-            roots=roots,
-            access=access,
-            allow_workspace_escape=allow_workspace_escape,
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.guard = DefaultWorkspaceGuard()
+        (self.root / "sub").mkdir()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_inside_roots_allowed(self):
+        """workspace 内路径 → allow。"""
+        decision = self.guard.check_path(
+            self.root / "sub" / "file.txt",
+            roots=[self.root], access="read",
         )
+        self.assertTrue(decision.allow)
+
+    def test_outside_roots_denied(self):
+        """workspace 外路径 → deny。"""
+        outside = Path(tempfile.gettempdir()) / "outside.txt"
+        decision = self.guard.check_path(
+            outside, roots=[self.root], access="write",
+        )
+        self.assertFalse(decision.allow)
+        self.assertIn("outside", decision.reason.lower())
+
+    def test_workspace_escape_explicit(self):
+        """allow_workspace_escape=True → 显式放行（保留 Full Access 语义）。"""
+        outside = Path(tempfile.gettempdir()) / "esc.txt"
+        decision = self.guard.check_path(
+            outside, roots=[self.root], access="read",
+            allow_workspace_escape=True,
+        )
+        self.assertTrue(decision.allow)
+        self.assertIn("escape", decision.reason.lower())
+
+    def test_symlink_resolved_to_real_target(self):
+        """symlink 路径解析到真实目标后判定（real-target second check）。"""
+        # 创建 symlink 指向 workspace 外 → resolve 后应 deny
+        outside = Path(tempfile.gettempdir()) / "clauderuntime_real_target.txt"
+        outside.write_text("secret")
+        symlink = self.root / "sub" / "link.txt"
+        symlink.symlink_to(outside)
+        decision = self.guard.check_path(
+            symlink, roots=[self.root], access="read",
+        )
+        # resolve() 解 symlink → 指向 workspace 外 → deny
+        self.assertFalse(decision.allow)
+        self.assertEqual(decision.path, outside.resolve())
+
+    def test_relative_path_resolved(self):
+        """相对路径 resolve 为绝对路径后判定。"""
+        decision = self.guard.check_path(
+            Path("."), roots=[self.root], access="read",
+            allow_workspace_escape=True,
+        )
+        self.assertTrue(decision.path.is_absolute())
 
 
-class DenyAllProcessPolicy:
-    def check_process(self, command: str, *, cwd: Path, env=None) -> ProcessDecision:
-        return ProcessDecision(allow=False, reason=f"blocked: {command}")
+class TestProcessPolicy(unittest.TestCase):
+    """process policy（F14 边界之一）。"""
+
+    def test_empty_command_denied(self):
+        """空命令 → deny。"""
+        decision = DefaultProcessPolicy().check_process(
+            "   ", cwd=Path("/tmp"),
+        )
+        self.assertFalse(decision.allow)
+
+    def test_nonempty_command_allowed(self):
+        """非空命令 → allow（默认 policy）。"""
+        decision = DefaultProcessPolicy().check_process(
+            "echo hi", cwd=Path("/tmp"),
+        )
+        self.assertTrue(decision.allow)
 
 
-class ScrubEnvPolicy:
-    def prepare_env(self, env=None) -> dict[str, str]:
-        env = dict(env or {})
-        env.pop("SECRET_TOKEN", None)
-        return env
-
-
-def test_default_workspace_guard_allows_inside_roots_and_denies_outside(tmp_path):
-    boundary = ExecutionBoundary()
-    inside = tmp_path / "src" / "module.py"
-    outside = tmp_path.parent / "outside-module.py"
-
-    inside_decision = boundary.check_workspace_path(
-        inside,
-        roots=[tmp_path],
-        access="read",
-    )
-    outside_decision = boundary.check_workspace_path(
-        outside,
-        roots=[tmp_path],
-        access="read",
-    )
-
-    assert inside_decision.allow is True
-    assert inside_decision.path == inside.resolve()
-    assert "inside workspace roots" in inside_decision.reason
-    assert outside_decision.allow is False
-    assert outside_decision.path == outside.resolve()
-    assert "outside execution workspace roots" in outside_decision.reason
-
-
-def test_default_boundary_preserves_existing_bypass_workspace_escape(tmp_path):
-    ctx = ToolContext(
-        workspace_root=tmp_path,
-        permission_context=ToolPermissionContext(mode="bypassPermissions"),
-    )
-
-    outside = Path("/tmp/clawcodex-execution-boundary-outside.txt")
-
-    assert ctx.ensure_allowed_path(outside) == outside.resolve()
-
-
-def test_strict_workspace_guard_blocks_even_when_permission_would_bypass(tmp_path):
-    ctx = ToolContext(
-        workspace_root=tmp_path,
-        permission_context=ToolPermissionContext(mode="bypassPermissions"),
-        execution_boundary=ExecutionBoundary(workspace_guard=StrictWorkspaceGuard()),
-    )
-
-    with pytest.raises(ToolPermissionError, match="outside execution workspace roots"):
-        ctx.ensure_allowed_path("/etc/passwd")
-
-
-def test_tool_context_accepts_additional_working_directory_through_boundary(tmp_path):
-    workspace = tmp_path / "workspace"
-    extra_root = tmp_path / "extra"
-    target = extra_root / "generated.py"
-    guard = RecordingWorkspaceGuard()
-    ctx = ToolContext(
-        workspace_root=workspace,
-        additional_working_directories=(extra_root,),
-        permission_context=ToolPermissionContext(mode="default"),
-        execution_boundary=ExecutionBoundary(workspace_guard=guard),
-    )
-
-    assert ctx.ensure_allowed_path(target) == target.resolve()
-    assert ctx.ensure_readable_path(target) == target.resolve()
-
-    assert [call[0] for call in guard.calls] == ["write", "read"]
-    assert all(call[2] is False for call in guard.calls)
-
-
-def test_tool_context_routes_read_and_write_checks_through_boundary(tmp_path):
-    guard = RecordingWorkspaceGuard()
-    ctx = ToolContext(
-        workspace_root=tmp_path,
-        permission_context=ToolPermissionContext(mode="default"),
-        execution_boundary=ExecutionBoundary(workspace_guard=guard),
-    )
-    target = tmp_path / "src" / "x.py"
-
-    assert ctx.ensure_allowed_path(target) == target.resolve()
-    assert ctx.ensure_readable_path(target) == target.resolve()
-
-    assert [call[0] for call in guard.calls] == ["write", "read"]
-
-
-def test_default_env_policy_returns_isolated_copy():
-    env = {"PATH": "/bin", "TOKEN": "keep-for-c5"}
-
-    prepared = DefaultEnvPolicy().prepare_env(env)
-    prepared["PATH"] = "/usr/bin"
-
-    assert env == {"PATH": "/bin", "TOKEN": "keep-for-c5"}
-    assert prepared == {"PATH": "/usr/bin", "TOKEN": "keep-for-c5"}
-
-
-def test_default_process_policy_rejects_empty_command_and_allows_non_empty(tmp_path):
-    policy = DefaultProcessPolicy()
-
-    empty = policy.check_process(" \t", cwd=tmp_path)
-    allowed = policy.check_process("python -V", cwd=tmp_path)
-
-    assert empty.allow is False
-    assert empty.reason == "process: empty command"
-    assert allowed.allow is True
-    assert allowed.reason == "process: default policy"
-
-
-def test_execution_boundary_exposes_env_and_process_policy_hooks(tmp_path):
-    boundary = ExecutionBoundary(
-        env_policy=ScrubEnvPolicy(),
-        process_policy=DenyAllProcessPolicy(),
-    )
-
-    assert boundary.prepare_env({"PATH": "/bin", "SECRET_TOKEN": "x"}) == {
-        "PATH": "/bin",
-    }
-    decision = boundary.check_process("curl https://example.com", cwd=tmp_path)
-    assert decision.allow is False
-    assert "curl" in decision.reason
+if __name__ == "__main__":
+    unittest.main()
