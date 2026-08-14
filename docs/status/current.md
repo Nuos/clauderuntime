@@ -80,7 +80,7 @@ The minimum tracked runtime paths are ordinary answer, Read, Write/Edit, Bash, C
 ## 当前验证
 
 1. 最新不联网全项目本地测试（2026-08-14，B6 阶段收尾）：`10212 passed, 10 skipped, 0 deselected, 3 warnings, 345 subtests passed`；7 项失败与基线 commit 复跑结果完全一致（本环境 sandbox-exec 被禁、无 PTY、`~/.clawcodex` 与 `~/.npm` 写入被环境沙箱拒绝、外部 npm MCP 服务不可用），零回归。
-2. 未执行两项外部测试：PyPI editable install、官方 MCP/npm 示例服务；当前没有外联测试结果。
+2. 外部依赖测试（2026-08-14 已执行并闭合）：① PyPI editable install —— fresh venv `pip install -e .` 成功，核心模块导入 OK；② 官方 MCP/npm 示例服务 —— `@modelcontextprotocol/server-everything` 真实 stdio 连接 + 工具发现通过（测试已修复：显式传递调用方 env，规避 SDK 白名单 env）。
 3. B6 针对性/组合测试：`332 passed`（含 5 个 test_b6_*、Snip 10 项、Scheduler file-backed 12 项、server e2e 等）。
 4. GitHub CI：workflow 已配置（`.github/workflows/ci.yml`）并在 PR #3 触发，但 job 未启动 —— GitHub 返回 `account is locked due to a billing issue`（账户计费锁定，托管 runner 无法启动，账户级外部阻塞）。解除锁定前 `未测试` 状态不变，禁止写成 CI 通过。
 5. Machine Evidence 对象为 `7619ff2886160de3409acd1d4e87880d04da6e9e`，证据提交为 `cc264e5`。

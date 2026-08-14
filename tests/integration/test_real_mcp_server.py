@@ -13,6 +13,7 @@ downloads the npm package on first invocation — slow).
 from __future__ import annotations
 
 import asyncio
+import os
 import shutil
 
 import pytest
@@ -40,10 +41,16 @@ async def test_connects_to_official_everything_server() -> None:
     transport's framing was wrong (LSP-style Content-Length, as it was
     prior to WI-0.1), this test would hang waiting for an init response.
     """
+    # The MCP SDK's stdio transport only inherits a whitelisted env by
+    # default; pass the caller's environment explicitly so `npx` picks up
+    # npm config (e.g. NPM_CONFIG_CACHE redirected away from an unwritable
+    # ~/.npm) — otherwise the spawned npx cannot even start in restricted
+    # environments.
     config = ScopedMcpServerConfig(
         config=McpStdioServerConfig(
             command="npx",
             args=["-y", "@modelcontextprotocol/server-everything"],
+            env=dict(os.environ),
         ),
         scope="project",
     )

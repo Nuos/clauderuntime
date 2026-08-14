@@ -15,3 +15,7 @@ build/
 *.tmp
 *.bak
 clawcodex_cli.egg-info/
+
+# dsh scratch npm artifacts (reproducible)
+dsh-b6-workspace/npm-*/
+dsh-b6-workspace/node_modules/

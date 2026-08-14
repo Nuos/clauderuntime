@@ -76,8 +76,8 @@
 | targeted tests | ✅ | 本阶段针对性 332 passed |
 | affected combination tests | ✅ | scheduler↔server、snip↔pipeline、sandbox↔bash 组合 |
 | 阶段收尾 full local suite | ✅ | `10212 passed / 10 skipped / 345 subtests`；7 项环境性失败与基线一致（零回归） |
-| 外部依赖测试单独记录 | ✅ | 官方 MCP/npm 服务未执行（文档基线注明）；PyPI editable install 未执行 |
-| GitHub CI 与 local 分开记录 | ✅（已配置） | `.github/workflows/ci.yml`（RELEASE_GATE）；CI 结果待首跑后单独记录 |
+| 外部依赖测试单独记录 | ✅（已执行） | ① PyPI editable install：fresh venv `pip install -e .` 成功 + 核心模块导入 OK；② 官方 `@modelcontextprotocol/server-everything`：真实 stdio 连接成功、工具发现（echo）通过（`tests/integration/test_real_mcp_server.py`；修复点：MCP SDK stdio transport 默认只继承白名单 env，测试改为显式传调用方环境） |
+| GitHub CI 与 local 分开记录 | ✅（已配置） | `.github/workflows/ci.yml`（RELEASE_GATE）；CI 首跑被账户计费锁定阻塞（外部），解除后重跑并单独记录 |
 
 # Final 结论
 
