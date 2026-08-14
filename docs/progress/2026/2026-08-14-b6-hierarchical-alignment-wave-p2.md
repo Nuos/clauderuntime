@@ -48,9 +48,25 @@ test_agent_server_e2e.py + test_sandbox_guard.py   118 passed
 （覆盖 scheduler 文件持久化 ↔ 会话/后台调度 ↔ server e2e 组合）
 ```
 
-# 5. Full Suite
+# 5. Full Suite（阶段收尾总全量，最终记录）
 
-未执行，阶段收尾前按规则只跑针对性/组合测试；最后总全量测试单独记录。
+```text
+10212 passed
+10 skipped
+0 deselected
+3 warnings
+345 subtests passed
+7 failed
+```
+
+7 项失败与此前在基线 commit `dc7393b` 上复跑确认的**完全相同**，均为环境性：
+本终端 `sandbox-exec` 被禁（`Operation not permitted`，macOS 能力探测如实
+fail-closed）、无可用 PTY、`~/.clawcodex` 与 `~/.npm` 写入被本环境文件沙箱
+拒绝、外部 npm MCP 官方服务不可用（文档基线注明外联测试从未执行）。
+与本次改动无关，**零回归**。本阶段新增测试全部通过（较上一阶段全量 +55）。
+
+GitHub hosted CI 未配置（仓库无 `.github/workflows/`），只能记录
+`local tests green`，不得写 `current-head GitHub CI green`。
 
 # 6. Reference 对照与差异
 

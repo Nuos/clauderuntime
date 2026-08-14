@@ -50,3 +50,24 @@ B6 分级 Reference 对齐第一阶段交付：**Wave F0（差异透明制度）
 
 - 本仓库未配置 `.github/workflows/` hosted CI —— 当前仅能记录 `local tests green`，不能写 `current-head GitHub CI green`
 - B6 目标为 `FUNCTIONALLY_SIMILAR_CORE_COMPLETE`（核心功能类似 + Python-native + 差异透明），**不是** Source-Aligned 1:1 复刻
+
+---
+
+## 追加：Wave P2（已并入本 PR）
+
+### Python-native Snip（DIFF-CCR03-001 → FUNCTIONAL_ADAPTATION）
+- `snip_compact` 从 no-op 占位升级为保守实现：只裁剪**可重建**（只读 allowlist：Read/Glob/Grep/ListDir/WebFetch/TaskOutput）的旧工具结果；对话文本、tool_use 块、**变更类工具**（Write/Edit/Bash 等）结果、最近 `keep_recent` 条一律保留；来源工具未知的 tool_result 保守保留
+- 修复 `keep_recent=0` 的 `[-0:]` 切片边界
+
+### Scheduler file-backed 持久化（DIFF-SCHED-001 更新）
+- `SessionCronScheduler(persist_path=...)`：每次变更（create/delete/set_wakeup/clear_wakeup/pop_due）原子写盘（临时文件+fsync+replace）；`from_persisted` / `restore_persisted` 支持新进程跨进程恢复，无需会话 resume 文件；失败仅告警不阻断调度
+- `_AgentSession.cron_scheduler` 默认挂 `~/.clawcodex/scheduled_tasks.json`；resume 恢复后同步文件
+
+### 测试
+```text
+新增：test_snip_compact.py(10) + test_scheduler_file_backed.py(12)
+更新：test_compression_pipeline.py Layer 2（真实 Snip 生效 + 变更类工具不裁剪）
+针对性合计：332 passed（223 + 109）
+```
+
+至此 B6 计划文档中全部可执行开发项（P0–P2）完成；Windows/Linux 真机验证仍为 `PENDING_REAL_DEVICE`（见平台验证台账）。
