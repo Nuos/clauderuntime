@@ -300,6 +300,14 @@ git push origin feature/your-feature-name
 
 ## Testing
 
+### 测试执行规则
+
+1. 每个 Bug 修复、功能新增或性能优化，必须新增或更新对应的单元测试，并执行直接相关的测试文件或测试节点。
+2. 涉及多个相邻模块时，只扩大到受影响模块的组合测试和相关功能测试；测试结果必须记录到当前开发进度文件。
+3. 禁止在每次小改动后重复运行全量测试。全量测试仅用于阶段收尾、跨模块高风险变更、版本发布、合并前验收或明确要求的完整验证。
+4. 针对性测试失败时必须继续定位和修复；不得以改跑全量测试、跳过用例或删除断言代替问题处理。
+5. 汇报测试结果时必须区分针对性测试、组合测试、全量测试和外部依赖测试，不得把其中一种结果写成另一种已经通过。
+
 ### Running Tests
 
 ```bash
@@ -356,6 +364,7 @@ def test_save_and_load_config(tmp_path):
 4. **Use fixtures**: For common setup
 5. **Test edge cases**: Not just happy paths
 6. **Make tests independent**: No test should depend on another
+7. **Prefer targeted runs during development**: Run the affected test nodes first; reserve the full suite for the gates defined above
 
 ## Questions?
 
