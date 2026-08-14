@@ -18,6 +18,7 @@ C. progress 文档：每轮 Reference vs Python 差异摘要（docs/progress/202
 | File | Purpose |
 |---|---|
 | `registry.yaml` | Global difference ledger. Each item records REF vs PY behavior, difference, reason, impact and acceptance status. |
+| `platform-verification.md` | Platform real-device verification ledger (win32 Job Object, Linux bubblewrap, macOS Seatbelt environment limits). Items are `PENDING_REAL_DEVICE` until verified on the real platform — never claim "verified" from code presence alone. |
 | `generated-summary.yaml` | Optional machine-readable summary derived from the registry (future / CI-friendly). |
 
 ## Vocabulary (must match the registry schema)

@@ -133,6 +133,10 @@ Accepted: true
 - TUI/Desktop Surface smoke 未在本套件重复（ui-tui 自带 1692 测试；Desktop
   走 server 端 gateway）。
 
+> 平台真机验证逐项登记见
+> `docs/reference-differences/platform-verification.md`（`PENDING_REAL_DEVICE`），
+> 禁止在真机验证前把“代码已写”写成“平台已验证”。
+
 # 9. 延期 Reference 细节
 
 - Snip 历史裁剪（DIFF-CCR03-001）：`RECOVERED_SOURCE_GAP`，保持 no-op，

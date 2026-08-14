@@ -166,7 +166,7 @@ items:
       - tests/test_b6_linux_windows_sandbox.py
       - tests/test_b6_sandbox_guard_capability.py
       - tests/test_sandbox_guard.py
-    notes: "Windows Job Object launcher (src/execution/win_job_launcher.py) follows MSDN layouts; requires a win32 host to execute — unit tests on macOS pin capability/prepare/fail-closed and the argv shape."
+    notes: "Windows Job Object launcher (src/execution/win_job_launcher.py) follows MSDN layouts; requires a win32 host to execute — unit tests on macOS pin capability/prepare/fail-closed and the argv shape. Linux bubblewrap requires a Linux host for real container execution. Real-device verification is tracked in docs/reference-differences/platform-verification.md (PENDING_REAL_DEVICE)."
 
   - id: DIFF-SURFACE-001
     area: CCR-06
