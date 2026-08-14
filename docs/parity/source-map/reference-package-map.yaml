@@ -1,6 +1,7 @@
 schema_version: 1
 reference_target: claude-code-2.1.88
-baseline_commit: 95efbaec4796147657668c4947a0d2088ecc4738
+subject_commit: "7619ff2886160de3409acd1d4e87880d04da6e9e"
+evidence_generated_from: scripts/audit/generate_parity_evidence.py
 governance_status: LEGACY_SUPPORTING_MAP
 packages:
   - id: PKG-QUERY-001

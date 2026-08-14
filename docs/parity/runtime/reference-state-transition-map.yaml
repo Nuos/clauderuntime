@@ -1,12 +1,13 @@
 schema_version: 1
 reference_target: claude-code-2.1.88
-baseline_commit: 95efbaec4796147657668c4947a0d2088ecc4738
+subject_commit: "7619ff2886160de3409acd1d4e87880d04da6e9e"
+evidence_generated_from: scripts/audit/generate_parity_evidence.py
 transitions:
   - id: ST-RESUME-01
     mechanism: resume-background-agent
     reference: "terminal → transcript/meta reconstruct → running → runAgent → terminal"
-    python: "terminal → race-safe claim → transcript hydrate → running registration → canonical run_agent → terminal"
-    missing: "进程重启后无法仅凭 durable transcript/metadata 重建 provider、tool、permission、system prompt 和 worktree。"
+    python: "durable metadata/terminal → registry rebuild → race-safe claim → transcript hydrate → current provider/tool/agent-definition resolve → running registration → canonical run_agent → terminal"
+    missing: "真实子进程重启 E2E、content replacement reconstruction 和缺失 worktree 自动恢复尚未完成；当前缺失 worktree 会明确拒绝。"
     status: PARTIAL
     verifies: [R7-06, R5-04, CCR-10, CCR-11]
   - id: ST-SANDBOX-01
@@ -26,7 +27,7 @@ transitions:
   - id: ST-SCHEDULE-01
     mechanism: scheduled-task
     reference: "configured → due → wakeup → queued → execute → persist/reschedule|cancel"
-    python: "CronJob → due → PendingWakeup → SessionCronScheduler → snapshot/restore"
-    missing: "Permission and isolation propagation through a real scheduled action."
+    python: "CronJob → due → last_fired_at → PendingWakeup → SessionCronScheduler → snapshot/restore; durable missed one-shot fires once"
+    missing: "File-backed watcher、owner takeover、permission 和 isolation through a real scheduled action。"
     status: PARTIAL
     verifies: [CCR-14]

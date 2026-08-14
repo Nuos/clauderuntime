@@ -1,6 +1,7 @@
 schema_version: 1
 reference_target: claude-code-2.1.88
-baseline_commit: 95efbaec4796147657668c4947a0d2088ecc4738
+subject_commit: "7619ff2886160de3409acd1d4e87880d04da6e9e"
+evidence_generated_from: scripts/audit/generate_parity_evidence.py
 divergences:
   - id: B4-D01
     class: MISSING_BEHAVIOR
@@ -14,9 +15,9 @@ divergences:
     class: MISSING_BEHAVIOR
     severity: P0
     reference: "tools/AgentTool/resumeAgent.ts reconstructs state then calls runAgent with promptMessages."
-    python: "src/agent/resume_agent.py::resume_agent_background rebuilds RunAgentParams, hydrates transcript messages, starts canonical run_agent, and persists terminal status."
+    python: "src/agent/resume_agent.py::resume_agent_background rebuilds registry state from durable metadata, hydrates transcript messages, resolves the current provider/tool registry/agent definition, starts canonical run_agent, and persists terminal status."
     affected: [R7-06, R5-04, CCR-10, CCR-11]
-    required_resolution: "保留同进程真实恢复；新增从 durable transcript/metadata 和当前 runtime factory 重建依赖的进程重启恢复。"
+    required_resolution: "补充真实子进程重启验收、已删除 worktree 的恢复策略和 content-replacement reconstruction；当前已覆盖 registry 重建与缺失 worktree 明确失败。"
     status: OPEN
   - id: B4-D03
     class: EVIDENCE_GAP
@@ -24,7 +25,7 @@ divergences:
     reference: "services/compact and context assembly paths"
     python: "src/services/compact + src/context_system/prompt_assembly.py"
     affected: [R5-02, CCR-03, CCR-04]
-    required_resolution: "修正 Compact early-return/Snip/Microcompact 调用形态，并实现 path-scoped context rules 的真实 lazy injection E2E。"
+    required_resolution: "Snip 参考实现函数体仍未恢复；Microcompact 默认值、连续层调用和 Managed/User/Project/Nested path rules 已修复并有下一模型轮次测试。"
     status: OPEN
   - id: B4-D04
     class: EVIDENCE_GAP

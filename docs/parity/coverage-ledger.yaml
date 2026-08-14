@@ -1,9 +1,9 @@
-schema_version: 2
+schema_version: 3
 document: B5-7x5x14-coverage-ledger
-baseline:
-  clauderuntime_commit: 95efbaec4796147657668c4947a0d2088ecc4738
-  reference_commit: a8a678cb6244e6770e1e421767ff0987a1d95549
-  reference_version: 2.1.88
+subject_commit: "7619ff2886160de3409acd1d4e87880d04da6e9e"
+reference_commit: a8a678cb6244e6770e1e421767ff0987a1d95549
+reference_version: 2.1.88
+evidence_generated_from: scripts/audit/generate_parity_evidence.py
 status_vocabulary: [NOT_STARTED, IN_PROGRESS, BLOCKED, PARTIAL, VERIFIED]
 completion_evidence: [EXACT, SEMANTIC_EQUIVALENT, PYTHON_ADAPTATION_VERIFIED]
 reference_7:

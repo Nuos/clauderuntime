@@ -1,10 +1,11 @@
 schema_version: 2
 reference_target: claude-code-2.1.88
-baseline_commit: 95efbaec4796147657668c4947a0d2088ecc4738
+subject_commit: "7619ff2886160de3409acd1d4e87880d04da6e9e"
+evidence_generated_from: scripts/audit/generate_parity_evidence.py
 status: PARTIAL
 layers:
   - {order: 1, name: tool_result_budget, python: src/services/compact/pipeline.py, trigger: oversized_tool_results, noop: within_budget, durable: replacement_records}
-  - {order: 2, name: snip_compact, python: src/services/compact/pipeline.py, trigger: not_implemented, noop: fixed_stub, durable: none}
+  - {order: 2, name: snip_compact, python: src/services/compact/pipeline.py, trigger: reference_body_not_recovered, noop: explicit_python_placeholder, durable: none, status: PARTIAL}
   - {order: 3, name: microcompact, python: src/context_system/microcompact.py, trigger: explicit_gate_or_time_config, noop: default_disabled, durable: local_projection_only}
   - {order: 4, name: context_collapse, python: src/context_system/context_collapse.py, trigger: enabled_commits_present, noop: no_commits, durable: collapse_store}
   - {order: 5, name: autocompact, python: src/services/compact/autocompact.py, trigger: context_threshold, noop: under_threshold, durable: compact_summary}
