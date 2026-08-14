@@ -1,0 +1,22 @@
+{
+  "document_id": "CR-B4-REPAIR-FEEDBACK-v2",
+  "current_head": "cf4e0f91e6cdcd8105d93585aa9a18fbb1fc11d9",
+  "repair_commit": "4126dd5c7e80f82e542257cf21aef94e3e09e5bf",
+  "reference": "Claude Code recovered source 2.1.88",
+  "summary": {
+    "closed": 12,
+    "partial": 8,
+    "open": 6,
+    "project_status": "SOURCE_ALIGNED_CORE_IN_PROGRESS"
+  },
+  "priority_feedback": [
+    "Fix machine evidence subject/evidence commit model first",
+    "Correct Microcompact default and Snip evidence wording",
+    "Complete Managed/User/Nested path-scoped rules and next-model-call E2E",
+    "Implement durable resume reconstruction",
+    "Complete scheduler source lifecycle differential",
+    "Implement Linux/Windows real sandbox",
+    "Run full supported-surface differential",
+    "Add current-HEAD required CI and final machine scorecard"
+  ]
+}

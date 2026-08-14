@@ -1,8 +1,4 @@
-"""Project-wide pytest fixtures.
-
-Currently only provides keyring isolation for MCP token-storage tests so
-they don't leak entries into the developer's real OS keychain.
-"""
+"""提供项目级测试隔离，禁止测试访问用户密钥、配置和 transcript。"""
 
 from __future__ import annotations
 
@@ -88,6 +84,15 @@ def _isolate_user_permission_settings(tmp_path, monkeypatch):
         config_mod,
         "GLOBAL_CONFIG_FILE",
         _isolated_global_dir / "config.json",
+    )
+    # 后台 Agent transcript 和 durable resume 元数据也属于用户数据；所有测试
+    # 必须写入单项临时目录，不能触碰开发者真实 ~/.clawcodex/transcripts。
+    from src.agent import transcript as transcript_mod
+
+    monkeypatch.setattr(
+        transcript_mod,
+        "get_transcripts_dir",
+        lambda: _isolated_global_dir / "transcripts",
     )
     # ch03 round-3: the active-provider supplier is a module-level slot;
     # tests need it deterministically EMPTY (the "persists '' when

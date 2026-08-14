@@ -1,29 +1,9 @@
-"""Session-scoped scheduled-task engine — the executor behind ``/loop``,
-``CronCreate``/``CronList``/``CronDelete`` and ``ScheduleWakeup``.
+"""执行 `/loop`、Cron 工具和动态唤醒的会话任务调度。
 
-Port of the CC behavior documented in docs/en/scheduled-tasks:
-
-- Tasks are session-scoped and fire BETWEEN turns: the agent-server background
-  scheduler service polls :meth:`SessionCronScheduler.pop_due` and runs each
-  fired prompt as an internal turn when the session turn gate is free.
-- Recurring tasks expire 7 days after creation — the task fires one final
-  time past its expiry, then deletes itself. One-shots delete after firing.
-- No catch-up for missed fires: however many intervals passed while the
-  agent was busy, a due job fires exactly once and then advances.
-- A session holds at most 50 jobs; each has an 8-character hex ID.
-- Deterministic jitter (§Jitter): recurring jobs fire up to 30 minutes
-  after the scheduled time (up to half the interval for jobs that run more
-  often than hourly); one-shots pinned to :00 or :30 fire up to 90 seconds
-  early. The offset is derived from the job ID, so a given job always gets
-  the same offset. Jitter never applies to dynamic wakeups.
-- The dynamic-loop wakeup (``ScheduleWakeup``) is a single slot per
-  session: delay clamped to [60, 3600] seconds, ``stop`` clears it, and
-  pressing Esc between turns clears it (agent-server interrupt control).
-
-Everything is computed in local time (``0 9 * * *`` means 9am local).
-Thread-safety: tool calls mutate from the worker thread mid-turn while the
-control plane reads snapshots from the asyncio thread, so all access goes
-through one lock.
+任务只在模型轮次之间触发，避免定时提示与正在执行的工具轮次交错。重复任务对错过
+的多个周期只补执行一次；普通会话型一次性任务错过后丢弃，标记为 durable 的一次
+性任务在恢复后补执行一次。所有状态读写共用同一把锁，并记录最近触发时间，供恢复
+和差异测试判断任务是否重复执行。
 """
 
 from __future__ import annotations
@@ -89,6 +69,7 @@ class CronJob:
     next_fire_at: float
     expires_at: Optional[float] = None  # recurring only
     fired_count: int = 0
+    last_fired_at: Optional[float] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -101,6 +82,7 @@ class CronJob:
             "next_fire_at": self.next_fire_at,
             "expires_at": self.expires_at,
             "fired_count": self.fired_count,
+            "last_fired_at": self.last_fired_at,
         }
 
 
@@ -286,6 +268,7 @@ class SessionCronScheduler:
                 if job.next_fire_at > now_t:
                     continue
                 job.fired_count += 1
+                job.last_fired_at = now_t
                 expired = (
                     job.recurring
                     and job.expires_at is not None
@@ -349,6 +332,10 @@ class SessionCronScheduler:
                             if raw.get("expires_at") is not None else None
                         ),
                         fired_count=int(raw.get("fired_count") or 0),
+                        last_fired_at=(
+                            float(raw["last_fired_at"])
+                            if raw.get("last_fired_at") is not None else None
+                        ),
                     )
                     CronExpression.parse(job.cron)
                 except (KeyError, TypeError, ValueError):
@@ -358,7 +345,9 @@ class SessionCronScheduler:
                         continue  # expired while away
                 else:
                     if job.next_fire_at <= now:
-                        continue  # one-shot whose time has passed
+                        if not job.durable:
+                            continue  # 会话型一次任务离线错过后不补执行。
+                        job.next_fire_at = now  # durable 一次任务恢复后只补执行一次。
                 if len(self._jobs) >= MAX_JOBS:
                     break
                 self._jobs[job.id] = job

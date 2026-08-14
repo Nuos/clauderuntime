@@ -1,0 +1,191 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ClaudeRuntime B4 修复反馈建议 v2</title><style>
+:root{--bg:#f5f7fb;--paper:#fff;--ink:#172033;--nav:#10284c;--line:#d8dfeb}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.72 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif}.layout{display:grid;grid-template-columns:320px minmax(0,1fr);min-height:100vh}aside{position:sticky;top:0;height:100vh;overflow:auto;background:var(--nav);padding:20px 14px;color:#fff}.brand{font-size:18px;font-weight:800;margin:4px 8px 16px}nav a{display:block;color:#dce9ff;text-decoration:none;padding:6px 8px;border-radius:7px;font-size:12px}nav a:hover{background:#1a3a68}nav .l2{padding-left:18px}nav .l3{padding-left:30px;color:#bdd0ec}main{padding:28px 36px 68px;max-width:1450px}article{background:#fff;border:1px solid var(--line);border-radius:16px;padding:32px 38px;box-shadow:0 4px 20px rgba(22,40,70,.05)}h1{font-size:30px;color:#10376b}h2{font-size:23px;color:#12457f;margin-top:34px;padding-top:22px;border-top:1px solid #edf0f5}h3{font-size:18px;color:#175493}h4{font-size:15px}code{background:#eef2f7;padding:2px 5px;border-radius:5px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}pre{background:#102039;color:#eaf2ff;border-radius:10px;padding:15px 17px;overflow:auto}pre code{background:none;padding:0;color:inherit}blockquote{margin:16px 0;padding:13px 17px;background:#eef8f6;border-left:4px solid #147d74}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #d8dfeb;padding:8px 10px;vertical-align:top}th{background:#eef5ff;color:#153f77;text-align:left}strong{color:#0d376c}@media(max-width:980px){.layout{display:block}aside{height:auto;position:relative}main{padding:12px}article{padding:20px}}@media print{aside{display:none}.layout{display:block}main{padding:0}article{border:0;box-shadow:none}}</style></head><body><div class="layout"><aside><div class="brand">ClaudeRuntime<br>B4 修复反馈建议 v2</div><nav><a class='l1' href='#ClaudeRuntime-B4-修复反馈建议-v2'>ClaudeRuntime B4 修复反馈建议 v2</a><a class='l1' href='#0-总体反馈'>0. 总体反馈</a><a class='l1' href='#1-本轮值得确认通过的修复'>1. 本轮值得确认通过的修复</a><a class='l2' href='#1-1-Compact-5-Source-Aligned-模式不再跨层-early-return'>1.1 Compact-5：Source-Aligned 模式不再跨层 early-return</a><a class='l3' href='#B4-原问题'>B4 原问题</a><a class='l3' href='#当前修复'>当前修复</a><a class='l3' href='#反馈结论'>反馈结论</a><a class='l2' href='#1-2-Microcompact-调用位置修正'>1.2 Microcompact：调用位置修正</a><a class='l3' href='#B4-原问题'>B4 原问题</a><a class='l3' href='#当前修复'>当前修复</a><a class='l3' href='#反馈结论'>反馈结论</a><a class='l2' href='#1-3-Path-scoped-Rules-语义归位正确'>1.3 Path-scoped Rules：语义归位正确</a><a class='l3' href='#B4-原问题'>B4 原问题</a><a class='l3' href='#当前修复'>当前修复</a><a class='l3' href='#反馈结论'>反馈结论</a><a class='l2' href='#1-4-Machine-Evidence-主动降级错误-VERIFIED'>1.4 Machine Evidence 主动降级错误 VERIFIED</a><a class='l3' href='#B4-原问题'>B4 原问题</a><a class='l3' href='#当前修复'>当前修复</a><a class='l3' href='#反馈结论'>反馈结论</a><a class='l2' href='#1-5-Taxonomy-清理'>1.5 Taxonomy 清理</a><a class='l3' href='#反馈结论'>反馈结论</a><a class='l1' href='#2-当前仍未完成的问题'>2. 当前仍未完成的问题</a><a class='l2' href='#2-1-Snip-仍然是-Open-Gap'>2.1 Snip：仍然是 Open Gap</a><a class='l3' href='#问题-A-行为仍未实现'>问题 A：行为仍未实现</a><a class='l3' href='#问题-B-当前注释结论过强'>问题 B：当前注释结论过强</a><a class='l3' href='#反馈建议'>反馈建议</a><a class='l3' href='#状态'>状态</a><a class='l2' href='#2-2-Microcompact-默认常量仍存在-Source-Drift'>2.2 Microcompact 默认常量仍存在 Source Drift</a><a class='l3' href='#反馈建议'>反馈建议</a><a class='l3' href='#状态'>状态</a><a class='l1' href='#3-Context-9-当前只完成-Project-CWD-level-子集'>3. Context-9：当前只完成 Project/CWD-level 子集</a><a class='l2' href='#3-1-Managed-User-conditional-rules-未实现'>3.1 Managed / User conditional rules 未实现</a><a class='l3' href='#建议'>建议</a><a class='l3' href='#状态'>状态</a><a class='l2' href='#3-2-Nested-directory-rules-尚未完成'>3.2 Nested-directory rules 尚未完成</a><a class='l3' href='#示例'>示例</a><a class='l3' href='#建议'>建议</a><a class='l3' href='#状态'>状态</a><a class='l2' href='#3-3-当前所谓-E2E-仍停留在-Tool-层'>3.3 当前所谓 E2E 仍停留在 Tool 层</a><a class='l3' href='#建议新增'>建议新增</a><a class='l3' href='#状态'>状态</a><a class='l1' href='#4-Machine-Evidence-已进步-但-baseline-模型本身仍有设计问题'>4. Machine Evidence：已进步，但 baseline 模型本身仍有设计问题</a><a class='l2' href='#4-1-当前问题'>4.1 当前问题</a><a class='l2' href='#4-2-更根本的问题-不能让一个-commit-内的文件写-自己的-SHA'>4.2 更根本的问题：不能让一个 commit 内的文件写“自己的 SHA”</a><a class='l3' href='#推荐修复模型'>推荐修复模型</a><a class='l3' href='#更推荐'>更推荐</a><a class='l3' href='#状态'>状态</a><a class='l1' href='#5-Evidence-Checker-当前还是-Linter-不是-Proof-Engine'>5. Evidence Checker：当前还是 Linter，不是 Proof Engine</a><a class='l3' href='#建议'>建议</a><a class='l3' href='#状态'>状态</a><a class='l1' href='#6-No-Self-Authored-Oracle-仍未完全落实'>6. No Self-Authored Oracle：仍未完全落实</a><a class='l3' href='#风险'>风险</a><a class='l3' href='#建议'>建议</a><a class='l3' href='#状态'>状态</a><a class='l1' href='#7-Durable-Resume-本轮没有真正推进功能闭环'>7. Durable Resume：本轮没有真正推进功能闭环</a><a class='l3' href='#建议继续按-Reference-重构'>建议继续按 Reference 重构</a><a class='l3' href='#必须新增测试'>必须新增测试</a><a class='l3' href='#状态'>状态</a><a class='l1' href='#8-Isolation-B4-最大硬缺口仍未解决'>8. Isolation：B4 最大硬缺口仍未解决</a><a class='l3' href='#建议'>建议</a><a class='l2' href='#macOS'>macOS</a><a class='l2' href='#Linux'>Linux</a><a class='l2' href='#Windows'>Windows</a><a class='l3' href='#状态'>状态</a><a class='l1' href='#9-Scheduler-仍需真正-Source-Differential'>9. Scheduler：仍需真正 Source Differential</a><a class='l3' href='#建议'>建议</a><a class='l3' href='#状态'>状态</a><a class='l1' href='#10-Cross-Surface-当前仍只有-Core-Server'>10. Cross-Surface：当前仍只有 Core ↔ Server</a><a class='l3' href='#建议'>建议</a><a class='l3' href='#状态'>状态</a><a class='l1' href='#11-docs-status-current-md-仍需要事实清理'>11. `docs/status/current.md` 仍需要事实清理</a><a class='l3' href='#建议'>建议</a><a class='l3' href='#状态'>状态</a><a class='l1' href='#12-Current-HEAD-CI-仍未解决'>12. Current-HEAD CI：仍未解决</a><a class='l3' href='#建议'>建议</a><a class='l3' href='#状态'>状态</a><a class='l1' href='#13-B4-问题复核总表-v2'>13. B4 问题复核总表 v2</a><a class='l1' href='#14-建议下一批修复顺序'>14. 建议下一批修复顺序</a><a class='l1' href='#15-下一批提交的验收标准'>15. 下一批提交的验收标准</a><a class='l2' href='#R1-Evidence-Control-Plane'>R1 Evidence Control Plane</a><a class='l2' href='#R2-Compact'>R2 Compact</a><a class='l2' href='#R3-Context-Rules'>R3 Context Rules</a><a class='l2' href='#R4-Durable-Resume'>R4 Durable Resume</a><a class='l2' href='#R5-Scheduler'>R5 Scheduler</a><a class='l2' href='#R6-Isolation'>R6 Isolation</a><a class='l2' href='#R7-Surface'>R7 Surface</a><a class='l1' href='#16-不建议做的事情'>16. 不建议做的事情</a><a class='l1' href='#17-本轮最终反馈'>17. 本轮最终反馈</a></nav></aside><main><article><h1 id='ClaudeRuntime-B4-修复反馈建议-v2'>ClaudeRuntime B4 修复反馈建议 v2</h1><blockquote>文档编号：<code>CR-B4-REPAIR-FEEDBACK-v2</code>  </blockquote><blockquote>文档定位：<strong>针对 B4 遗留问题修复后的定向复核与反馈建议，不是新的总体开发计划。</strong>  </blockquote><blockquote>当前项目：<code>Nuos/clauderuntime</code>  </blockquote><blockquote>当前 <code>main</code> HEAD：<code>cf4e0f91e6cdcd8105d93585aa9a18fbb1fc11d9</code>  </blockquote><blockquote>本轮实际功能修复提交：<code>4126dd5c7e80f82e542257cf21aef94e3e09e5bf</code>  </blockquote><blockquote>Claude Code recovered source：<code>2.1.88</code>  </blockquote><blockquote>Reference commit：<code>a8a678cb6244e6770e1e421767ff0987a1d95549</code>  </blockquote><blockquote>适用约束：Reference-7 + Reference-5 + CCR-14；<code>SOURCE_ALIGNED_CORE_IN_PROGRESS</code></blockquote><p>---</p><h1 id='0-总体反馈'>0. 总体反馈</h1><p>这轮针对 B4 遗留问题的优化是<strong>有效且方向正确的第一批修复</strong>。本轮最有价值的变化，不是测试数量增加，而是项目开始主动纠正 B4 阶段过早的 <code>VERIFIED</code> 结论，并把一部分“结构存在但行为不对”的实现重新拉回 Claude Code 2.1.88 的源码语义。</p><p>本轮可以确认有四类实质进展：</p><ol><li><strong>Compact-5 Source-Aligned 主路径修正</strong></li></ol><ul><li>生产默认模式不再因为早层节省 token 而跳过后续 shaping；</li><li>Microcompact 改为每轮进入，再由内部 gate 决定 no-op；</li><li>旧 early-exit 被隔离到显式 <code>PRODUCT_EXTENSION</code> 路径。</li></ul><ol><li><strong>Context-9 / Path-scoped Rules 从 Permission 误分类改回 Context</strong></li></ol><ul><li>Project 路径规则开始进入真实 Read → lazy discovery → meta user context injection 主链；</li><li>增加会话级去重、并发锁和 symlink escape 防护。</li></ul><ol><li><strong>Machine Evidence 从“完成率优先”转成“事实优先”</strong></li></ol><ul><li>原先不具备完整证据的 <code>VERIFIED</code> 被主动降级；</li><li>新增 evidence consistency checker；</li><li>Reference-7 / Reference-5 / CCR-14 成为唯一正式 completion taxonomy。</li></ul><ol><li><strong>测试治理更加可信</strong></li></ol><ul><li>本轮项目记录全量本地 Python 测试为 <code>10151 passed, 10 skipped, 3 warnings, 345 subtests passed</code>；</li><li>文档明确不把本地测试写成 current-HEAD CI green。</li></ul><p>但是，本轮还不能写成“B4 遗留问题已完成修复”。当前状态更准确的是：</p><pre><code>B4 遗留问题修复：第一阶段有效完成
+A0 Truth Reconciliation：部分完成
+A1 Compact-5：部分完成
+A2 Context-9：部分完成
+A3 Durable Resume：未完成
+A4 Cross-platform Isolation：未完成
+Scheduler / Full Surface / Final CI：未完成</code></pre><p>---</p><h1 id='1-本轮值得确认通过的修复'>1. 本轮值得确认通过的修复</h1><h2 id='1-1-Compact-5-Source-Aligned-模式不再跨层-early-return'>1.1 Compact-5：Source-Aligned 模式不再跨层 early-return</h2><h3 id='B4-原问题'>B4 原问题</h3><p>原实现允许：</p><pre><code>Layer 1 / Layer 2 / Layer 3
+→ tokens_saved &gt;= early_exit_tokens
+→ return
+→ 后续 shaper 不再执行</code></pre><p>这会改变 Claude Code <code>query.ts</code> 中 pre-model context shaping 的整体调用结构。</p><h3 id='当前修复'>当前修复</h3><p>当前默认：</p><pre><code>source_aligned: bool = True</code></pre><p>在 Source-Aligned 路径中：</p><pre><code>Result Budget
+→ Snip
+→ Microcompact
+→ Context Collapse
+→ AutoCompact</code></pre><p>全部继续访问，由各层自身判断是否 no-op。</p><p>旧 early-exit 仅在：</p><pre><code>source_aligned=False</code></pre><p>时保留。</p><h3 id='反馈结论'>反馈结论</h3><p><strong>修复接受。</strong></p><p>这是正确的设计边界：</p><pre><code>Reference parity path
+!=
+Product optimization path</code></pre><p>建议后续继续保持：</p><ul><li><code>source_aligned=True</code> 必须是生产 parity 默认；</li><li><code>source_aligned=False</code> 不得参与 parity score；</li><li>所有 PRODUCT_EXTENSION 都必须进入 divergence registry。</li></ul><p>---</p><h2 id='1-2-Microcompact-调用位置修正'>1.2 Microcompact：调用位置修正</h2><h3 id='B4-原问题'>B4 原问题</h3><p>之前由 pipeline 外层直接判断：</p><pre><code>mc_enabled == false
+→ 整个 Microcompact stage 不进入</code></pre><p>这和 Reference “调用 stage，再由内部 feature/config 决定 no-op”不同。</p><h3 id='当前修复'>当前修复</h3><p>现在每轮进入：</p><pre><code>microcompact_typed_messages()</code></pre><p>默认关闭时通过：</p><pre><code>TimeBasedMCConfig(enabled=False)
+force=False</code></pre><p>在 Microcompact 内部返回 no-op。</p><h3 id='反馈结论'>反馈结论</h3><p><strong>修复接受。</strong></p><p>这比“外层删掉整个阶段”更接近 Source control-flow。</p><p>---</p><h2 id='1-3-Path-scoped-Rules-语义归位正确'>1.3 Path-scoped Rules：语义归位正确</h2><h3 id='B4-原问题'>B4 原问题</h3><p>之前 machine matrix 把：</p><pre><code>path_rules</code></pre><p>归入：</p><pre><code>src/permissions
+permission_context</code></pre><p>这是语义错误。</p><h3 id='当前修复'>当前修复</h3><p>已经改为：</p><pre><code>Read(file)
+→ canonical path
+→ discover matching project rules
+→ claim once
+→ inject meta user context</code></pre><p>并且：</p><ul><li>不参与 Read 权限判定；</li><li>规则只作为 context instruction；</li><li>同一会话只注入一次；</li><li>concurrent Read 通过锁防重复；</li><li>rule symlink 越出项目 root 时拒绝注入。</li></ul><h3 id='反馈结论'>反馈结论</h3><p><strong>方向正确，Project/CWD-level 子集修复接受。</strong></p><p>这项修复应保留，不建议再回退到 Permission 层。</p><p>---</p><h2 id='1-4-Machine-Evidence-主动降级错误-VERIFIED'>1.4 Machine Evidence 主动降级错误 VERIFIED</h2><h3 id='B4-原问题'>B4 原问题</h3><p>同一个机制在不同文件中可能出现：</p><pre><code>runtime trace = VERIFIED
+callgraph = BLOCKED
+state map = PARTIAL
+scorecard = VERIFIED</code></pre><p>导致 <code>VERIFIED</code> 失去含义。</p><h3 id='当前修复'>当前修复</h3><p>现在统一采取更保守的状态：</p><pre><code>R7: 6 PARTIAL + 1 BLOCKED
+R5: 4 PARTIAL + 1 BLOCKED
+CCR: 13 PARTIAL + 1 BLOCKED</code></pre><p>同时新增：</p><pre><code>scripts/audit/check_parity_evidence.py</code></pre><p>用于检查：</p><ul><li>stale baseline；</li><li>unproven VERIFIED；</li><li>work-item 状态冲突；</li><li>scorecard / ledger mismatch。</li></ul><h3 id='反馈结论'>反馈结论</h3><p><strong>修复方向完全正确。</strong></p><p>主动把错误 <code>VERIFIED</code> 降级是项目质量提升，不是完成度倒退。</p><p>---</p><h2 id='1-5-Taxonomy-清理'>1.5 Taxonomy 清理</h2><p>当前已经把正式分类固定为：</p><pre><code>Reference-7
+Reference-5
+CCR-14</code></pre><p>旧：</p><pre><code>5 Parity Layers
+AUX-01..14</code></pre><p>仅作为：</p><pre><code>LEGACY_SUPPORTING_MAP</code></pre><p>不再参与 completion scoring。</p><h3 id='反馈结论'>反馈结论</h3><p><strong>基本关闭。</strong></p><p>后续必须避免任何新文档再次把 legacy taxonomy 写成“正式 5 层/14 机制”。</p><p>---</p><h1 id='2-当前仍未完成的问题'>2. 当前仍未完成的问题</h1><h2 id='2-1-Snip-仍然是-Open-Gap'>2.1 Snip：仍然是 Open Gap</h2><p>当前 Python：</p><pre><code>def snip_compact(...):
+    return list(messages), 0</code></pre><p>因此当前 Layer 2 仍是固定 no-op。</p><p>这里需要区分两个问题：</p><h3 id='问题-A-行为仍未实现'>问题 A：行为仍未实现</h3><p>当前不能把 CCR-03 / R5-02 写成 complete。</p><h3 id='问题-B-当前注释结论过强'>问题 B：当前注释结论过强</h3><p>当前文件注释写：</p><pre><code>The TS implementation is a stub that returns null</code></pre><p>但 recovered source 目前能确认的是：</p><pre><code>query.ts
+→ HISTORY_SNIP gate
+→ snipCompactIfNeeded(...)
+→ tokensFreed / boundaryMessage</code></pre><p>而不是“Reference Snip 确认就是 stub”。</p><h3 id='反馈建议'>反馈建议</h3><p>立即调整描述为：</p><pre><code>Reference call-site confirmed;
+Reference implementation body not yet fully recovered;
+Python currently keeps an explicit no-op placeholder;
+status = UNKNOWN/PARTIAL.</code></pre><p>禁止继续用“TS 本身也是 stub”作为完成依据。</p><h3 id='状态'>状态</h3><p><strong>OPEN / P0-P1。</strong></p><p>---</p><h2 id='2-2-Microcompact-默认常量仍存在-Source-Drift'>2.2 Microcompact 默认常量仍存在 Source Drift</h2><p>当前 Python：</p><pre><code>DEFAULT_TIME_BASED_MC_ENABLED = True</code></pre><p>而 Reference <code>timeBasedMCConfig.ts</code> 默认：</p><pre><code>enabled: false
+gapThresholdMinutes: 60
+keepRecent: 5</code></pre><p>当前生产 pipeline 因为显式覆盖 <code>enabled=False</code>，暂时没有导致主路径误触发，但默认值本身仍然不一致。</p><h3 id='反馈建议'>反馈建议</h3><p>直接改为：</p><pre><code>DEFAULT_TIME_BASED_MC_ENABLED = False</code></pre><p>然后补：</p><ul><li>direct-construction regression；</li><li>main-thread / subagent gating；</li><li>cached microcompact；</li><li>cache_edits；</li><li>keepRecent / gapThreshold source differential。</li></ul><h3 id='状态'>状态</h3><p><strong>OPEN / P1。</strong></p><p>---</p><h1 id='3-Context-9-当前只完成-Project-CWD-level-子集'>3. Context-9：当前只完成 Project/CWD-level 子集</h1><h2 id='3-1-Managed-User-conditional-rules-未实现'>3.1 Managed / User conditional rules 未实现</h2><p>Reference 有独立：</p><pre><code>Managed conditional rules
+User conditional rules
+Project conditional rules</code></pre><p>当前 Python 新增的是：</p><pre><code>get_project_path_scoped_rules()</code></pre><p>所以目前只覆盖 Project。</p><h3 id='建议'>建议</h3><p>补：</p><pre><code>get_managed_path_scoped_rules()
+get_user_path_scoped_rules()</code></pre><p>或者设计一个统一：</p><pre><code>get_path_scoped_rules(target_path, scope_set)</code></pre><p>但不要复制三套匹配逻辑。</p><h3 id='状态'>状态</h3><p><strong>OPEN。</strong></p><p>---</p><h2 id='3-2-Nested-directory-rules-尚未完成'>3.2 Nested-directory rules 尚未完成</h2><p>Reference 支持：</p><pre><code>CWD
+→ target file path
+→ CWD 与 target 之间的 nested directories
+→ nested CLAUDE.md / .claude/rules</code></pre><p>当前 Python 的 root traversal 主要是：</p><pre><code>cwd
+→ parent
+→ parent</code></pre><p>并不会沿：</p><pre><code>cwd
+→ target.parent</code></pre><p>下钻发现 nested rules。</p><h3 id='示例'>示例</h3><pre><code>repo/
+  src/
+    service/
+      .clawcodex/rules/service.md
+      worker.py</code></pre><p>当 CWD 是 <code>repo/</code>，读取 <code>src/service/worker.py</code> 时，Reference 可发现 <code>src/service/.claude/rules</code>；当前实现并不能完整覆盖该行为。</p><h3 id='建议'>建议</h3><p>实现：</p><pre><code>cwd → target.parent</code></pre><p>之间的目录链：</p><pre><code>relative = target.parent.relative_to(cwd)
+for segment in cumulative_segments(relative):
+    process nested project memory/rules</code></pre><p>并继续保持：</p><ul><li>symlink canonicalization；</li><li>target escape rejection；</li><li>rule root provenance；</li><li>dedup；</li><li>conditional/unconditional 分离。</li></ul><h3 id='状态'>状态</h3><p><strong>OPEN / 重要。</strong></p><p>---</p><h2 id='3-3-当前所谓-E2E-仍停留在-Tool-层'>3.3 当前所谓 E2E 仍停留在 Tool 层</h2><p>当前测试主要证明：</p><pre><code>_read_call()
+→ ToolResult.new_messages</code></pre><p>已经带有 path rule。</p><p>但 Source-Aligned final proof 应继续到：</p><pre><code>Turn 1 model requests Read
+→ Read produces result + rule context
+→ Query continues
+→ Turn 2 provider receives rule</code></pre><h3 id='建议新增'>建议新增</h3><p>一个 deterministic provider integration test：</p><pre><code>model turn 1 → Read(foo.py)
+tool result → path rule attachment
+model turn 2 → capture request messages
+assert rule exactly once</code></pre><p>并覆盖：</p><ul><li>matching；</li><li>non-matching；</li><li>duplicate read；</li><li>concurrent read；</li><li>compact reload；</li><li>resume reload。</li></ul><h3 id='状态'>状态</h3><p><strong>OPEN。</strong></p><p>---</p><h1 id='4-Machine-Evidence-已进步-但-baseline-模型本身仍有设计问题'>4. Machine Evidence：已进步，但 baseline 模型本身仍有设计问题</h1><h2 id='4-1-当前问题'>4.1 当前问题</h2><p>当前仓库 HEAD：</p><pre><code>cf4e0f91...</code></pre><p>而多个 machine evidence 文件仍固定：</p><pre><code>baseline_commit: 95efbaec...</code></pre><p>同时 checker 默认：</p><pre><code>expected_baseline = git rev-parse HEAD</code></pre><p>但是测试又硬编码：</p><pre><code>B5_BASELINE = 95efbaec...</code></pre><p>所以测试可以通过，但并没有证明：</p><pre><code>machine evidence == current HEAD</code></pre><p>---</p><h2 id='4-2-更根本的问题-不能让一个-commit-内的文件写-自己的-SHA'>4.2 更根本的问题：不能让一个 commit 内的文件写“自己的 SHA”</h2><p>如果流程是：</p><pre><code>把 HEAD 写入 yaml
+→ 修改 yaml
+→ commit
+→ HEAD 改变</code></pre><p>那么 YAML 天然立刻 stale。</p><p>这是自引用问题。</p><h3 id='推荐修复模型'>推荐修复模型</h3><p>采用：</p><pre><code>subject_commit
+evidence_commit</code></pre><p>例如：</p><pre><code>subject_commit: &lt;实际被验收的生产代码提交 X&gt;
+reference_commit: &lt;Claude Code reference&gt;
+evidence_generated_from: &lt;test run / extractor&gt;</code></pre><p>然后证据提交 Y 只允许修改：</p><pre><code>docs/parity/**
+scorecards/**
+generated evidence</code></pre><p>并要求：</p><pre><code>git diff X..Y</code></pre><p>不能出现 production code 修改。</p><h3 id='更推荐'>更推荐</h3><p>CI 中生成：</p><pre><code>scorecard artifact</code></pre><p>由：</p><pre><code>GITHUB_SHA</code></pre><p>动态绑定，不要求把同一个 HEAD SHA 回写入源码仓库。</p><h3 id='状态'>状态</h3><p><strong>OPEN / A0 P0。</strong></p><p>---</p><h1 id='5-Evidence-Checker-当前还是-Linter-不是-Proof-Engine'>5. Evidence Checker：当前还是 Linter，不是 Proof Engine</h1><p>当前 checker 的主要逻辑仍是：</p><pre><code>字段非空
+→ 认为 evidence 完整</code></pre><p>它还没有自动验证：</p><ul><li>reference file 是否真的存在；</li><li>reference symbol 是否存在；</li><li>Python symbol 是否存在；</li><li>call edge 是否真实；</li><li>differential test 是否存在；</li><li>test 是否执行通过；</li><li>safety invariant；</li><li>failure invariant；</li><li>platform evidence；</li><li>divergence 是否阻止 final VERIFIED。</li></ul><h3 id='建议'>建议</h3><p>把 checker 分成两层：</p><pre><code>Layer A — Schema / Consistency Linter
+Layer B — Evidence Resolver / Verifier</code></pre><p>第二层真正做：</p><pre><code>symbol extraction
+AST/callgraph check
+test-node discovery
+runtime trace artifact check
+platform result check
+divergence gate</code></pre><h3 id='状态'>状态</h3><p><strong>PARTIAL。</strong></p><p>---</p><h1 id='6-No-Self-Authored-Oracle-仍未完全落实'>6. No Self-Authored Oracle：仍未完全落实</h1><p>当前 Compact parity tests 仍读取：</p><pre><code>src/reference_data/ts_compression_layers.json</code></pre><p>该文件本质上仍是项目自己维护的 snapshot。</p><h3 id='风险'>风险</h3><p>如果 snapshot 本身错误：</p><pre><code>Python implementation
+→ 匹配错误 snapshot
+→ tests green
+→ 错误 VERIFIED</code></pre><h3 id='建议'>建议</h3><p>将 snapshot 改成：</p><pre><code>reference_commit:
+source_file:
+source_sha:
+symbols:
+extractor_version:
+extracted_facts:</code></pre><p>由 source extractor 生成，不允许人工直接编辑行为结论。</p><h3 id='状态'>状态</h3><p><strong>OPEN。</strong></p><p>---</p><h1 id='7-Durable-Resume-本轮没有真正推进功能闭环'>7. Durable Resume：本轮没有真正推进功能闭环</h1><p>当前已经正确承认：</p><pre><code>same-process true resume = yes
+restart-survivable durable resume = no</code></pre><p>当前核心限制仍是：</p><pre><code>resume_run_params</code></pre><p>属于内存 runtime dependency recipe，不持久化。</p><h3 id='建议继续按-Reference-重构'>建议继续按 Reference 重构</h3><p>恢复路径应是：</p><pre><code>durable transcript / metadata
+→ sanitize messages
+→ content replacement reconstruction
+→ worktree restore/validation
+→ current agent definition resolve
+→ current provider/runtime factory
+→ current tool pool
+→ current permission context
+→ current system prompt
+→ canonical run_agent</code></pre><h3 id='必须新增测试'>必须新增测试</h3><ol><li>进程级 registry 重建模拟；</li><li>不携带原 <code>RunAgentParams</code>；</li><li>transcript/meta 足够时可恢复；</li><li>provider/tool factory 缺失时明确失败；</li><li>session temporary trust 不恢复；</li><li>worktree missing/recovered；</li><li>concurrent resume winner-only。</li></ol><h3 id='状态'>状态</h3><p><strong>OPEN / P0。</strong></p><p>---</p><h1 id='8-Isolation-B4-最大硬缺口仍未解决'>8. Isolation：B4 最大硬缺口仍未解决</h1><p>当前仍是：</p><pre><code>macOS: real Seatbelt subset
+Linux: NoSandboxBackend
+Windows: NoSandboxBackend</code></pre><p>并且：</p><pre><code>allowed_network_hosts</code></pre><p>还未形成真正 domain policy enforcement。</p><h3 id='建议'>建议</h3><h2 id='macOS'>macOS</h2><p>继续补：</p><ul><li>managed/user/project sandbox config translation；</li><li>protected settings files；</li><li><code>.claude/skills</code>；</li><li>bare git escape；</li><li>read allow/deny；</li><li>allowed/denied domains；</li><li>Unix sockets；</li><li>local binding；</li><li>proxy；</li><li>background secret scrub。</li></ul><h2 id='Linux'>Linux</h2><p>建立真实 backend：</p><pre><code>Landlock / bubblewrap / equivalent</code></pre><p>至少验证：</p><ul><li>FS read/write；</li><li>network；</li><li>process tree；</li><li>env；</li><li>capability unavailable fail-closed。</li></ul><h2 id='Windows'>Windows</h2><p>真实 backend 不能只靠 Git Bash process group。</p><p>需要：</p><pre><code>Job Object
++ Restricted Token / AppContainer / ACL
++ network policy</code></pre><p>或等价可证明组合。</p><h3 id='状态'>状态</h3><p><strong>BLOCKED / P0。</strong></p><p>---</p><h1 id='9-Scheduler-仍需真正-Source-Differential'>9. Scheduler：仍需真正 Source Differential</h1><p>当前 Python Scheduler 功能较丰富，但 Reference 生命周期还有：</p><pre><code>file-backed tasks
+filesystem watch
+scheduler lock
+owner takeover
+lastFiredAt
+missed one-shot
+session/file task split
+daemon/filter/killswitch</code></pre><h3 id='建议'>建议</h3><p>不要继续以“功能比 Reference 多”作为等价证明。</p><p>建立状态机矩阵：</p><div class='table-wrap'><table><thead><tr><th>Reference State/Event</th><th>Python State/Event</th><th>Equivalent</th><th>Divergence</th></tr></thead><tbody><tr><td>file task load</td><td>snapshot/restore</td><td>?</td><td>必须证明</td></tr><tr><td>owner lock</td><td>Python ownership</td><td>?</td><td>必须证明</td></tr><tr><td>missed one-shot</td><td>Python due semantics</td><td>?</td><td>必须证明</td></tr><tr><td>lastFiredAt</td><td>Python state</td><td>?</td><td>必须证明</td></tr><tr><td>restart</td><td>snapshot restore</td><td>?</td><td>必须证明</td></tr></tbody></table></div><p>如果采用不同 persistence 架构，应标：</p><pre><code>PYTHON_ADAPTATION_VERIFIED</code></pre><p>而不是 <code>EXACT</code>。</p><h3 id='状态'>状态</h3><p><strong>OPEN。</strong></p><p>---</p><h1 id='10-Cross-Surface-当前仍只有-Core-Server'>10. Cross-Surface：当前仍只有 Core ↔ Server</h1><p>当前 runtime differential 已经比 B4 前好，但实际覆盖：</p><pre><code>core API
+↔ DirectConnect server</code></pre><p>尚未覆盖：</p><ul><li>CLI；</li><li>TUI；</li><li>Desktop；</li><li>IDE/VSCode。</li></ul><h3 id='建议'>建议</h3><p>使用同一 deterministic scripted provider：</p><pre><code>same prompt
+same settings
+same permission response
+same model chunks
+same tool outputs
+same transcript seed</code></pre><p>逐 Surface 比较：</p><ul><li>model call count；</li><li>tool visibility；</li><li>permission decision；</li><li>tool execution order；</li><li>state transitions；</li><li>transcript；</li><li>abort；</li><li>terminal；</li><li>usage；</li><li>turns。</li></ul><p>允许差异只在：</p><pre><code>rendering
+transport envelope
+surface-specific UI events</code></pre><h3 id='状态'>状态</h3><p><strong>OPEN。</strong></p><p>---</p><h1 id='11-docs-status-current-md-仍需要事实清理'>11. <code>docs/status/current.md</code> 仍需要事实清理</h1><p>当前该文件虽然已经使用新的 7×5×14 taxonomy，但仍保留大量 2026-08-11 migration baseline 描述。</p><p>这类历史信息不是错误，但不适合继续放在 <code>CURRENT</code> truth document 的核心区域。</p><h3 id='建议'>建议</h3><p>拆成：</p><pre><code>docs/status/current.md
+→ 只保留当前 HEAD / 当前 tests / 当前 blockers
+
+docs/history/...
+→ migration baseline / old broken links / old collection errors</code></pre><h3 id='状态'>状态</h3><p><strong>OPEN / Governance。</strong></p><p>---</p><h1 id='12-Current-HEAD-CI-仍未解决'>12. Current-HEAD CI：仍未解决</h1><p>目前只能确认：</p><pre><code>local Python suite green</code></pre><p>不能确认：</p><pre><code>current HEAD GitHub CI green</code></pre><p>且当前主分支没有 required status checks 证据。</p><h3 id='建议'>建议</h3><p>Final Exit 前必须建立至少：</p><pre><code>Linux Python core/parity
+macOS Python + native sandbox
+Windows Python + native isolation
+docs/evidence checker
+TUI/Desktop/IDE supported-surface tests
+package/install smoke</code></pre><p>并让 required checks 进入 branch protection。</p><h3 id='状态'>状态</h3><p><strong>OPEN / Final Gate。</strong></p><p>---</p><h1 id='13-B4-问题复核总表-v2'>13. B4 问题复核总表 v2</h1><div class='table-wrap'><table><thead><tr><th>ID</th><th>B4 问题</th><th>当前状态</th><th>本轮评价</th><th>后续动作</th></tr></thead><tbody><tr><td>P01</td><td>Resume 假恢复</td><td>CLOSED</td><td>保持正确</td><td>回归</td></tr><tr><td>P02</td><td>Resume race</td><td>CLOSED</td><td>保持正确</td><td>回归</td></tr><tr><td>P03</td><td>Resume 内存 recipe</td><td>OPEN</td><td>状态降级正确</td><td>Durable reconstruction</td></tr><tr><td>P04</td><td>无真实 Sandbox</td><td>PARTIAL</td><td>macOS only</td><td>Linux/Windows</td></tr><tr><td>P05</td><td>Foreground sandbox bypass</td><td>CLOSED</td><td>保持正确</td><td>回归</td></tr><tr><td>P06</td><td>Background sandbox bypass</td><td>CLOSED</td><td>保持正确</td><td>回归</td></tr><tr><td>P07</td><td>process-tree 生命周期</td><td>PARTIAL</td><td>主体已改善</td><td>Canonical ProcessPolicy</td></tr><tr><td>P08</td><td>filesystem isolation</td><td>PARTIAL</td><td>macOS 已有</td><td>跨平台</td></tr><tr><td>P09</td><td>network isolation</td><td>PARTIAL</td><td>binary deny 已有</td><td>domain enforcement</td></tr><tr><td>P10</td><td>secret/sandbox 联动</td><td>PARTIAL</td><td>子集覆盖</td><td>background/跨平台</td></tr><tr><td>P11</td><td>MCP discovery 假 capability</td><td>CLOSED</td><td>保持正确</td><td>回归</td></tr><tr><td>P12</td><td>MCP stale tools</td><td>CLOSED</td><td>保持正确</td><td>回归</td></tr><tr><td>P13</td><td>Hook timeout child process</td><td>CLOSED</td><td>保持正确</td><td>Fault regression</td></tr><tr><td>P14</td><td>Compact source drift</td><td>PARTIAL</td><td><strong>显著改善</strong></td><td>Snip + MC default + cache path</td></tr><tr><td>P15</td><td>Snip</td><td>OPEN</td><td>未解决</td><td>Source recovery</td></tr><tr><td>P16</td><td>Context-9</td><td>PARTIAL</td><td><strong>显著改善</strong></td><td>Managed/User/Nested/Reload</td></tr><tr><td>P17</td><td>Scheduler lifecycle</td><td>OPEN</td><td>仅状态纠正</td><td>Source state differential</td></tr><tr><td>P18</td><td>Full cross-surface</td><td>OPEN</td><td>core/server 仍有限</td><td>CLI/TUI/Desktop/IDE</td></tr><tr><td>P19</td><td>async test 假绿</td><td>CLOSED</td><td>保持正确</td><td>测试治理</td></tr><tr><td>P20</td><td>Hook mock 参数</td><td>CLOSED</td><td>保持正确</td><td>回归</td></tr><tr><td>P21</td><td>sandbox unit/E2E 混淆</td><td>CLOSED</td><td>保持正确</td><td>分层测试</td></tr><tr><td>P22</td><td>background notification race</td><td>CLOSED</td><td>保持正确</td><td>回归</td></tr><tr><td>P23</td><td>Machine evidence 矛盾</td><td>PARTIAL</td><td><strong>大幅改善</strong></td><td>原子生成 + Proof Engine</td></tr><tr><td>P24</td><td>stale baseline</td><td>OPEN</td><td><strong>暴露 self-reference 问题</strong></td><td>subject/evidence commit 模型</td></tr><tr><td>P25</td><td>双 taxonomy</td><td>CLOSED/基本关闭</td><td>本轮完成较好</td><td>禁止反复</td></tr><tr><td>P26</td><td>current HEAD CI</td><td>OPEN</td><td>未解决</td><td>Required CI</td></tr></tbody></table></div><p>---</p><h1 id='14-建议下一批修复顺序'>14. 建议下一批修复顺序</h1><p>本轮之后，不建议立刻同时铺开所有大功能。推荐顺序：</p><pre><code>R1  Machine Evidence subject/evidence commit 模型
+↓
+R2  Microcompact 默认值 + Snip 事实状态纠正
+↓
+R3  Path Rules：Managed/User/Nested + full-query E2E
+↓
+R4  Durable Resume
+↓
+R5  Scheduler lifecycle differential
+↓
+R6  Linux / Windows Real Sandbox
+↓
+R7  Full Surface Differential
+↓
+R8  Current-HEAD CI + Final machine scorecard</code></pre><p>其中 R1 必须先做，否则后续每次提交都可能让 machine evidence 的 baseline 再次过期。</p><p>---</p><h1 id='15-下一批提交的验收标准'>15. 下一批提交的验收标准</h1><h2 id='R1-Evidence-Control-Plane'>R1 Evidence Control Plane</h2><p>必须满足：</p><pre><code>no self-referential HEAD baseline
+subject_commit explicit
+evidence generated atomically
+cross-file contradictions = 0
+unproven VERIFIED rejected
+scorecard derived, not hand-counted</code></pre><h2 id='R2-Compact'>R2 Compact</h2><p>必须满足：</p><pre><code>Microcompact default = reference default
+Snip state = source-supported
+No self-authored oracle
+cache/time/no-op paths source-traceable</code></pre><h2 id='R3-Context-Rules'>R3 Context Rules</h2><p>必须满足：</p><pre><code>Managed
+User
+Project CWD-level
+Project nested-directory
+single injection
+concurrent dedup
+symlink protection
+compact reload
+resume reload
+next-model-call E2E</code></pre><h2 id='R4-Durable-Resume'>R4 Durable Resume</h2><p>必须满足：</p><pre><code>no dependency on persisted live object
+restart-survivable reconstruction
+current runtime factory
+current tool/permission/system prompt
+worktree
+content replacement
+trust reset
+canonical run_agent</code></pre><h2 id='R5-Scheduler'>R5 Scheduler</h2><p>必须满足：</p><pre><code>session task
+durable task
+restart
+missed one-shot
+owner
+lastFiredAt
+cancel/reschedule
+permission
+isolation</code></pre><h2 id='R6-Isolation'>R6 Isolation</h2><p>必须满足：</p><pre><code>macOS native
+Linux native
+Windows native
+filesystem
+network
+env/secret
+process tree
+fail-closed
+native CI</code></pre><h2 id='R7-Surface'>R7 Surface</h2><p>必须满足所有正式支持 Surface 进入 shared core 的 runtime differential。</p><p>---</p><h1 id='16-不建议做的事情'>16. 不建议做的事情</h1><p>在上述遗留问题关闭前，不建议：</p><ul><li>新增 provider；</li><li>扩展新的 workflow 产品功能；</li><li>新建第二 Agent Loop；</li><li>为提高 scorecard 把 PARTIAL 改 VERIFIED；</li><li>继续维护人工 reference snapshot 作为唯一 oracle；</li><li>把 macOS-only sandbox 写成 cross-platform complete；</li><li>把 same-process resume 写成 durable resume；</li><li>用 core/server 两路径代表全部 Surface；</li><li>用本地 pytest green 代表 GitHub CI green；</li><li>在 <code>docs/status/current.md</code> 混合大量历史 baseline。</li></ul><p>---</p><h1 id='17-本轮最终反馈'>17. 本轮最终反馈</h1><p>这次针对 B4 遗留问题的修复，<strong>最值得确认的是项目开始从“完成声明驱动”转为“事实证据驱动”</strong>。</p><p>当前可以明确接受的改进：</p><pre><code>Compact early-return 修正
+Microcompact 调用位置修正
+Project path-scoped rules 真接线
+Context / Permission 语义纠正
+Machine evidence 主动降级
+Evidence consistency checker
+唯一 taxonomy</code></pre><p>当前不能接受为最终完成的部分：</p><pre><code>Snip
+完整 Context-9
+Durable Resume
+Cross-platform Isolation
+Scheduler source lifecycle
+Full Surface parity
+Current-HEAD CI
+Final machine evidence</code></pre><p>因此当前最合适的项目状态仍然是：</p><pre><code>SOURCE_ALIGNED_CORE_IN_PROGRESS</code></pre><p>而不是：</p><pre><code>SOURCE_ALIGNED_CORE_COMPLETE</code></pre><p>v2 反馈的核心要求可以归纳为一句话：</p><blockquote><strong>继续修功能，但更重要的是让每一个“完成”都能由 Source → Python → Runtime → Test → Machine Evidence 五段连续证明，而不是由文档和测试数量共同推断。</strong></blockquote></article></main></div></body></html>

@@ -1,6 +1,4 @@
-"""
-Tests for post-compact cleanup.
-"""
+"""验证会话压缩后清理必须重新构建的生产上下文状态。"""
 
 from __future__ import annotations
 
@@ -51,6 +49,15 @@ class TestRunPostCompactCleanup(unittest.TestCase):
         result = run_post_compact_cleanup(ctx)
         self.assertIn("loaded_nested_memory_paths", result)
         self.assertEqual(paths, set())
+
+    def test_clears_path_rule_claims(self):
+        claims = {"/repo/.clawcodex/rules/python.md"}
+        ctx = PostCompactContext(path_rule_claims=claims)
+
+        result = run_post_compact_cleanup(ctx)
+
+        self.assertIn("path_rule_claims", result)
+        self.assertEqual(claims, set())
 
     def test_handles_failing_cache(self):
         """Failing cache doesn't break cleanup of others."""

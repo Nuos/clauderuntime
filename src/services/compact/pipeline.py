@@ -1,15 +1,9 @@
-"""
-Compression pipeline — orchestrates the 5 compression layers in order.
+"""按固定顺序执行五层生产会话压缩。
 
-Runs cheap → expensive. Source-aligned mode always visits every layer so
-each layer applies its own feature gate and no-op decision.
-
-Layers:
-  1. apply_tool_result_budget  — Persist large results to disk
-  2. snip_compact              — Trim old tool results
-  3. microcompact              — Compress intermediate tool calls
-  4. context_collapse          — Read-time projection
-  5. autocompact               — Full LLM summarization (last resort)
+流水线从低成本工具结果预算开始，依次访问 Snip、Microcompact、上下文折叠和
+自动摘要。Source-Aligned 模式始终进入每一层，由各层内部判断是否空操作；只有
+显式产品扩展模式允许提前结束。自动摘要成功后还会清理路径规则的会话内登记，
+保证被摘要移除的延迟规则能在后续 Read 时重新注入。
 """
 
 from __future__ import annotations
@@ -78,6 +72,7 @@ class PipelineConfig:
     read_file_state: dict[str, Any] | None = None
     plan_file_path: str | None = None
     memory_paths: set[str] | None = None
+    path_rule_claims: set[Path] | None = None
 
     # Global
     provider: BaseProvider | None = None
@@ -129,12 +124,16 @@ def build_production_pipeline_config(
             )
         except Exception:
             logger.debug("model context-window resolution failed", exc_info=True)
+    path_rule_claims = getattr(tool_context, "loaded_path_rule_files", None)
+    if not isinstance(path_rule_claims, set):
+        path_rule_claims = None
     return PipelineConfig(
         provider=provider,
         model=model,
         context_window=context_window,
         max_output_tokens=max_output_tokens,
         read_file_state=read_file_state or None,
+        path_rule_claims=path_rule_claims,
         autocompact_tracking=autocompact_tracking,
     )
 
@@ -266,6 +265,7 @@ class CompressionPipeline:
                     read_file_state=cfg.read_file_state,
                     plan_file_path=cfg.plan_file_path,
                     memory_paths=cfg.memory_paths,
+                    path_rule_claims=cfg.path_rule_claims,
                 )
                 if result is not None:
                     total_saved += result.tokens_saved

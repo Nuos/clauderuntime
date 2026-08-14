@@ -221,7 +221,7 @@ def test_message_to_running_agent_by_raw_id(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_message_to_terminal_agent_reports_honestly(tmp_path: Path) -> None:
+def test_message_to_terminal_agent_reports_honestly(tmp_path: Path, monkeypatch) -> None:
     """ch10 round-4 (critic M1) — SendMessage to a TERMINAL agent no longer
     returns a false 'resumed it in the background' success (the live-resume
     lifecycle is a documented stub that never spawns the loop). It returns
@@ -233,6 +233,7 @@ def test_message_to_terminal_agent_reports_honestly(tmp_path: Path) -> None:
         register_async_agent,
     )
 
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(tmp_path / "config"))
     ctx = ToolContext(workspace_root=tmp_path)
     state = register_async_agent(
         agent_id="a-dead", description="x", prompt="initial",

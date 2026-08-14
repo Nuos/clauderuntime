@@ -166,6 +166,9 @@ class ToolContext:
     additional_working_directories: tuple[Path, ...] = ()
     allow_docs: bool = False
     execution_boundary: Any = field(default_factory=default_execution_boundary)
+    # 当前查询循环的工具注册表，仅用于在恢复后台 Agent 时按当前进程重新解析工具；
+    # 不写入 transcript 或恢复元数据，避免持久化带凭据的工具实例。
+    tool_registry: Any | None = None
 
     # C1 (components parity): request/reply protocol — the surface gets the
     # full PermissionAskRequest (tool_input → previews, suggestions →

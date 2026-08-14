@@ -1,10 +1,21 @@
-"""
-Tests for microcompact message preprocessing.
-"""
+"""验证 Microcompact 在模型调用前处理历史消息的生产行为。"""
 
 from __future__ import annotations
 
 import unittest
+
+
+class TestTimeBasedMicrocompactConfig(unittest.TestCase):
+    """验证时间型压缩的参考默认值，防止主流水线覆盖掩盖配置漂移。"""
+
+    def test_direct_construction_is_disabled_by_default(self):
+        from src.context_system.microcompact import TimeBasedMCConfig
+
+        config = TimeBasedMCConfig()
+
+        self.assertFalse(config.enabled)
+        self.assertEqual(config.gap_threshold_minutes, 60)
+        self.assertEqual(config.keep_recent, 5)
 
 
 class TestStripImagesFromMessages(unittest.TestCase):

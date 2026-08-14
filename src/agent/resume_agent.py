@@ -1,46 +1,17 @@
-"""Auto-resume for terminal local_agent tasks — Chunk F / WI-7.4.
+"""跨进程恢复已经终止或因服务重启中断的本地后台 Agent。
 
-Mirrors ``typescript/src/tools/AgentTool/resumeAgent.ts``. When
-SendMessage targets a terminal-state agent (completed / failed /
-killed), instead of returning an error this module re-spawns the
-agent with the prior conversation reconstructed from its sidechain
-JSONL transcript (Chunk C / WI-2.2 — gate-zero).
-
-DIP claim (concern C6 from refactoring-plan review): this module
-depends on ``TranscriptReader`` (the interface, not the writer's IO
-layer) — the reader is the canonical consumer for ``state.output_file``.
-
-Race guard
-----------
-
-Two concurrent SendMessage calls to the same dead agent_id should
-NOT both spawn replacement runs. The atomic claim:
-
-1. Read the registry entry.
-2. If state is terminal AND ``not state.is_resuming``, set
-   ``is_resuming=True`` and return "this caller wins."
-3. Else return "another caller is resuming; queue the message via
-   ``queue_pending_message`` instead."
-
-The check + flip are one ``runtime_tasks.update`` mutator call —
-atomic under the registry's RLock. Two concurrent callers see
-exactly one winner.
-
-Pending-message handoff
------------------------
-
-The caller that wins the resume race carries the SendMessage payload
-into the resumed run by passing it as the new ``prompt``. Losers
-queue their messages onto the new running state via
-``queue_pending_message`` (which by then sees the running entry the
-winner just registered).
+恢复先从 JSONL transcript 重建消息，再从安全元数据恢复任务身份；provider、工具
+注册表、Agent 定义、权限上下文和系统提示均从当前进程重新解析。并发调用通过
+运行时注册表的一次原子更新选出唯一恢复者，其他调用方不会重复启动 Agent。
 """
 from __future__ import annotations
 
 import asyncio
 import copy
 import logging
+import time
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
 from src.agent.transcript import TranscriptReader
@@ -142,6 +113,102 @@ def _reconstruct_messages_from_transcript(transcript_path: str) -> list[Any]:
     return TranscriptReader(transcript_path).read_all()
 
 
+def _restore_state_from_metadata(
+    agent_id: str,
+    runtime: "RuntimeTaskRegistry",
+) -> LocalAgentTaskState | None:
+    """在进程内注册表为空时，从磁盘元数据重建可原子认领的终态。"""
+    from src.agent.resume_metadata import load_metadata
+    from src.agent.transcript import get_agent_transcript_path
+
+    try:
+        metadata = load_metadata(get_agent_transcript_path(agent_id))
+    except ValueError:
+        return None
+    if metadata is None or metadata.agent_id != agent_id:
+        return None
+    status = metadata.status
+    if not is_terminal_task_status(status):
+        # 进程重启后旧的 running 状态不再对应任何执行线程，必须先视为失败终态，
+        # 再由本次调用重新认领，不能把磁盘 running 直接当作仍在执行。
+        status = "failed"
+    state = LocalAgentTaskState(
+        id=agent_id,
+        type="local_agent",
+        status=status,
+        description=metadata.description,
+        start_time=time.time(),
+        output_file=metadata.output_file,
+        agent_id=agent_id,
+        agent_type=metadata.agent_type,
+        prompt=metadata.initial_prompt,
+        model=metadata.model,
+        tool_use_id=metadata.tool_use_id,
+        error="previous process ended before task reached a durable terminal state"
+        if metadata.status == "running" else None,
+    )
+    runtime.upsert(state)
+    return state
+
+
+def _rebuild_run_params_from_current_runtime(
+    state: LocalAgentTaskState,
+    context: "ToolContext",
+) -> Any:
+    """用当前进程依赖重建 RunAgentParams，禁止复用持久化实时对象。"""
+    from src.agent.agent_definitions import (
+        find_agent_by_type,
+        get_built_in_agents,
+    )
+    from src.agent.run_agent import RunAgentParams
+    from src.agent.resume_metadata import load_metadata
+
+    metadata = load_metadata(state.output_file)
+    if metadata is not None:
+        expected_root = metadata.worktree_root or metadata.workspace_root
+        if expected_root is not None and not Path(expected_root).is_dir():
+            raise RuntimeError(f"recorded workspace is missing: {expected_root}")
+        current_roots = {
+            Path(context.workspace_root).resolve(),
+            Path(context.worktree_root).resolve()
+            if context.worktree_root is not None else Path(context.workspace_root).resolve(),
+        }
+        if expected_root is not None and Path(expected_root).resolve() not in current_roots:
+            raise RuntimeError("current workspace does not match the recorded worktree")
+
+    provider = getattr(context, "_active_provider", None)
+    registry = getattr(context, "tool_registry", None)
+    if provider is None:
+        raise RuntimeError("current provider factory is unavailable")
+    if registry is None:
+        raise RuntimeError("current tool registry is unavailable")
+
+    definitions = list(get_built_in_agents())
+    configured = getattr(context.options, "agent_definitions", {})
+    if isinstance(configured, dict):
+        definitions.extend(
+            definition for definition in configured.values()
+            if definition is not None
+        )
+    definition = find_agent_by_type(definitions, state.agent_type)
+    if definition is None:
+        raise RuntimeError(f"current agent definition {state.agent_type!r} is unavailable")
+
+    return RunAgentParams(
+        parent_context=context,
+        agent_definition=definition,
+        prompt=state.prompt,
+        available_tools=registry.list_tools(),
+        tool_registry=registry,
+        provider=provider,
+        model=state.model,
+        agent_id=state.agent_id,
+        is_async=True,
+        permission_mode_override=None,
+        system_prompt_override=None,
+    )
+
+
 async def resume_agent_background(
     *,
     agent_id: str,
@@ -171,10 +238,12 @@ async def resume_agent_background(
     state = runtime.get(agent_id)
 
     if state is None:
-        return ResumeResult(
-            resumed=False, agent_id=agent_id,
-            reason="task not found in runtime_tasks",
-        )
+        state = _restore_state_from_metadata(agent_id, runtime)
+        if state is None:
+            return ResumeResult(
+                resumed=False, agent_id=agent_id,
+                reason="task not found in runtime_tasks or durable metadata",
+            )
 
     if not isinstance(state, LocalAgentTaskState):
         return ResumeResult(
@@ -214,6 +283,14 @@ async def resume_agent_background(
 
     recipe = getattr(prev, "resume_run_params", None)
     if recipe is None:
+        try:
+            recipe = _rebuild_run_params_from_current_runtime(prev, context)
+        except RuntimeError as exc:
+            recipe = None
+            rebuild_error = str(exc)
+    else:
+        rebuild_error = ""
+    if recipe is None:
         runtime.update(
             agent_id,
             lambda current: replace(current, is_resuming=False)
@@ -223,7 +300,10 @@ async def resume_agent_background(
             resumed=False,
             agent_id=agent_id,
             replayed_message_count=len(replayed),
-            reason="live resume dependencies are unavailable; spawn a fresh agent",
+            reason=(
+                f"live resume dependencies are unavailable: {rebuild_error}; "
+                "spawn a fresh agent"
+            ),
         )
 
     from src.types.messages import Message, message_from_dict

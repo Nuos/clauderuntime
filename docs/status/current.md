@@ -2,16 +2,16 @@
 
 status: CURRENT
 owner: repository-governance
-created: 2026-08-11
+created: 2026-08-13
 last_verified: 2026-08-13
 reference_target: Claude Code v2.1.88 analysis baseline
-clauderuntime_commit: 95efbaec4796147657668c4947a0d2088ecc4738
+evidence_subject_commit: 95efbaec4796147657668c4947a0d2088ecc4738
 supersedes: none
 superseded_by: none
 
 ## Summary
 
-ClaudeRuntime / ClawCodex is in a high-fidelity Python runtime parity phase. Current repository governance separates production code, engineering infrastructure, reference materials, active plans, progress history, and archived documents.
+ClaudeRuntime / ClawCodex 当前状态为 `SOURCE_ALIGNED_CORE_IN_PROGRESS`。本页只保留当前证据对象、测试结论和阻塞项；历史迁移记录已移至 `docs/history/`。
 
 ## 7 Core Components
 
@@ -27,9 +27,9 @@ The active parity vocabulary is:
 
 `Context / Memory` is governed through Agent Loop and State & Persistence, not as an eighth component.
 
-## 5 System Layers
+## 5 Reference Layers
 
-Surface、Core、Safety / Action、State、Backend 是唯一正式五层。
+Reference-5 是唯一正式五层分类；Surface、Core、Safety / Action、State、Backend 为其当前名称。
 
 ## 14 CCR Mechanisms
 
@@ -37,8 +37,7 @@ CCR-01 至 CCR-14 是唯一正式横切机制。旧 AUX-01..14 仅作历史映�
 
 ## 当前结论
 
-B5 起点没有任何 R7、R5 或 CCR 项满足 v6 最终证据字段。跨平台隔离保持
-`BLOCKED`，其余项保持 `PARTIAL`；不得把本地局部测试通过写成整体完成。
+最近一次已提交证据对象没有任何 R7、R5 或 CCR 项满足 v6 最终证据字段。跨平台隔离保持 `BLOCKED`，其余项保持 `PARTIAL`。本轮工作区正在修复 Machine Evidence、Compact、Context Rules、Durable Resume 和 Scheduler；未形成新证据提交前不得提升完成状态。
 
 ## Critical Runtime Paths
 
@@ -46,20 +45,19 @@ The minimum tracked runtime paths are ordinary answer, Read, Write/Edit, Bash, C
 
 ## Current P0
 
-Current P0/P1 items should be tracked in GitHub Issues and summarized in [backlog.md](backlog.md). Historical P0 references in archived TODO/progress files are not authoritative unless confirmed against current source and tests.
+1. Scheduler file-backed lifecycle、owner takeover 和文件监听。
+2. Linux、Windows 原生隔离和真实平台测试。
+3. CLI、TUI、Desktop、IDE 全 Surface runtime differential。
+4. current-HEAD GitHub CI 和 required status checks。
+5. Snip 参考实现函数体恢复；当前保持 UNKNOWN/PARTIAL。
 
-## Verification Baseline
+## 当前验证
 
-Migration baseline on 2026-08-11:
-
-- HEAD: `d29bfe597fe03da951888b0ec7732660852a6196`
-- Python test baseline: `tests/` collection fails before migration at `tests/test_ch04_api_round4.py` because `src.query.query` does not export `PROMPT_CACHING_SCOPE_BETA_HEADER`.
-- Markdown local-link baseline before migration: 114 Markdown files scanned, 105 broken local links found. After migration: 119 Markdown files scanned, 37 broken local links remain.
-- Post-migration checks: `git diff --check` passed; `ui-tui` typecheck passed; Python full suite remains blocked by the same baseline collection error; `ui-tui` and workflow test runs have timing-related failures recorded in [../progress/2026/2026-08-11-repository-governance-migration.md](../progress/2026/2026-08-11-repository-governance-migration.md).
-- Documentation governance gate: `scripts/check_docs_governance.py` now enforces root Markdown and docs top-level whitelists, forbids newly misplaced date/TODO/FEATURE docs, blocks new broken local Markdown links beyond [markdown-link-allowlist.txt](markdown-link-allowlist.txt), checks archive-link policy, and validates 7/5/14 parity-map coverage.
-- Current parity UNKNOWN records are tracked in [parity-unknown-allowlist.txt](parity-unknown-allowlist.txt). Second-round deletion candidates are tracked in [delete-candidates.md](delete-candidates.md) and must not be mixed into the first migration commit.
-- Desktop dependencies were not installed in `ui-desktop/node_modules` at migration start.
-- `ui-tui/node_modules` existed at migration start.
+1. 最近已完成的全项目本地测试：`10151 passed, 10 skipped, 3 warnings, 345 subtests passed`；该结果属于上一提交阶段，不代表本轮未提交工作区。
+2. 本轮已完成针对性测试：Compact/Context 组合 `94 passed`；Resume/SendMessage `44 passed`；Scheduler `28 passed`。
+3. GitHub CI：本轮尚未提交，状态为 `未测试`，禁止写成 CI 通过。
+4. Machine Evidence 使用 `subject_commit`，不再要求证据文件自引用其所在提交 SHA。
+5. 2026-08-11 迁移基线见 [../history/2026-08-11-repository-governance-migration-baseline.md](../history/2026-08-11-repository-governance-migration-baseline.md)。
 
 ## Known Intentional Divergences
 

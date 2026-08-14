@@ -705,18 +705,18 @@ def _read_call(tool_input: dict[str, Any], context: ToolContext) -> ToolResult:
     try:
         from src.context_system.clawcodex_md import (
             get_clawcodex_mds,
-            get_project_path_scoped_rules,
+            get_path_scoped_rules,
         )
         from src.types.messages import create_user_message
 
-        matched = get_project_path_scoped_rules(path, context.cwd or context.workspace_root)
+        matched = get_path_scoped_rules(path, context.cwd or context.workspace_root)
         claimed_paths = set(context.claim_path_rules([Path(rule.path) for rule in matched]))
         fresh_rules = [rule for rule in matched if Path(rule.path).resolve() in claimed_paths]
         if fresh_rules:
             rules_context = get_clawcodex_mds(fresh_rules)
             reminder = (
                 "<system-reminder>\n"
-                "The following path-scoped project instructions apply to the file just read:\n"
+                "The following path-scoped instructions apply to the file just read:\n"
                 f"{rules_context}\n"
                 "</system-reminder>"
             )

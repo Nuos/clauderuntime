@@ -1,12 +1,4 @@
-"""WI-7.4 tests — ``resume_agent_background`` race guard + transcript replay.
-
-Covers:
-* Terminal task → resume succeeds, fresh state visible in registry.
-* Non-terminal task → resume returns no-op with reason.
-* Missing task → resume returns no-op with reason.
-* Concurrent resume callers → exactly one wins (atomic claim).
-* TranscriptReader is the consumer — replays count is reported.
-"""
+"""验证后台 Agent 单赢恢复、transcript 重放和跨进程运行依赖重建。"""
 from __future__ import annotations
 
 import asyncio
@@ -17,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.agent.resume_agent import resume_agent_background
+from src.agent.resume_metadata import metadata_path_for_output
 from src.agent.transcript import TranscriptWriter, get_agent_transcript_path
 from src.tasks.local_agent import (
     LocalAgentTaskState,
@@ -26,6 +19,13 @@ from src.tasks.local_agent import (
 )
 from src.tasks_core import generate_task_id
 from src.tool_system.context import ToolContext
+from src.tool_system.defaults import build_default_registry
+
+
+@pytest.fixture(autouse=True)
+def _isolate_resume_storage(tmp_path: Path, monkeypatch) -> None:
+    """把 transcript 和恢复元数据限制在单个测试目录，禁止污染用户配置。"""
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(tmp_path / "config"))
 
 
 class _DeferredTaskManager:
@@ -140,6 +140,80 @@ def test_resume_without_live_dependencies_fails_without_false_running_state(tmp_
     assert result.resumed is False
     assert "dependencies" in result.reason
     assert ctx.runtime_tasks.get(agent_id).status == "completed"
+
+
+def test_restart_rebuilds_dependencies_from_current_runtime(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(tmp_path / "config"))
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    original_context = ToolContext(workspace_root=workspace)
+    agent_id = generate_task_id("local_agent")
+    recipe = SimpleNamespace(parent_context=original_context, api_key="do-not-persist")
+    state = register_async_agent(
+        agent_id=agent_id,
+        description="durable",
+        prompt="initial",
+        agent_type="general-purpose",
+        model="test-model",
+        resume_run_params=recipe,
+        registry=original_context.runtime_tasks,
+    )
+    complete_agent_task(agent_id, result_text="done", registry=original_context.runtime_tasks)
+    metadata_text = metadata_path_for_output(state.output_file).read_text(encoding="utf-8")
+    assert "do-not-persist" not in metadata_text
+    assert "api_key" not in metadata_text
+
+    restarted_context = ToolContext(workspace_root=workspace)
+    restarted_context.task_manager = _DeferredTaskManager()
+    restarted_context.tool_registry = build_default_registry()
+    current_provider = SimpleNamespace(model="current-model")
+    setattr(restarted_context, "_active_provider", current_provider)
+
+    result = asyncio.run(resume_agent_background(
+        agent_id=agent_id,
+        prompt="continue after restart",
+        context=restarted_context,
+    ))
+
+    assert result.resumed is True
+    restored = restarted_context.runtime_tasks.get(agent_id)
+    assert restored.status == "running"
+    rebuilt = restored.resume_run_params
+    assert rebuilt.provider is current_provider
+    assert rebuilt.tool_registry is restarted_context.tool_registry
+    assert rebuilt.permission_mode_override is None
+    assert rebuilt.system_prompt_override is None
+
+
+def test_restart_rejects_missing_recorded_worktree(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(tmp_path / "config"))
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    original_context = ToolContext(workspace_root=workspace)
+    original_context.worktree_root = tmp_path / "deleted-worktree"
+    agent_id = generate_task_id("local_agent")
+    register_async_agent(
+        agent_id=agent_id,
+        description="durable",
+        prompt="initial",
+        agent_type="general-purpose",
+        resume_run_params=SimpleNamespace(parent_context=original_context),
+        registry=original_context.runtime_tasks,
+    )
+    complete_agent_task(agent_id, result_text="done", registry=original_context.runtime_tasks)
+
+    restarted_context = ToolContext(workspace_root=workspace)
+    restarted_context.tool_registry = build_default_registry()
+    setattr(restarted_context, "_active_provider", SimpleNamespace(model="current"))
+    result = asyncio.run(resume_agent_background(
+        agent_id=agent_id,
+        prompt="continue",
+        context=restarted_context,
+    ))
+
+    assert result.resumed is False
+    assert "workspace is missing" in result.reason
+    assert restarted_context.runtime_tasks.get(agent_id).status == "completed"
 
 
 def test_resume_drives_agent_and_persists_terminal_result(tmp_path: Path, monkeypatch) -> None:

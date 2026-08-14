@@ -1,7 +1,4 @@
-"""SessionCronScheduler: job lifecycle (cap, one-shot delete, recurring
-advance, no catch-up, 7-day final-fire expiry), the deterministic jitter
-rules, the single wakeup slot (clamp, replace, stop, action tracking), the
-disable env flag, and snapshot/restore resume rules."""
+"""验证会话定时任务的触发、恢复、错过任务策略和最近触发时间。"""
 
 from __future__ import annotations
 
@@ -77,6 +74,7 @@ class TestJobs(unittest.TestCase):
         self.assertEqual(advanced.id, job.id)
         self.assertGreater(advanced.next_fire_at, clock())
         self.assertEqual(advanced.fired_count, 1)
+        self.assertEqual(advanced.last_fired_at, clock())
 
     def test_no_catch_up_for_missed_fires(self) -> None:
         sched, clock = make()
@@ -260,6 +258,33 @@ class TestSnapshotRestore(unittest.TestCase):
         self.assertIsNone(fresh.wakeup_info())
         self.assertEqual(restored, 2)
         self.assertNotIn(one_shot_past.id, {j.id for j in fresh.list_jobs()})
+
+    def test_restore_runs_missed_durable_one_shot_once(self) -> None:
+        sched, clock = make()
+        job = sched.create("* * * * *", "durable once", recurring=False, durable=True)
+        snap = sched.snapshot()
+        clock.advance(120)
+        fresh = SessionCronScheduler(now_fn=clock, jitter=False)
+
+        self.assertEqual(fresh.restore(snap), 1)
+        fired = fresh.pop_due()
+
+        self.assertEqual([item.id for item in fired], [job.id])
+        self.assertTrue(fired[0].deleted)
+        self.assertEqual(fresh.pop_due(), [])
+
+    def test_last_fired_at_survives_snapshot_restore(self) -> None:
+        sched, clock = make()
+        sched.create("* * * * *", "recurring")
+        clock.advance(31)
+        sched.pop_due()
+        snap = sched.snapshot()
+        (saved,) = snap["jobs"]
+        fresh = SessionCronScheduler(now_fn=clock, jitter=False)
+
+        self.assertEqual(fresh.restore(snap), 1)
+        (restored,) = fresh.list_jobs()
+        self.assertEqual(restored.last_fired_at, saved["last_fired_at"])
 
     def test_restore_drops_expired_recurring(self) -> None:
         sched, clock = make()

@@ -1,9 +1,4 @@
-"""
-Tests for Layer 2: Snip Compact — stub (matches TS snipCompact.ts).
-
-TS snipCompact is a stub that returns null. Our Python version matches,
-always returning (messages, 0). These tests verify the no-op behavior.
-"""
+"""验证 Snip 在参考实现未完整恢复期间保持明确且无损的占位行为。"""
 
 from __future__ import annotations
 
@@ -29,7 +24,7 @@ def _make_user_result(tool_id: str, content: str = "file content here") -> UserM
 
 
 class TestSnipCompact(unittest.TestCase):
-    """Tests for snip_compact() — stub, always no-op."""
+    """确认占位实现不删除生产会话中的历史工具结果。"""
 
     def test_empty_messages(self):
         result, saved = snip_compact([])

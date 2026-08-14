@@ -1797,6 +1797,9 @@ async def query(
         # model too. Set as a plain attribute (not a dataclass field)
         # to avoid touching ToolContext's public surface.
         setattr(tool_use_context, "_active_provider", params.provider)
+        # Durable Resume 只能复用当前进程重新建立的工具注册表，禁止持久化旧工具
+        # 实例。每轮在进入工具调度前刷新，确保恢复使用本轮真实能力集合。
+        tool_use_context.tool_registry = params.tool_registry
 
         trace.emit(TURN_STEPS.TOOL_DISPATCH, turn_count, f"tool_blocks={len(tool_use_blocks)}")
         trace.emit(TURN_STEPS.PERMISSION_GATE, turn_count, "execute_tool_round")

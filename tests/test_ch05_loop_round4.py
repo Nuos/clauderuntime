@@ -1,8 +1,4 @@
-"""ch05 round-4 acceptance tests: the production compaction pipeline wire,
-the +500k budget thread, and the abort-path max-turns attachment.
-
-Covers my-docs/port-improvement-round-4/ch05-agent-loop-round4-plan.md.
-"""
+"""验证生产压缩流水线、扩展 token 预算和中止路径的真实接线。"""
 from __future__ import annotations
 
 import asyncio
@@ -48,6 +44,7 @@ class TestPipelineConfigBuilder(unittest.TestCase):
         provider.model = "m1"
         context = MagicMock()
         context.read_file_fingerprints = {Path("/tmp/a.py"): (123.0, 42)}
+        context.loaded_path_rule_files = {Path("/tmp/rule.md")}
         tracking = AutoCompactTracking()
 
         cfg = build_production_pipeline_config(provider, context, tracking)
@@ -59,6 +56,7 @@ class TestPipelineConfigBuilder(unittest.TestCase):
         # build the expected key the same way the builder does.
         expected_key = str(Path("/tmp/a.py"))
         self.assertEqual(cfg.read_file_state, {expected_key: {"timestamp": 123.0}})
+        self.assertIs(cfg.path_rule_claims, context.loaded_path_rule_files)
         self.assertIs(cfg.autocompact_tracking, tracking)
 
     def test_empty_fingerprints_yield_none_state(self):

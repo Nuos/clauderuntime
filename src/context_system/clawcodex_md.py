@@ -1,25 +1,11 @@
-"""
-Multi-level CLAWCODEX.md loading — engineering aligned with
-typescript/src/utils/claudemd.ts, file naming clawcodex-branded.
+"""加载并分层组装 CLAWCODEX.md 与路径作用域规则。
 
-Loading order (reverse priority — later entries take precedence):
-  1. Managed memory (/etc/clawcodex/CLAWCODEX.md by default)
-  2. User memory (~/.clawcodex/CLAWCODEX.md)
-  3. Project memory (CLAWCODEX.md, .clawcodex/CLAWCODEX.md,
-     .clawcodex/rules/*.md)
-  4. Local memory (CLAWCODEX.local.md)
+生产上下文按 Managed、User、Project、Local 顺序加载；越靠近当前工作目录的
+项目说明优先级越高。带 ``paths:`` 的规则不会提前进入全局上下文，而是在 Read
+成功读取匹配文件后延迟发现，并按 Managed、User、Project 作用域注入一次。
 
-Files closer to CWD have higher priority (loaded later in the list).
-
-``CLAWCODEX.md`` / ``CLAWCODEX.local.md`` are the only names read — the
-pre-rebrand ``CLAUDE.md`` naming is not consulted (the one-time
-``~/.claude`` import migration copies that harness's file in under the
-canonical name; see ``src/utils/legacy_migration.py``).
-
-The @include directive allows memory files to reference other files:
-  @path, @./relative, @~/home, @/absolute
-Included files are added after the including file.  Circular references
-are prevented by tracking processed file paths.  Max depth = 5.
+``@include`` 支持相对路径、用户目录和绝对路径。处理过程限制递归深度、阻止循环
+引用，并对项目规则执行真实路径校验，防止符号链接把项目外内容注入模型上下文。
 """
 
 from __future__ import annotations
@@ -558,21 +544,92 @@ def get_clawcodex_mds(memory_files: list[MemoryFileInfo]) -> str:
     return f"{MEMORY_INSTRUCTION_PROMPT}\n\n" + "\n\n".join(memories)
 
 
-def get_project_path_scoped_rules(
-    file_path: str | Path,
-    cwd: str | Path,
-) -> list[MemoryFileInfo]:
-    """返回与已读取文件匹配的项目路径规则。
+def _path_rule_project_roots(target: Path, cwd: Path) -> list[Path]:
+    """按祖先到嵌套目标目录的优先级返回项目规则根目录。"""
+    ancestors: list[Path] = []
+    cursor = cwd
+    while True:
+        ancestors.append(cursor)
+        if cursor.parent == cursor:
+            break
+        cursor = cursor.parent
+    roots = list(reversed(ancestors))
 
-    规则来自工作目录祖先中的 ``.clawcodex/rules/*.md``。每组 glob 以对应项目
-    目录为根按 gitignore 语义匹配；这里只发现并解析规则，是否已注入由会话级
-    ``ToolContext`` 决定。
-    """
+    relative_parent = target.parent.relative_to(cwd)
+    nested = cwd
+    for segment in relative_parent.parts:
+        nested /= segment
+        if nested not in roots:
+            roots.append(nested)
+    return roots
+
+
+def _matching_rules_from_directory(
+    *,
+    rules_dir: Path,
+    match_root: Path,
+    confinement_root: Path,
+    target: Path,
+    memory_type: MemoryType,
+    seen: set[Path],
+) -> list[MemoryFileInfo]:
+    """读取单个可信作用域中的条件规则，并按目标文件路径执行 glob 匹配。"""
     try:
         import pathspec
     except ImportError:  # pragma: no cover - pathspec 是项目硬依赖
         return []
+    if not rules_dir.is_dir():
+        return []
+    try:
+        relative_target = target.relative_to(match_root).as_posix()
+    except ValueError:
+        return []
 
+    matched: list[MemoryFileInfo] = []
+    for rule_path in sorted(rules_dir.rglob("*.md")):
+        resolved_rule = rule_path.resolve()
+        if resolved_rule in seen or not rule_path.is_file():
+            continue
+        try:
+            resolved_rule.relative_to(confinement_root.resolve())
+        except ValueError:
+            # 任一作用域的规则符号链接都不得逃逸到该作用域配置根目录之外。
+            continue
+        raw = _safe_read_file(str(rule_path))
+        if raw is None:
+            continue
+        info, _ = _parse_memory_file_content(
+            raw,
+            str(resolved_rule),
+            memory_type,
+            include_base_path=str(resolved_rule),
+        )
+        if info is None or not info.globs:
+            continue
+        try:
+            spec = pathspec.PathSpec.from_lines("gitignore", info.globs)
+        except (LookupError, ValueError):
+            spec = pathspec.PathSpec.from_lines("gitwildmatch", info.globs)
+        if spec.match_file(relative_target):
+            seen.add(resolved_rule)
+            matched.append(info)
+    return matched
+
+
+def get_path_scoped_rules(
+    file_path: str | Path,
+    cwd: str | Path,
+    *,
+    scopes: Sequence[MemoryType] = ("Managed", "User", "Project"),
+    managed_config_dir: str | Path | None = None,
+    user_config_dir: str | Path | None = None,
+) -> list[MemoryFileInfo]:
+    """返回与成功读取文件匹配的 Managed、User 和 Project 条件规则。
+
+    User 和 Managed 的 glob 相对当前工作目录匹配；Project 规则沿工作目录祖先，
+    再沿工作目录到目标文件父目录的嵌套目录链发现。这里只负责可信发现与匹配，
+    是否已注入由会话级 ``ToolContext`` 原子登记。
+    """
     target = Path(file_path).resolve()
     current = Path(cwd).resolve()
     try:
@@ -580,50 +637,59 @@ def get_project_path_scoped_rules(
     except ValueError:
         return []
 
-    roots: list[Path] = []
-    cursor = current
-    while True:
-        roots.append(cursor)
-        parent = cursor.parent
-        if parent == cursor:
-            break
-        cursor = parent
-
     result: list[MemoryFileInfo] = []
     seen: set[Path] = set()
-    for root in reversed(roots):
-        rules_dir = root / ".clawcodex" / "rules"
-        if not rules_dir.is_dir():
-            continue
-        try:
-            relative_target = target.relative_to(root).as_posix()
-        except ValueError:
-            continue
-        for rule_path in sorted(rules_dir.rglob("*.md")):
-            resolved_rule = rule_path.resolve()
-            if resolved_rule in seen or not rule_path.is_file():
-                continue
-            try:
-                resolved_rule.relative_to(root)
-            except ValueError:
-                # 项目规则符号链接不得逃逸到项目外部后被静默注入模型上下文。
-                continue
-            raw = _safe_read_file(str(rule_path))
-            if raw is None:
-                continue
-            info, _ = _parse_memory_file_content(
-                raw, str(resolved_rule), "Project", include_base_path=str(resolved_rule)
-            )
-            if info is None or not info.globs:
-                continue
-            try:
-                spec = pathspec.PathSpec.from_lines("gitignore", info.globs)
-            except (LookupError, ValueError):
-                spec = pathspec.PathSpec.from_lines("gitwildmatch", info.globs)
-            if spec.match_file(relative_target):
-                seen.add(resolved_rule)
-                result.append(info)
+    if "Managed" in scopes:
+        if managed_config_dir is None:
+            from src.utils.clawcodex_dirs import get_managed_config_dir
+
+            managed_root = get_managed_config_dir().resolve()
+        else:
+            managed_root = Path(managed_config_dir).resolve()
+        result.extend(_matching_rules_from_directory(
+            rules_dir=managed_root / "rules",
+            match_root=current,
+            confinement_root=managed_root,
+            target=target,
+            memory_type="Managed",
+            seen=seen,
+        ))
+
+    if "User" in scopes:
+        if user_config_dir is None:
+            from src.utils.clawcodex_dirs import get_user_config_dir
+
+            user_root = get_user_config_dir().resolve()
+        else:
+            user_root = Path(user_config_dir).resolve()
+        result.extend(_matching_rules_from_directory(
+            rules_dir=user_root / "rules",
+            match_root=current,
+            confinement_root=user_root,
+            target=target,
+            memory_type="User",
+            seen=seen,
+        ))
+
+    if "Project" in scopes:
+        for root in _path_rule_project_roots(target, current):
+            result.extend(_matching_rules_from_directory(
+                rules_dir=root / ".clawcodex" / "rules",
+                match_root=root,
+                confinement_root=root,
+                target=target,
+                memory_type="Project",
+                seen=seen,
+            ))
     return result
+
+
+def get_project_path_scoped_rules(
+    file_path: str | Path,
+    cwd: str | Path,
+) -> list[MemoryFileInfo]:
+    """兼容旧调用方，仅返回与目标文件匹配的 Project 条件规则。"""
+    return get_path_scoped_rules(file_path, cwd, scopes=("Project",))
 
 
 def _get_memory_type_description(mem_type: MemoryType) -> str:

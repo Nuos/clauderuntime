@@ -1,7 +1,6 @@
-"""Repository documentation governance checks.
+"""检查仓库文档目录、链接、证据结构和唯一分类规则。
 
-The script intentionally uses only the Python standard library so it can run in
-CI before optional project extras are installed.
+脚本只依赖 Python 标准库，确保 CI 在安装可选依赖前也能执行治理门禁。
 """
 
 from __future__ import annotations
@@ -24,6 +23,7 @@ DOCS_TOP_LEVEL_ALLOWLIST = {
     "20260811_2238_clauderuntime_source_aligned_7x5x14_delivery_B3",
     "20260813_0140_clauderuntime_B4_core_closure_delivery",
     "20260813_0843_clauderuntime_B5_source_aligned_final_closure_delivery",
+    "20260813_1824_B4修复反馈建议_v2_交付包",
     "README.md",
     "architecture",
     "archive",
@@ -75,7 +75,7 @@ PARITY_SCHEMA_REQUIRED_TOKENS = {
     "docs/parity/source-map/reference-component-map.yaml": {
         "schema_version:",
         "reference_target:",
-        "baseline_commit:",
+        "subject_commit:",
         "components:",
         "id:",
         "name:",

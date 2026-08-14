@@ -1,11 +1,8 @@
-"""
-Layer 5: Autocompact — full LLM summarization (last resort).
+"""在会话接近模型上下文上限时执行完整摘要压缩。
 
-Port of ``typescript/src/services/compact/autoCompact.ts``.
-
-Determines when automatic compaction should trigger based on token usage
-and context window size, then delegates to ``compact_conversation()``.
-Includes a circuit breaker to prevent infinite retry loops.
+本模块根据输入 token、模型窗口和预留输出空间决定是否触发压缩，并通过连续失败
+熔断避免每轮反复产生摘要费用。压缩成功后交由清理上下文重置读取状态和路径规则
+登记，使后续模型轮次能够重新获得已被摘要移除的必要项目指令。
 """
 
 from __future__ import annotations
@@ -25,6 +22,7 @@ from .compact import (
     CompactionResult,
     compact_conversation,
 )
+from .post_compact_cleanup import PostCompactContext
 
 logger = logging.getLogger(__name__)
 
@@ -285,6 +283,7 @@ async def auto_compact_if_needed(
     read_file_state: dict[str, Any] | None = None,
     plan_file_path: str | None = None,
     memory_paths: set[str] | None = None,
+    path_rule_claims: set[Any] | None = None,
 ) -> CompactionResult | None:
     """
     Trigger autocompact if token thresholds are exceeded.
@@ -324,6 +323,7 @@ async def auto_compact_if_needed(
         read_file_state=read_file_state,
         plan_file_path=plan_file_path,
         memory_paths=memory_paths,
+        post_compact_ctx=PostCompactContext(path_rule_claims=path_rule_claims),
     )
 
     try:

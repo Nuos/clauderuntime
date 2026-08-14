@@ -1,14 +1,10 @@
-"""
-Microcompact: lightweight message pre-processing (Layer 3).
+"""Microcompact 消息预处理（压缩流水线第 3 层）。
 
-Strips images/documents from messages and clears old tool results
-when the cache is cold (time-based trigger). This reduces tokens
-sent to the API without losing the model-visible history structure.
+本模块在模型调用前移除历史图片、文档和可压缩工具结果的正文，同时保留消息与
+工具调用结构，降低发送给模型的 token 数量。时间型压缩默认关闭；只有业务配置
+明确启用且会话间隔达到阈值，或调用方显式强制执行时，才清理旧工具结果。
 
-Port of ``typescript/src/services/compact/microCompact.ts``.
-
-Supports both typed ``Message`` objects (WS-1) and raw ``dict`` messages
-for backward compatibility.
+实现同时支持生产链路使用的 ``Message`` 类型和兼容旧调用方的字典消息。
 """
 
 from __future__ import annotations
@@ -56,13 +52,13 @@ COMPACTABLE_TOOL_NAMES: frozenset[str] = frozenset([
 # (port of typescript/src/services/compact/timeBasedMCConfig.ts)
 # ---------------------------------------------------------------------------
 
-DEFAULT_TIME_BASED_MC_ENABLED = True
+DEFAULT_TIME_BASED_MC_ENABLED = False
 DEFAULT_GAP_THRESHOLD_MINUTES = 60
 DEFAULT_KEEP_RECENT = 5
 
 
 class TimeBasedMCConfig:
-    """Configuration for time-based microcompact."""
+    """控制会话间隔触发的 Microcompact，默认保持关闭。"""
     __slots__ = ("enabled", "gap_threshold_minutes", "keep_recent")
 
     def __init__(

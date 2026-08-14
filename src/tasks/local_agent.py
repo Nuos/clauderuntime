@@ -1,31 +1,20 @@
-"""``local_agent`` task type — full lifecycle (Chunk C / WI-2.3).
+"""管理本地后台 Agent 的注册、消息投递、终态和恢复元数据。
 
-Builds on the Chunk-B skeleton with the chapter's full state shape and
-lifecycle helpers. Two upstream pieces lock in here:
-
-* ``output_file`` is wired to the sidechain JSONL transcript path
-  (Chunk C / WI-2.2 — gate-zero) so Phase 3 / WI-3.1 (notification XML)
-  and Phase 7 / WI-7.4 (auto-resume) have something to point at.
-* ``progress`` carries a live ``AgentProgress`` snapshot fed by the
-  ``ProgressTracker`` machinery (WI-2.4) — the chapter-correct token
-  arithmetic plus the cap-5 recent-activities ring.
-
-The lifecycle helpers (``register_async_agent``, ``queue_pending_message``,
-``drain_pending_messages``, ``complete_agent_task``, ``fail_agent_task``,
-``kill_async_agent``) are the named API that ``_launch_async_agent`` and
-the future ``resume_agent_background`` route through. Each helper
-treats ``runtime_tasks.update`` as the single atomic-mutation
-primitive — the A6/C5 contract (mutator must be sync; never await
-under the registry lock) is honored throughout.
+每个任务把模型输出追加到独立 JSONL transcript，并在运行时注册表中维护并发安全
+状态。注册、完成、失败和终止操作同时维护不含密钥的恢复元数据，使服务进程重启
+后能够使用当前 provider、工具和权限上下文重建任务，而不是依赖旧内存对象。
 """
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal, TYPE_CHECKING
 
 from src.tasks_core import TaskStateBase, is_terminal_task_status
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from src.task_registry import RuntimeTaskRegistry
@@ -172,7 +161,37 @@ def register_async_agent(
         is_backgrounded=True,
     )
     registry.upsert(state)
+    try:
+        from src.agent.resume_metadata import build_metadata, save_metadata
+
+        save_metadata(build_metadata(
+            agent_id=agent_id,
+            agent_type=agent_type,
+            description=description,
+            initial_prompt=prompt,
+            model=model,
+            tool_use_id=tool_use_id,
+            output_file=output_file,
+            resume_run_params=resume_run_params,
+            status="running",
+        ))
+    except Exception:
+        # 元数据落盘失败不得阻止已启动任务，但必须保留诊断，后续 durable resume
+        # 会明确失败而不是伪造运行状态。
+        logger.exception("failed to persist resume metadata for %s", agent_id)
     return state
+
+
+def _persist_terminal_status(state: TaskStateBase | None) -> None:
+    """将内存终态同步到安全恢复元数据；失败只影响跨进程恢复。"""
+    if not isinstance(state, LocalAgentTaskState):
+        return
+    try:
+        from src.agent.resume_metadata import update_metadata_status
+
+        update_metadata_status(state.output_file, state.status)
+    except Exception:
+        logger.exception("failed to update resume metadata for %s", state.id)
 
 
 def queue_pending_message(
@@ -304,6 +323,7 @@ def complete_agent_task(
         return _terminal_replace(prev, status="completed", result_text=result_text)
 
     registry.update(task_id, _complete)
+    _persist_terminal_status(registry.get(task_id))
 
 
 def fail_agent_task(
@@ -328,6 +348,7 @@ def fail_agent_task(
         )
 
     registry.update(task_id, _fail)
+    _persist_terminal_status(registry.get(task_id))
 
 
 def kill_async_agent(
@@ -370,6 +391,7 @@ def kill_async_agent(
         return _terminal_replace(prev, status="killed")
 
     registry.update(task_id, _kill)
+    _persist_terminal_status(registry.get(task_id))
     # R6 — abort the live run OUTSIDE the registry lock. This is the wire
     # that makes a kill actually STOP a background agent: the async run's
     # query() loop polls ``abort_controller.signal.aborted`` at every yield

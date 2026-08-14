@@ -1,6 +1,4 @@
-"""
-Tests for Layer 5: Autocompact.
-"""
+"""验证自动摘要压缩的触发、熔断、附件恢复和上下文重载。"""
 
 from __future__ import annotations
 
@@ -283,6 +281,29 @@ class TestAutoCompactIfNeeded(unittest.TestCase):
             ))
         finally:
             os.unlink(tmp_path)
+
+    def test_successful_compact_rearms_path_rules(self):
+        provider = MagicMock()
+        provider.chat_async = AsyncMock(return_value=ChatResponse(
+            content="Summary",
+            model="test",
+            usage={"input_tokens": 100, "output_tokens": 50},
+            finish_reason="stop",
+        ))
+        claims = {"/repo/.clawcodex/rules/python.md"}
+        threshold = get_auto_compact_threshold(200_000)
+
+        result = asyncio.run(auto_compact_if_needed(
+            self._make_messages(),
+            input_token_count=threshold + 100,
+            context_window=200_000,
+            provider=provider,
+            model="test-model",
+            path_rule_claims=claims,
+        ))
+
+        self.assertIsNotNone(result)
+        self.assertEqual(claims, set())
 
 
 if __name__ == "__main__":

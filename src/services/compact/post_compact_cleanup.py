@@ -1,7 +1,7 @@
-"""
-Post-compact cleanup — clear caches and tracking state after compaction.
+"""在会话压缩成功后清理下一轮必须重新构建的上下文状态。
 
-Port of ``typescript/src/services/compact/postCompactCleanup.ts``.
+清理范围包括系统提示缓存、文件读取状态、嵌套记忆路径和已注入路径规则登记。
+失败的非关键缓存清理会被记录，但不会破坏已经生成的压缩摘要。
 """
 
 from __future__ import annotations
@@ -15,13 +15,15 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PostCompactContext:
-    """Minimal context for post-compact cleanup."""
+    """保存压缩成功后需要原位清空的会话状态容器。"""
     # Caches to clear (name → clear callable)
     caches: dict[str, Callable[[], None]] = field(default_factory=dict)
     # Read-file state tracking
     read_file_state: dict[str, Any] | None = None
     # Loaded nested memory paths
     loaded_nested_memory_paths: set[str] | None = None
+    # 已注入的路径规则在摘要后必须允许重新加载。
+    path_rule_claims: set[Any] | None = None
 
 
 def run_post_compact_cleanup(
@@ -68,5 +70,9 @@ def run_post_compact_cleanup(
     if context.loaded_nested_memory_paths is not None:
         context.loaded_nested_memory_paths.clear()
         cleared.append("loaded_nested_memory_paths")
+
+    if context.path_rule_claims is not None:
+        context.path_rule_claims.clear()
+        cleared.append("path_rule_claims")
 
     return cleared

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-import subprocess
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -25,6 +25,7 @@ CONTROLLED_ASSETS = (
     "docs/parity/runtime/context-9-matrix.yaml",
     "docs/parity/scorecards/latest.yaml",
 )
+CONTROL_MANIFEST = "docs/parity/generated/evidence-manifest.yaml"
 
 FINAL_EVIDENCE_FIELDS = (
     "reference_files",
@@ -55,19 +56,20 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return raw
 
 
-def _baseline(document: dict[str, Any]) -> str | None:
-    direct = document.get("baseline_commit")
-    if isinstance(direct, str):
-        return direct
-    for key in ("clauderuntime_baseline", "clauderuntime_commit"):
-        value = document.get(key)
-        if isinstance(value, str):
-            return value
-    nested = document.get("baseline")
-    if isinstance(nested, dict):
-        value = nested.get("clauderuntime_commit")
-        return value if isinstance(value, str) else None
-    return None
+def _subject_commit(document: dict[str, Any]) -> str | None:
+    value = document.get("subject_commit")
+    return value if isinstance(value, str) else None
+
+
+def _has_legacy_baseline(document: dict[str, Any]) -> bool:
+    return any(
+        key in document
+        for key in ("baseline_commit", "clauderuntime_baseline", "clauderuntime_commit", "baseline")
+    )
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _iter_status_records(value: Any) -> Iterable[dict[str, Any]]:
@@ -102,7 +104,8 @@ def _count_ledger(ledger: dict[str, Any], section: str) -> dict[str, int]:
     return counts
 
 
-def check_evidence(repo_root: Path, expected_baseline: str) -> list[EvidenceIssue]:
+def check_evidence(repo_root: Path, expected_subject: str | None = None) -> list[EvidenceIssue]:
+    """检查同一被验收代码提交上的证据一致性，不把证据提交自身当作验收对象。"""
     documents: dict[str, dict[str, Any]] = {}
     issues: list[EvidenceIssue] = []
 
@@ -117,13 +120,12 @@ def check_evidence(repo_root: Path, expected_baseline: str) -> list[EvidenceIssu
             issues.append(EvidenceIssue("INVALID_YAML", relative, str(exc)))
             continue
         documents[relative] = document
-        baseline = _baseline(document)
-        if baseline != expected_baseline:
+        if _has_legacy_baseline(document):
             issues.append(
                 EvidenceIssue(
-                    "STALE_BASELINE",
+                    "SELF_REFERENTIAL_BASELINE",
                     relative,
-                    f"基线为 {baseline!r}，期望 {expected_baseline!r}",
+                    "仍使用会随证据提交变化的旧 baseline 字段；必须改用 subject_commit",
                 )
             )
         for record in _iter_status_records(document):
@@ -136,6 +138,30 @@ def check_evidence(repo_root: Path, expected_baseline: str) -> list[EvidenceIssu
                         f"{record_id} 缺少 v6 完整证据字段，不能标记 VERIFIED",
                     )
                 )
+
+    ledger = documents.get("docs/parity/coverage-ledger.yaml")
+    ledger_subject = _subject_commit(ledger) if ledger else None
+    subject = expected_subject or ledger_subject
+    if subject is None:
+        issues.append(
+            EvidenceIssue(
+                "MISSING_SUBJECT_COMMIT",
+                "docs/parity/coverage-ledger.yaml",
+                "无法确定被验收的生产代码提交",
+            )
+        )
+    for relative, document in documents.items():
+        actual = _subject_commit(document)
+        if actual is None:
+            issues.append(EvidenceIssue("MISSING_SUBJECT_COMMIT", relative, "缺少 subject_commit"))
+        elif subject is not None and actual != subject:
+            issues.append(
+                EvidenceIssue(
+                    "SUBJECT_COMMIT_MISMATCH",
+                    relative,
+                    f"subject_commit 为 {actual!r}，期望 {subject!r}",
+                )
+            )
 
     work_item_statuses: dict[str, set[str]] = {}
     work_item_paths: dict[str, set[str]] = {}
@@ -156,7 +182,6 @@ def check_evidence(repo_root: Path, expected_baseline: str) -> list[EvidenceIssu
                 )
             )
 
-    ledger = documents.get("docs/parity/coverage-ledger.yaml")
     scorecard = documents.get("docs/parity/scorecards/latest.yaml")
     if ledger and scorecard:
         score_counts = scorecard.get("counts")
@@ -179,29 +204,49 @@ def check_evidence(repo_root: Path, expected_baseline: str) -> list[EvidenceIssu
                         )
                     )
 
+    manifest_path = repo_root / CONTROL_MANIFEST
+    if not manifest_path.is_file():
+        issues.append(EvidenceIssue("MISSING_MANIFEST", CONTROL_MANIFEST, "缺少原子证据清单"))
+    else:
+        try:
+            manifest = _load_yaml(manifest_path)
+            manifest_subject = _subject_commit(manifest)
+            if subject is not None and manifest_subject != subject:
+                issues.append(
+                    EvidenceIssue(
+                        "MANIFEST_SUBJECT_MISMATCH",
+                        CONTROL_MANIFEST,
+                        f"subject_commit 为 {manifest_subject!r}，期望 {subject!r}",
+                    )
+                )
+            recorded_assets = manifest.get("assets")
+            if not isinstance(recorded_assets, dict):
+                issues.append(EvidenceIssue("INVALID_MANIFEST", CONTROL_MANIFEST, "assets 必须是路径到 SHA-256 的对象"))
+            else:
+                for relative in CONTROLLED_ASSETS:
+                    expected_hash = recorded_assets.get(relative)
+                    path = repo_root / relative
+                    if path.is_file() and expected_hash != _sha256(path):
+                        issues.append(EvidenceIssue("ASSET_HASH_MISMATCH", relative, "文件内容与原子证据清单不一致"))
+        except (OSError, ValueError, yaml.YAMLError) as exc:
+            issues.append(EvidenceIssue("INVALID_MANIFEST", CONTROL_MANIFEST, str(exc)))
+
     return issues
 
 
-def _git_head(repo_root: Path) -> str:
-    return subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=repo_root, text=True
-    ).strip()
-
-
 def main() -> int:
-    parser = argparse.ArgumentParser(description="检查 B5 机器证据基线、状态和计分一致性")
+    parser = argparse.ArgumentParser(description="检查 B5 机器证据对象、状态、计分和原子清单")
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[2])
-    parser.add_argument("--baseline", help="待验收的 ClaudeRuntime 提交；默认使用当前 HEAD")
+    parser.add_argument("--subject", help="待验收的生产代码提交；默认读取覆盖台账 subject_commit")
     args = parser.parse_args()
     repo_root = args.repo_root.resolve()
-    baseline = args.baseline or _git_head(repo_root)
-    issues = check_evidence(repo_root, baseline)
+    issues = check_evidence(repo_root, args.subject)
     for issue in issues:
         print(f"{issue.code}: {issue.path}: {issue.message}")
     if issues:
         print(f"机器证据检查失败：{len(issues)} 项问题")
         return 1
-    print(f"机器证据检查通过：{len(CONTROLLED_ASSETS)} 个文件，基线 {baseline}")
+    print(f"机器证据检查通过：{len(CONTROLLED_ASSETS)} 个文件")
     return 0
 
 
