@@ -5,7 +5,7 @@ owner: repository-governance
 created: 2026-08-13
 last_verified: 2026-08-13
 reference_target: Claude Code v2.1.88 analysis baseline
-evidence_subject_commit: 95efbaec4796147657668c4947a0d2088ecc4738
+evidence_subject_commit: 7619ff2886160de3409acd1d4e87880d04da6e9e
 supersedes: none
 superseded_by: none
 
@@ -37,7 +37,7 @@ CCR-01 至 CCR-14 是唯一正式横切机制。旧 AUX-01..14 仅作历史映�
 
 ## 当前结论
 
-最近一次已提交证据对象没有任何 R7、R5 或 CCR 项满足 v6 最终证据字段。跨平台隔离保持 `BLOCKED`，其余项保持 `PARTIAL`。本轮工作区正在修复 Machine Evidence、Compact、Context Rules、Durable Resume 和 Scheduler；未形成新证据提交前不得提升完成状态。
+最新机器证据已使用独立 `subject_commit` 和哈希清单生成。当前没有任何 R7、R5 或 CCR 项满足最终完成证据；跨平台隔离保持 `BLOCKED`，其余项保持 `PARTIAL`。Compact、Context Rules、Durable Resume 和 Scheduler 已有本地修复，但不得据此提升为全项目完成。
 
 ## Critical Runtime Paths
 
@@ -45,7 +45,7 @@ The minimum tracked runtime paths are ordinary answer, Read, Write/Edit, Bash, C
 
 ## Current P0
 
-1. Scheduler file-backed lifecycle、owner takeover 和文件监听。
+1. Scheduler 独立文件任务、跨进程 owner 接管和文件监听。
 2. Linux、Windows 原生隔离和真实平台测试。
 3. CLI、TUI、Desktop、IDE 全 Surface runtime differential。
 4. current-HEAD GitHub CI 和 required status checks。
@@ -53,11 +53,12 @@ The minimum tracked runtime paths are ordinary answer, Read, Write/Edit, Bash, C
 
 ## 当前验证
 
-1. 最近已完成的全项目本地测试：`10151 passed, 10 skipped, 3 warnings, 345 subtests passed`；该结果属于上一提交阶段，不代表本轮未提交工作区。
-2. 本轮已完成针对性测试：Compact/Context 组合 `94 passed`；Resume/SendMessage `44 passed`；Scheduler `28 passed`。
-3. GitHub CI：本轮尚未提交，状态为 `未测试`，禁止写成 CI 通过。
-4. Machine Evidence 使用 `subject_commit`，不再要求证据文件自引用其所在提交 SHA。
-5. 2026-08-11 迁移基线见 [../history/2026-08-11-repository-governance-migration-baseline.md](../history/2026-08-11-repository-governance-migration-baseline.md)。
+1. 最新不联网全项目本地测试：`10160 passed, 10 skipped, 1 deselected, 3 warnings, 345 subtests passed`，失败数为 `0`。
+2. 未执行两项外部测试：PyPI editable install、官方 MCP/npm 示例服务；当前没有外联测试结果。
+3. 本轮针对性测试：Compact/Context `94 passed`；Resume/SendMessage `44 passed`；Scheduler `28 passed`；本机端口 `177 passed`；服务索引 `13 passed`；macOS 隔离与内存目录 `6 passed`。
+4. GitHub CI：本轮尚未推送，状态为 `未测试`，禁止写成 CI 通过。
+5. Machine Evidence 对象为 `7619ff2886160de3409acd1d4e87880d04da6e9e`，证据提交为 `cc264e5`。
+6. 2026-08-11 迁移基线见 [../history/2026-08-11-repository-governance-migration-baseline.md](../history/2026-08-11-repository-governance-migration-baseline.md)。
 
 ## Known Intentional Divergences
 
