@@ -1,21 +1,8 @@
-"""``clawcodex agent-server`` — run the Direct Connect agent server.
+"""启动供本地 TUI 或 Direct Connect 客户端使用的 Agent 服务。
 
-Starts a local NDJSON-over-WebSocket server (``src.server.server``) backed by
-the real agent loop (``src.server.agent_server``). A TUI client — the original
-TypeScript Ink TUI via ``claude open cc://…``, or the Python Direct Connect
-client (``src.server.direct_connect_manager``) — connects, sends prompts, and
-renders the streamed agent output. Tools run here, in this process, on this
-machine's filesystem (co-located; no file proxy).
-
-Usage::
-
-    clawcodex agent-server [--host H] [--port P] [--token T]
-                           [--provider NAME] [--model M]
-                           [--permission-mode MODE] [--workspace DIR]
-                           [--dangerously-skip-permissions]
-                           [--allow-dangerously-skip-permissions]
-
-On start it prints the ``cc://`` and ``http://`` URLs to connect to.
+服务通过标准输入输出或本机 WebSocket 接收提示词并流式返回 Agent 消息；工具在
+当前机器和指定工作区内执行。会话索引写入统一用户配置目录，便于服务重启恢复，
+同时支持测试、容器和多实例部署隔离数据。
 """
 
 from __future__ import annotations
@@ -55,6 +42,7 @@ from src.server.agent_server import (
 from src.server.server import DirectConnectServer
 from src.server.session_manager import SessionManager
 from src.server.types import ServerConfig
+from src.utils.clawcodex_dirs import get_user_config_dir
 
 profile_checkpoint("agent_server_import_end")
 
@@ -325,7 +313,7 @@ async def _serve_stdio(workspace: str, agent_config: AgentServerConfig) -> int:
     import dataclasses as _dc
 
     agent_config = _dc.replace(agent_config, single_session=True)
-    index_path = Path.home() / ".clawcodex" / "server-sessions.json"
+    index_path = get_user_config_dir() / "server-sessions.json"
     index_path.parent.mkdir(parents=True, exist_ok=True)
     manager = SessionManager(workspace=workspace, index_path=index_path)
     info = manager.create_session(cwd=workspace)
@@ -432,7 +420,7 @@ async def _maybe_init_upstream_proxy() -> None:
 
 async def _serve(args, workspace: str, agent_config: AgentServerConfig) -> int:
     await _maybe_init_upstream_proxy()
-    index_path = Path.home() / ".clawcodex" / "server-sessions.json"
+    index_path = get_user_config_dir() / "server-sessions.json"
     index_path.parent.mkdir(parents=True, exist_ok=True)
 
     server_config = ServerConfig(

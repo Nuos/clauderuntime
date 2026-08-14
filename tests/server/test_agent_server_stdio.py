@@ -1,16 +1,7 @@
-"""Integration test for the agent-server ``--stdio`` transport.
+"""验证本地 TUI 通过标准输入输出连接 Agent 服务的完整生命周期。
 
-The local TUI link talks to the Python agent-server over the child's
-stdin/stdout (NDJSON) instead of a WebSocket — a pipe can't idle-time-out, which
-is the whole point (a WS would silently disconnect after an idle period). This
-spawns the real subprocess and asserts the lifecycle:
-
-  * ``system/init`` is emitted on stdout (the stdio pump works), and stdout
-    carries JSON frames only (the startup banner is routed to stderr).
-  * closing stdin (the parent going away) exits the process.
-
-It is heavier than the unit suite (imports the agent stack once), but it guards
-the user-facing transport against regressions.
+该业务链路使用 NDJSON 管道传输，避免 WebSocket 空闲断开。测试启动真实子进程，
+确认服务先输出 ``system/init`` JSON 帧，并在父进程关闭输入后正常退出。
 """
 
 from __future__ import annotations
@@ -27,7 +18,13 @@ _REPO = Path(__file__).resolve().parents[2]
 
 
 def test_stdio_emits_init_and_exits_on_stdin_close(tmp_path: Path) -> None:
-    env = {**os.environ, "PYTHONPATH": str(_REPO), "PYTHONUNBUFFERED": "1"}
+    env = {
+        **os.environ,
+        "PYTHONPATH": str(_REPO),
+        "PYTHONUNBUFFERED": "1",
+        # 子进程会创建会话索引；必须写入测试临时目录，禁止污染真实用户数据。
+        "CLAWCODEX_CONFIG_DIR": str(tmp_path / ".clawcodex"),
+    }
     proc = subprocess.Popen(
         [
             sys.executable, "-m", "src.entrypoints.agent_server_cli",

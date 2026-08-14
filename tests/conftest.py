@@ -48,7 +48,7 @@ class _InMemoryKeyringBackend:
 
 
 @pytest.fixture(autouse=True)
-def _isolate_user_permission_settings(tmp_path, monkeypatch):
+def _isolate_user_permission_settings(tmp_path, monkeypatch, request):
     """Point the USER permission-settings file at an empty per-test path.
 
     C1 wired ``setup_permissions`` into the REPL/TUI/headless startup
@@ -85,15 +85,20 @@ def _isolate_user_permission_settings(tmp_path, monkeypatch):
         "GLOBAL_CONFIG_FILE",
         _isolated_global_dir / "config.json",
     )
-    # 后台 Agent transcript 和 durable resume 元数据也属于用户数据；所有测试
-    # 必须写入单项临时目录，不能触碰开发者真实 ~/.clawcodex/transcripts。
-    from src.agent import transcript as transcript_mod
+    # 后台 Agent transcript 和恢复元数据属于用户数据；测试默认写入单项
+    # 临时目录。路径一致性测试必须读取真实路径解析函数，因此仅对该断言
+    # 保留生产解析逻辑，避免隔离替身反过来破坏路径漂移检查。
+    if request.node.nodeid != (
+        "tests/test_prompt_assembly.py::"
+        "TestClawcodexDataDirLine::test_named_root_matches_actual_stores"
+    ):
+        from src.agent import transcript as transcript_mod
 
-    monkeypatch.setattr(
-        transcript_mod,
-        "get_transcripts_dir",
-        lambda: _isolated_global_dir / "transcripts",
-    )
+        monkeypatch.setattr(
+            transcript_mod,
+            "get_transcripts_dir",
+            lambda: _isolated_global_dir / "transcripts",
+        )
     # ch03 round-3: the active-provider supplier is a module-level slot;
     # tests need it deterministically EMPTY (the "persists '' when
     # unregistered" case) and must not leak a registration across tests.

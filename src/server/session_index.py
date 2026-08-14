@@ -1,14 +1,8 @@
-"""``~/.clawcodex/server-sessions.json`` persistence for Direct Connect sessions.
+"""持久化 Direct Connect 会话索引，支持服务重启后恢复会话。
 
-Mirrors the persistence helpers implied by ``server/types.ts:46-57``:
-the server reads the index at startup to resume sessions across server
-restarts; reads/writes the index when sessions start/stop/become
-detached.
-
-Concurrency: server process and resuming-client process can both touch
-the file. We use ``fcntl.flock(LOCK_EX)`` on POSIX (no-op on Windows
-since Direct Connect is Linux/macOS-only in production). Atomic writes
-via ``tempfile.mkstemp`` + ``os.replace``.
+服务进程与恢复客户端可能同时修改索引：POSIX 使用文件锁串行写入，并通过同目录
+临时文件加 ``os.replace`` 原子替换。索引遵循统一用户配置目录，支持部署方通过
+``CLAWCODEX_CONFIG_DIR`` 隔离运行数据。
 """
 
 from __future__ import annotations
@@ -23,11 +17,13 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Iterator
 
+from src.utils.clawcodex_dirs import get_user_config_dir
+
 from .types import SessionIndexEntry
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_INDEX_PATH = Path.home() / '.clawcodex' / 'server-sessions.json'
+DEFAULT_INDEX_PATH = get_user_config_dir() / 'server-sessions.json'
 
 #: ``SessionIndex`` is keyed by ``session_id`` (TS uses ``string`` keys
 #: but the value type matches ``SessionIndexEntry``).
