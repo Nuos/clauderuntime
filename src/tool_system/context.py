@@ -72,6 +72,10 @@ class ToolContext:
     )
     cwd: Path | None = None
     read_file_fingerprints: dict[Path, tuple[int, int] | tuple[int, int, bool]] = field(default_factory=dict)
+    # 路径规则属于会话上下文，不属于权限。并发 Read 可能同时命中同一规则，必须用锁
+    # 保证每个规则文件只向模型上下文注入一次。
+    loaded_path_rule_files: set[Path] = field(default_factory=set)
+    _path_rule_lock: threading.Lock = field(default_factory=threading.Lock)
     task_manager: TaskManager = field(default_factory=TaskManager)
     mcp_clients: dict[str, Any] = field(default_factory=dict)
     lsp_client: Any | None = None
@@ -281,6 +285,18 @@ class ToolContext:
     def mark_file_read(self, path: Path, *, partial: bool = False) -> None:
         stat = path.stat()
         self.read_file_fingerprints[path.resolve()] = (int(stat.st_mtime), int(stat.st_size), partial)
+
+    def claim_path_rules(self, paths: list[Path]) -> list[Path]:
+        """原子登记尚未注入的路径规则，并返回本次首次命中的规则。"""
+        claimed: list[Path] = []
+        with self._path_rule_lock:
+            for path in paths:
+                resolved = path.resolve()
+                if resolved in self.loaded_path_rule_files:
+                    continue
+                self.loaded_path_rule_files.add(resolved)
+                claimed.append(resolved)
+        return claimed
 
     def was_file_read_and_unchanged(self, path: Path) -> bool:
         resolved = path.resolve()

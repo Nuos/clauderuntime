@@ -1,11 +1,12 @@
-schema_version: 1
+schema_version: 2
 reference_target: claude-code-2.1.88
-status: VERIFIED
+baseline_commit: 95efbaec4796147657668c4947a0d2088ecc4738
+status: PARTIAL
 sources:
   - {order: 1, name: system_prompt, python: src/context_system/prompt_assembly.py, scope: global, load: startup, insertion: system_blocks, trust: built_in, compact: retained}
   - {order: 2, name: environment, python: src/context_system/prompt_assembly.py, scope: session, load: startup, insertion: system_blocks, trust: runtime, compact: retained}
   - {order: 3, name: project_instructions, python: src/context_system/clawcodex_md.py, scope: managed_user_project_local, load: session_cached, insertion: user_reminder, trust: workspace_gated, compact: reloaded}
-  - {order: 4, name: path_rules, python: src/permissions, scope: request, load: tool_boundary, insertion: permission_context, trust: policy, compact: retained}
+  - {order: 4, name: path_rules, python: src/context_system/clawcodex_md.py + src/tool_system/tools/read.py, scope: matching_project_file_path, load: successful_read_lazy_once, insertion: meta_user_context, trust: workspace_gated, compact: reload_not_verified}
   - {order: 5, name: auto_memory, python: src/memory, scope: user_project, load: lazy, insertion: user_reminder, trust: workspace_gated, compact: summarized}
   - {order: 6, name: tool_metadata, python: src/tool_system, scope: request, load: tool_pool_build, insertion: api_tools, trust: registry, compact: rebuilt}
   - {order: 7, name: conversation, python: src/types/messages.py, scope: session, load: turn, insertion: messages, trust: transcript, compact: summarized}
@@ -23,3 +24,10 @@ tests:
   - tests/test_context_system.py
   - tests/test_post_compact_attachments.py
   - tests/memory/test_prompt_section.py
+open_gaps:
+  - user_and_managed_path_scoped_rules
+  - compact_and_resume_reload_semantics
+implemented_in_b5:
+  - project_file_read_to_rule_discovery_to_single_context_injection_e2e
+  - concurrent_safe_session_deduplication
+  - project_rule_symlink_escape_rejection

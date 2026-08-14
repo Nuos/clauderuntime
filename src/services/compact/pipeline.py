@@ -1,8 +1,8 @@
 """
 Compression pipeline — orchestrates the 5 compression layers in order.
 
-Runs cheap → expensive.  If earlier layers free enough tokens, later
-layers are no-ops.
+Runs cheap → expensive. Source-aligned mode always visits every layer so
+each layer applies its own feature gate and no-op decision.
 
 Layers:
   1. apply_tool_result_budget  — Persist large results to disk
@@ -57,10 +57,8 @@ class PipelineConfig:
     # Layer 2: snip compact
     snip_keep_recent: int = 10
 
-    # Layer 3: microcompact
-    # TS time-based MC is disabled by default (GrowthBook enabled: false),
-    # cached MC uses API cache_edits (no local mutation), and legacy MC was
-    # removed.  So microcompact is effectively a no-op on the main thread.
+    # 第三层每轮都进入；开关关闭时由 Microcompact 内部返回空操作，保持 reference
+    # 的调用形态，不能在 pipeline 外层把整个阶段删除。
     mc_enabled: bool = False
     mc_keep_recent: int = 5
     mc_time_config: TimeBasedMCConfig | None = None
@@ -86,7 +84,9 @@ class PipelineConfig:
     model: str = ""
     custom_instructions: str | None = None
 
-    # Token budget: if pipeline frees this many tokens, skip remaining layers
+    # Source-Aligned 是生产默认模式，禁止早层节省 token 后跳过后续 shaping 阶段。
+    # early_exit_tokens 仅供明确选择 product extension 的调用方保留旧优化行为。
+    source_aligned: bool = True
     early_exit_tokens: int = 20_000
 
 
@@ -158,8 +158,8 @@ class CompressionPipeline:
         input_token_count: int = 0,
     ) -> CompressionResult:
         """
-        Run all compression layers in order, short-circuiting if enough
-        tokens are freed by early layers.
+        按固定顺序执行全部压缩层。生产默认的 Source-Aligned 模式不会因早层已节省
+        较多 token 而提前返回；后续层仍必须自行执行 feature gate 或空操作判断。
 
         Args:
             messages: Current conversation messages.
@@ -185,7 +185,7 @@ class CompressionPipeline:
                 total_saved += saved
                 layers_applied.append("tool_result_budget")
                 logger.debug("Layer 1 (tool_result_budget): saved %d tokens", saved)
-                if total_saved >= cfg.early_exit_tokens:
+                if not cfg.source_aligned and total_saved >= cfg.early_exit_tokens:
                     return CompressionResult(
                         messages=current_messages,
                         tokens_saved=total_saved,
@@ -204,7 +204,7 @@ class CompressionPipeline:
                 total_saved += saved
                 layers_applied.append("snip_compact")
                 logger.debug("Layer 2 (snip_compact): saved %d tokens", saved)
-                if total_saved >= cfg.early_exit_tokens:
+                if not cfg.source_aligned and total_saved >= cfg.early_exit_tokens:
                     return CompressionResult(
                         messages=current_messages,
                         tokens_saved=total_saved,
@@ -214,31 +214,30 @@ class CompressionPipeline:
             logger.warning("Layer 2 (snip_compact) failed", exc_info=True)
 
         # --- Layer 3: Microcompact ---
-        # Gated by mc_enabled (default False) to match TS where microcompact
-        # is a no-op on the main thread (time-based disabled, cached MC uses
-        # API cache_edits, legacy removed).  Clearing tool results locally
-        # breaks file_unchanged (model told to "refer to earlier content"
-        # that microcompact already erased → falls back to Bash cat).
-        if cfg.mc_enabled:
-            try:
-                current_messages, saved = microcompact_typed_messages(
-                    current_messages,
-                    keep_recent=cfg.mc_keep_recent,
-                    time_config=cfg.mc_time_config,
-                    force=True,
-                )
-                if saved > 0:
-                    total_saved += saved
-                    layers_applied.append("microcompact")
-                    logger.debug("Layer 3 (microcompact): saved %d tokens", saved)
-                    if total_saved >= cfg.early_exit_tokens:
-                        return CompressionResult(
-                            messages=current_messages,
-                            tokens_saved=total_saved,
-                            layers_applied=layers_applied,
-                        )
-            except Exception:
-                logger.warning("Layer 3 (microcompact) failed", exc_info=True)
+        # 即使生产开关关闭也进入函数，由内部 gate 返回空操作。这保证后续新增的缓存编辑
+        # 或时间策略有单一判定入口，同时避免默认情况下清除工具结果破坏文件未变判断。
+        try:
+            time_config = cfg.mc_time_config
+            if not cfg.mc_enabled:
+                time_config = TimeBasedMCConfig(enabled=False)
+            current_messages, saved = microcompact_typed_messages(
+                current_messages,
+                keep_recent=cfg.mc_keep_recent,
+                time_config=time_config,
+                force=cfg.mc_enabled,
+            )
+            if saved > 0:
+                total_saved += saved
+                layers_applied.append("microcompact")
+                logger.debug("Layer 3 (microcompact): saved %d tokens", saved)
+                if not cfg.source_aligned and total_saved >= cfg.early_exit_tokens:
+                    return CompressionResult(
+                        messages=current_messages,
+                        tokens_saved=total_saved,
+                        layers_applied=layers_applied,
+                    )
+        except Exception:
+            logger.warning("Layer 3 (microcompact) failed", exc_info=True)
 
         # --- Layer 4: Context Collapse ---
         try:

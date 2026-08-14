@@ -1,16 +1,16 @@
-schema_version: 1
-scorecard_id: B4-c2-c5-verified
+schema_version: 2
+scorecard_id: B5-a0-truth-reconciled
 generated_on: 2026-08-13
 baseline:
-  clauderuntime_commit: 4a77f068649e18351e4c51d97e5a6667c9c4a5fd
+  clauderuntime_commit: 95efbaec4796147657668c4947a0d2088ecc4738
   reference_commit: a8a678cb6244e6770e1e421767ff0987a1d95549
 counts:
-  reference_7: {total: 7, verified: 3, blocked: 1, partial: 3}
-  reference_5: {total: 5, verified: 3, blocked: 1, partial: 1}
-  ccr_14: {total: 14, verified: 9, blocked: 1, partial: 4}
-  lifecycle_14: {total: 14, verified: 10, evidence_gap: 4}
-  critical_open_divergences: 1
+  reference_7: {total: 7, verified: 0, blocked: 1, partial: 6}
+  reference_5: {total: 5, verified: 0, blocked: 1, partial: 4}
+  ccr_14: {total: 14, verified: 0, blocked: 1, partial: 13}
+  lifecycle_14: {total: 14, verified: 0, evidence_gap: 14}
+  critical_open_divergences: 4
   unmapped_critical_symbols: 2
 exit_gate: NOT_READY
-blocking_divergences: [B4-D01]
-required_next_work_item: B4-C1-cross-platform-isolation
+blocking_divergences: [B4-D01, B4-D02, B4-D03, B4-D04]
+required_next_work_item: B5-A1-compact-source-correction

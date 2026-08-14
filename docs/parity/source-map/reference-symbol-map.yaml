@@ -1,5 +1,7 @@
 schema_version: 1
 reference_target: claude-code-2.1.88
+baseline_commit: 95efbaec4796147657668c4947a0d2088ecc4738
+governance_status: LEGACY_SUPPORTING_MAP
 symbols:
   - id: SYM-QUERY-001
     reference:

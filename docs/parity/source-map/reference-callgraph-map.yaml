@@ -1,6 +1,6 @@
 schema_version: 1
 reference_target: claude-code-2.1.88
-baseline_commit: 4a77f068649e18351e4c51d97e5a6667c9c4a5fd
+baseline_commit: 95efbaec4796147657668c4947a0d2088ecc4738
 edges:
   - id: CG-QUERY-TOOL
     reference: {caller: "query.ts::query", callee: "services/tools/toolOrchestration.ts", evidence: SOURCE_EXTRACTED}
@@ -22,10 +22,11 @@ edges:
     notes: "macOS default backend now probes and launches through sandbox-exec with a cwd-scoped write boundary and denied-by-default profile. Foreground Bash now obtains its launch argv through ExecutionBoundary while retaining its established abort supervisor; settings-to-profile translation remains incomplete."
   - id: CG-RESUME-RUN
     reference: {caller: "tools/AgentTool/resumeAgent.ts::resumeAgentBackground", callee: "tools/AgentTool/runAgent", evidence: SOURCE_EXTRACTED}
-    python: {caller: "src/agent/resume_agent.py::resume_agent_background", callee: "src/tasks/local_agent.py::register_async_agent"}
-    status: BLOCKED
+    python: {caller: "src/agent/resume_agent.py::resume_agent_background", callee: "src/agent/run_agent.py::run_agent"}
+    status: PARTIAL
     divergence: B4-D02
     verifies: [R7-06, R5-04, CCR-10, CCR-11]
+    notes: "同进程恢复已进入 canonical run_agent；进程重启后的 durable runtime dependency reconstruction 尚未实现。"
   - id: CG-MCP-TOOL
     reference: {caller: "services/mcp/MCPConnectionManager.tsx", callee: "services/tools/toolOrchestration.ts", evidence: PENDING_SYMBOL_EXTRACTION}
     python: {caller: "src/services/mcp", callee: "src/tool_system"}

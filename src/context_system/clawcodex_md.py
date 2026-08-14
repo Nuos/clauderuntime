@@ -558,6 +558,74 @@ def get_clawcodex_mds(memory_files: list[MemoryFileInfo]) -> str:
     return f"{MEMORY_INSTRUCTION_PROMPT}\n\n" + "\n\n".join(memories)
 
 
+def get_project_path_scoped_rules(
+    file_path: str | Path,
+    cwd: str | Path,
+) -> list[MemoryFileInfo]:
+    """返回与已读取文件匹配的项目路径规则。
+
+    规则来自工作目录祖先中的 ``.clawcodex/rules/*.md``。每组 glob 以对应项目
+    目录为根按 gitignore 语义匹配；这里只发现并解析规则，是否已注入由会话级
+    ``ToolContext`` 决定。
+    """
+    try:
+        import pathspec
+    except ImportError:  # pragma: no cover - pathspec 是项目硬依赖
+        return []
+
+    target = Path(file_path).resolve()
+    current = Path(cwd).resolve()
+    try:
+        target.relative_to(current)
+    except ValueError:
+        return []
+
+    roots: list[Path] = []
+    cursor = current
+    while True:
+        roots.append(cursor)
+        parent = cursor.parent
+        if parent == cursor:
+            break
+        cursor = parent
+
+    result: list[MemoryFileInfo] = []
+    seen: set[Path] = set()
+    for root in reversed(roots):
+        rules_dir = root / ".clawcodex" / "rules"
+        if not rules_dir.is_dir():
+            continue
+        try:
+            relative_target = target.relative_to(root).as_posix()
+        except ValueError:
+            continue
+        for rule_path in sorted(rules_dir.rglob("*.md")):
+            resolved_rule = rule_path.resolve()
+            if resolved_rule in seen or not rule_path.is_file():
+                continue
+            try:
+                resolved_rule.relative_to(root)
+            except ValueError:
+                # 项目规则符号链接不得逃逸到项目外部后被静默注入模型上下文。
+                continue
+            raw = _safe_read_file(str(rule_path))
+            if raw is None:
+                continue
+            info, _ = _parse_memory_file_content(
+                raw, str(resolved_rule), "Project", include_base_path=str(resolved_rule)
+            )
+            if info is None or not info.globs:
+                continue
+            try:
+                spec = pathspec.PathSpec.from_lines("gitignore", info.globs)
+            except (LookupError, ValueError):
+                spec = pathspec.PathSpec.from_lines("gitwildmatch", info.globs)
+            if spec.match_file(relative_target):
+                seen.add(resolved_rule)
+                result.append(info)
+    return result
+
+
 def _get_memory_type_description(mem_type: MemoryType) -> str:
     if mem_type == "Project":
         return " (project instructions, checked into the codebase)"

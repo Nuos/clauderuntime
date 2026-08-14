@@ -161,7 +161,7 @@ class TestCompressionPipelineLayers(unittest.TestCase):
 
 
 class TestCompressionPipelineEarlyExit(unittest.TestCase):
-    """Tests for pipeline early exit when enough tokens are freed."""
+    """验证 Source-Aligned 连续执行与显式产品扩展的边界。"""
 
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
@@ -170,8 +170,8 @@ class TestCompressionPipelineEarlyExit(unittest.TestCase):
     def tearDown(self):
         self.tmpdir.cleanup()
 
-    def test_early_exit_skips_later_layers(self):
-        """If layer 1 frees enough tokens, later layers are skipped."""
+    def test_source_aligned_mode_does_not_early_exit(self):
+        """生产默认模式不会因第一层节省较多 token 而跳过后续层。"""
         messages = [
             _make_assistant("t1"),
             _make_user_result("t1", "x" * 200_000),  # massive result
@@ -185,9 +185,23 @@ class TestCompressionPipelineEarlyExit(unittest.TestCase):
         )
         result = asyncio.run(run_compression_pipeline(messages, config=config))
         self.assertIn("tool_result_budget", result.layers_applied)
-        # snip and microcompact should NOT be in layers because of early exit
+        # Snip 仍是明确记录的空实现；Microcompact 必须进入内部 gate，但不会报告已应用。
         self.assertNotIn("snip_compact", result.layers_applied)
         self.assertNotIn("microcompact", result.layers_applied)
+
+    def test_product_extension_can_early_exit(self):
+        messages = [
+            _make_assistant("t1"),
+            _make_user_result("t1", "x" * 200_000),
+        ]
+        config = PipelineConfig(
+            budget_dir=self.budget_dir,
+            max_result_tokens=100,
+            source_aligned=False,
+            early_exit_tokens=1_000,
+        )
+        result = asyncio.run(run_compression_pipeline(messages, config=config))
+        self.assertEqual(result.layers_applied, ["tool_result_budget"])
 
 
 class TestCompressionPipelineAutocompact(unittest.TestCase):

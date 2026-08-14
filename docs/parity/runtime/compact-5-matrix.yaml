@@ -1,9 +1,10 @@
-schema_version: 1
+schema_version: 2
 reference_target: claude-code-2.1.88
-status: VERIFIED
+baseline_commit: 95efbaec4796147657668c4947a0d2088ecc4738
+status: PARTIAL
 layers:
   - {order: 1, name: tool_result_budget, python: src/services/compact/pipeline.py, trigger: oversized_tool_results, noop: within_budget, durable: replacement_records}
-  - {order: 2, name: snip_compact, python: src/services/compact/pipeline.py, trigger: history_snip_threshold, noop: insufficient_history, durable: boundary_message}
+  - {order: 2, name: snip_compact, python: src/services/compact/pipeline.py, trigger: not_implemented, noop: fixed_stub, durable: none}
   - {order: 3, name: microcompact, python: src/context_system/microcompact.py, trigger: explicit_gate_or_time_config, noop: default_disabled, durable: local_projection_only}
   - {order: 4, name: context_collapse, python: src/context_system/context_collapse.py, trigger: enabled_commits_present, noop: no_commits, durable: collapse_store}
   - {order: 5, name: autocompact, python: src/services/compact/autocompact.py, trigger: context_threshold, noop: under_threshold, durable: compact_summary}
@@ -17,3 +18,8 @@ tests:
   - tests/test_compression_pipeline.py
   - tests/test_microcompact.py
   - tests/test_autocompact.py
+open_gaps:
+  - snip_compact_is_a_stub
+implemented_in_b5:
+  - source_aligned_mode_visits_all_later_shapers_after_cheap_layer_savings
+  - microcompact_is_called_each_turn_and_owns_its_disabled_noop_gate

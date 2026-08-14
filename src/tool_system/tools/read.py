@@ -699,6 +699,33 @@ def _read_call(tool_input: dict[str, Any], context: ToolContext) -> ToolResult:
     is_partial = len(selected) < total_lines
     context.mark_file_read(path, partial=is_partial)
 
+    # 路径作用域规则是延迟上下文：只有成功读取匹配文件后才加载，并且同一会话只注入
+    # 一次。它不参与 Read 权限判定，避免把上下文指令错误提升为授权规则。
+    new_messages = None
+    try:
+        from src.context_system.clawcodex_md import (
+            get_clawcodex_mds,
+            get_project_path_scoped_rules,
+        )
+        from src.types.messages import create_user_message
+
+        matched = get_project_path_scoped_rules(path, context.cwd or context.workspace_root)
+        claimed_paths = set(context.claim_path_rules([Path(rule.path) for rule in matched]))
+        fresh_rules = [rule for rule in matched if Path(rule.path).resolve() in claimed_paths]
+        if fresh_rules:
+            rules_context = get_clawcodex_mds(fresh_rules)
+            reminder = (
+                "<system-reminder>\n"
+                "The following path-scoped project instructions apply to the file just read:\n"
+                f"{rules_context}\n"
+                "</system-reminder>"
+            )
+            new_messages = [create_user_message(reminder, isMeta=True)]
+    except Exception:
+        # 规则发现失败不能改变文件读取结果；失败会保留为未加载，后续读取仍可重试。
+        import logging as _logging
+        _logging.getLogger(__name__).debug("path-scoped rule loading failed", exc_info=True)
+
     return ToolResult(
         name="Read",
         output={
@@ -711,6 +738,7 @@ def _read_call(tool_input: dict[str, Any], context: ToolContext) -> ToolResult:
                 "totalLines": total_lines,
             },
         },
+        new_messages=new_messages,
     )
 
 

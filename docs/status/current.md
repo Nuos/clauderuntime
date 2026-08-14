@@ -3,9 +3,9 @@
 status: CURRENT
 owner: repository-governance
 created: 2026-08-11
-last_verified: 2026-08-11
+last_verified: 2026-08-13
 reference_target: Claude Code v2.1.88 analysis baseline
-clauderuntime_commit: d29bfe597fe03da951888b0ec7732660852a6196
+clauderuntime_commit: 95efbaec4796147657668c4947a0d2088ecc4738
 supersedes: none
 superseded_by: none
 
@@ -27,13 +27,18 @@ The active parity vocabulary is:
 
 `Context / Memory` is governed through Agent Loop and State & Persistence, not as an eighth component.
 
-## 5 Parity Layers
+## 5 System Layers
 
-L1 architecture, L2 source structure, L3 runtime mechanisms, L4 auxiliary mechanisms, and L5 behavior/safety/continuous parity are the required layers for future evidence.
+Surface、Core、Safety / Action、State、Backend 是唯一正式五层。
 
-## 14 Auxiliary Loops
+## 14 CCR Mechanisms
 
-The current official AUX set is AUX-01 through AUX-14 as listed in [../parity/README.md](../parity/README.md). New mechanisms must first be classified as subflows of the existing set before adding any new ID.
+CCR-01 至 CCR-14 是唯一正式横切机制。旧 AUX-01..14 仅作历史映射，禁止继续用于完成度计分。
+
+## 当前结论
+
+B5 起点没有任何 R7、R5 或 CCR 项满足 v6 最终证据字段。跨平台隔离保持
+`BLOCKED`，其余项保持 `PARTIAL`；不得把本地局部测试通过写成整体完成。
 
 ## Critical Runtime Paths
 

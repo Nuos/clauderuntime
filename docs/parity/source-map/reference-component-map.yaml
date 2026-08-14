@@ -1,6 +1,7 @@
 schema_version: 1
 reference_target: claude-code-2.1.88
-clauderuntime_commit: d29bfe597fe03da951888b0ec7732660852a6196
+baseline_commit: 95efbaec4796147657668c4947a0d2088ecc4738
+governance_status: LEGACY_SUPPORTING_MAP
 components:
   - id: C01
     name: User

@@ -1,6 +1,6 @@
 schema_version: 1
 reference_target: claude-code-2.1.88
-baseline_commit: 4a77f068649e18351e4c51d97e5a6667c9c4a5fd
+baseline_commit: 95efbaec4796147657668c4947a0d2088ecc4738
 traces:
   - id: RT-01
     name: sandboxed-bash
@@ -8,7 +8,7 @@ traces:
     python_entry: "src/execution/sandbox.py::SandboxBackend.prepare"
     expected_events: [settings-resolved, policy-decided, sandbox-capability, isolated-launch, stdout-stderr-drained, terminal]
     current_evidence: "macOS capability probe, Seatbelt profile launch, foreground/background Bash boundary wiring, cwd-scoped external-write denial, binary network deny/allow and process-tree timeout are tested; domain allowlist translation remains pending."
-    status: PARTIAL
+    status: BLOCKED
     work_item: B4-C1-real-sandbox-process-boundary
   - id: RT-02
     name: resumed-subagent
@@ -16,15 +16,15 @@ traces:
     python_entry: "src/agent/resume_agent.py::resume_agent_background"
     expected_events: [claim, transcript-reconstruct, typed-hydrate, state-restore, canonical-run-agent, pending-message-drain, terminal-persist]
     current_evidence: "Claim, typed transcript hydration, live RunAgentParams rebuild, canonical run_agent execution, terminal persistence and notification are implemented and tested."
-    status: VERIFIED
+    status: PARTIAL
     work_item: B4-C2-resume-true-reentry
   - id: RT-03
     name: compact-5
     reference_entry: "services/compact/{compact,microCompact,autoCompact}.ts"
     python_entry: "src/services/compact"
     expected_events: [result-budget, snip, microcompact, context-collapse, auto-compact]
-    current_evidence: "Five-layer order, default microcompact no-op, token accounting, early exit, failure continuation and durable behavior are recorded in compact-5-matrix.yaml and covered by the C3 suite."
-    status: VERIFIED
+    current_evidence: "B5 已移除 Source-Aligned 模式的跨层 early-return，并让 Microcompact 每轮进入内部 feature gate；63 项专项测试通过。Snip 仍是固定空实现，因此保持 PARTIAL。"
+    status: PARTIAL
     work_item: B4-C3-compact-context-differential
   - id: RT-04
     name: scheduled-action
@@ -32,7 +32,7 @@ traces:
     python_entry: "src/scheduled_tasks/scheduler.py::SessionCronScheduler"
     expected_events: [create, due, wakeup, permission, isolation, execute, persist, cancel-or-reschedule]
     current_evidence: "Create/due/internal execution/persist/reschedule/cancel/restart are covered by scheduler and agent-server tests; scheduled turns enter the same ToolContext permission and isolation path as user turns. C4 lifecycle suite: 291 passed."
-    status: VERIFIED
+    status: PARTIAL
     work_item: B4-C4-subagent-mcp-scheduler-lifecycle
   - id: RT-05
     name: resume-agent-true-reentry
@@ -40,7 +40,7 @@ traces:
     python_entry: "src/agent/resume_agent.py::resume_agent_background"
     expected_events: [claim, transcript-reconstruct, typed-hydrate, run-agent-params, canonical-run-agent, pending-message-drain, terminal-persist]
     current_evidence: "The resume winner re-enters canonical run_agent in a managed background task; missing live dependencies fail explicitly without publishing a false running state."
-    status: VERIFIED
+    status: PARTIAL
     work_item: B4-C2-resume-true-reentry
   - id: RT-06
     name: cross-surface-result
@@ -48,5 +48,5 @@ traces:
     python_entry: "src/query/agent_loop_compat.py + src/server/agent_server.py"
     expected_events: [input, model-result, terminal-map, usage, num-turns]
     current_evidence: "A deterministic provider sends the same input through the core and server surfaces; response, terminal status, usage and turn count must match. Hook/stream/fault coverage is included in the C5 suite: 205 passed."
-    status: VERIFIED
+    status: PARTIAL
     work_item: B4-C5-cross-surface-runtime-trace

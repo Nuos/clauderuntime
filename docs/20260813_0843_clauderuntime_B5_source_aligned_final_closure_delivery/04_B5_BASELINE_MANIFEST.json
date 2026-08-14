@@ -1,0 +1,36 @@
+{
+  "document_id": "CR-B5-SOURCE-ALIGNED-FINAL-CLOSURE",
+  "generated_on": "2026-08-13T08:43:00-07:00",
+  "clauderuntime_head": "95efbaec4796147657668c4947a0d2088ecc4738",
+  "b4_function_commit": "eff80250b0603a8305660e9f2c88d77d5e73b547",
+  "reference": {
+    "version": "2.1.88",
+    "commit": "a8a678cb6244e6770e1e421767ff0987a1d95549",
+    "paper": "arXiv:2604.14228v2"
+  },
+  "project_recorded_tests": {
+    "passed": 10144,
+    "skipped": 10,
+    "failed": 0,
+    "subtests_passed": 345,
+    "ci_status": "NOT_INDEPENDENTLY_EVIDENCED"
+  },
+  "manual_estimates": {
+    "engineering_maturity": 93,
+    "implementation_7x5x14": 90,
+    "source_semantic_fidelity": 78,
+    "evidence_integrity": 62,
+    "strict_exit_readiness": 72
+  },
+  "critical_findings": [
+    "B4 overall remains in progress: C1/C6 not final",
+    "machine parity assets contradict one another and use stale baselines",
+    "Compact-5 VERIFIED is overclaimed: Python early-exit and snip stub diverge from recovered query flow",
+    "Context-9 path_rules row is semantically misclassified; production conditional lazy rule wiring is not demonstrated",
+    "resume true re-entry works in-process but depends on non-persisted resume_run_params",
+    "real sandbox is macOS-only; Linux/Windows use NoSandboxBackend; domain allowlist is not enforced",
+    "Scheduler durable/file-backed lifecycle needs reference differential",
+    "cross-surface differential currently proves core vs server, not all supported surfaces"
+  ],
+  "required_program": "B5 Truth-First 7x5x14 Final Closure"
+}

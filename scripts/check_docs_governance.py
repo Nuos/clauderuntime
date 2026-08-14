@@ -22,6 +22,8 @@ ROOT_MARKDOWN_ALLOWLIST = {
 
 DOCS_TOP_LEVEL_ALLOWLIST = {
     "20260811_2238_clauderuntime_source_aligned_7x5x14_delivery_B3",
+    "20260813_0140_clauderuntime_B4_core_closure_delivery",
+    "20260813_0843_clauderuntime_B5_source_aligned_final_closure_delivery",
     "README.md",
     "architecture",
     "archive",
@@ -50,7 +52,8 @@ EXPECTED_COMPONENT_NAMES = {
     "State & Persistence",
     "Execution Environment",
 }
-EXPECTED_LAYER_IDS = {f"L{n}" for n in range(1, 6)}
+EXPECTED_LAYER_IDS = {f"R5-{n:02d}" for n in range(1, 6)}
+EXPECTED_CCR_IDS = {f"CCR-{n:02d}" for n in range(1, 15)}
 EXPECTED_AUX_IDS = {f"AUX-{n:02d}" for n in range(1, 15)}
 EXPECTED_RUNTIME_PATH_IDS = {f"RP-{n:02d}" for n in range(1, 13)}
 
@@ -64,13 +67,15 @@ ALLOWED_PARITY_STATUSES = {
     "MISSING",
     "UNKNOWN",
     "DONE",
+    "BLOCKED",
+    "VERIFIED",
 }
 
 PARITY_SCHEMA_REQUIRED_TOKENS = {
     "docs/parity/source-map/reference-component-map.yaml": {
         "schema_version:",
         "reference_target:",
-        "clauderuntime_commit:",
+        "baseline_commit:",
         "components:",
         "id:",
         "name:",
@@ -319,7 +324,15 @@ def check_parity_maps(repo: Path) -> list[str]:
             repo,
             "docs/parity/README.md",
             EXPECTED_LAYER_IDS,
-            "Parity layer index",
+            "Reference-5 layer index",
+        )
+    )
+    failures.extend(
+        check_expected_tokens(
+            repo,
+            "docs/parity/coverage-ledger.yaml",
+            EXPECTED_CCR_IDS,
+            "CCR-14 index",
         )
     )
     failures.extend(

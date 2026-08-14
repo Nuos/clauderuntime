@@ -1,6 +1,7 @@
 schema_version: 1
 reference_target: claude-code-2.1.88
-clauderuntime_baseline: 241d704480c0e4aa1bfb97c607a5e2e13e871e46
+baseline_commit: 95efbaec4796147657668c4947a0d2088ecc4738
+governance_status: LEGACY_SUPPORTING_MAP
 packages:
   - id: PKG-QUERY-001
     reference:

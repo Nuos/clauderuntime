@@ -13,6 +13,7 @@ from .clawcodex_md import (
     clear_memory_file_caches,
     get_clawcodex_mds,
     get_memory_files,
+    get_project_path_scoped_rules,
     reset_get_memory_files_cache,
 )
 from .git_context import (
@@ -43,6 +44,7 @@ __all__ = [
     "clear_memory_file_caches",
     "get_clawcodex_mds",
     "get_memory_files",
+    "get_project_path_scoped_rules",
     "reset_get_memory_files_cache",
     # Git context
     "GitContextSnapshot",

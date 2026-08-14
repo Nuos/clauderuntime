@@ -1,13 +1,13 @@
 schema_version: 1
 reference_target: claude-code-2.1.88
-baseline_commit: 4a77f068649e18351e4c51d97e5a6667c9c4a5fd
+baseline_commit: 95efbaec4796147657668c4947a0d2088ecc4738
 transitions:
   - id: ST-RESUME-01
     mechanism: resume-background-agent
     reference: "terminal → transcript/meta reconstruct → running → runAgent → terminal"
-    python: "terminal → race-safe claim → transcript read → running registration → terminal"
-    missing: "Running registration must invoke canonical agent/query loop with reconstructed typed messages and resume prompt."
-    status: BLOCKED
+    python: "terminal → race-safe claim → transcript hydrate → running registration → canonical run_agent → terminal"
+    missing: "进程重启后无法仅凭 durable transcript/metadata 重建 provider、tool、permission、system prompt 和 worktree。"
+    status: PARTIAL
     verifies: [R7-06, R5-04, CCR-10, CCR-11]
   - id: ST-SANDBOX-01
     mechanism: sandbox-command

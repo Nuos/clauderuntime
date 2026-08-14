@@ -2,8 +2,8 @@
 
 Verifies:
 - 5 layers execute in correct order (cheap → expensive)
-- Layer names match ts_compression_layers.json
-- Pipeline has early-exit behavior
+- Source-Aligned mode does not skip later shaping layers
+- Microcompact is called every turn and owns its no-op decision
 - Pipeline continues on individual layer failure
 """
 from __future__ import annotations
@@ -96,7 +96,7 @@ class TestCompressionLayerOrderParity(unittest.TestCase):
 
 
 class TestCompressionPipelineBehavior(unittest.TestCase):
-    """Pipeline behavior matches TS: early exit, failure handling."""
+    """验证连续 shaping、内部 feature gate 和失败隔离。"""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -107,9 +107,6 @@ class TestCompressionPipelineBehavior(unittest.TestCase):
             self.snapshot["pipeline_behavior"]["execution_order"],
             "cheap_to_expensive",
         )
-
-    def test_early_exit_enabled(self) -> None:
-        self.assertTrue(self.snapshot["pipeline_behavior"]["early_exit"])
 
     def test_failure_handling_continue(self) -> None:
         self.assertEqual(
@@ -122,8 +119,8 @@ class TestCompressionPipelineBehavior(unittest.TestCase):
         self.assertIsInstance(config.early_exit_tokens, int)
         self.assertGreater(config.early_exit_tokens, 0)
 
-    def test_early_exit_when_enough_tokens_freed(self) -> None:
-        """If layer 1 frees enough tokens, later layers should not run."""
+    def test_source_aligned_mode_keeps_running_after_large_savings(self) -> None:
+        """早层节省大量 token 后，生产模式仍执行后续 shaping 层。"""
         layer2_called = False
 
         def mock_tool_result_budget(msgs, **kwargs):
@@ -145,8 +142,27 @@ class TestCompressionPipelineBehavior(unittest.TestCase):
              patch("src.services.compact.pipeline.snip_compact", mock_snip_compact):
             result = asyncio.run(run_compression_pipeline(messages, config=config))
 
-        self.assertFalse(layer2_called, "Layer 2 should not run when layer 1 frees enough tokens")
+        self.assertTrue(layer2_called)
         self.assertGreater(result.tokens_saved, 0)
+
+    def test_product_extension_can_retain_legacy_early_exit(self) -> None:
+        """显式选择产品扩展时可以保留旧优化，但该路径不计入 parity。"""
+        called = False
+
+        def mock_tool_result_budget(msgs, **kwargs):
+            return msgs, 999_999
+
+        def mock_snip_compact(msgs, **kwargs):
+            nonlocal called
+            called = True
+            return msgs, 0
+
+        config = PipelineConfig(source_aligned=False, early_exit_tokens=100)
+        with patch("src.services.compact.pipeline.apply_tool_result_budget", mock_tool_result_budget), \
+             patch("src.services.compact.pipeline.snip_compact", mock_snip_compact):
+            asyncio.run(run_compression_pipeline(_make_messages(), config=config))
+
+        self.assertFalse(called)
 
     def test_pipeline_continues_on_layer_failure(self) -> None:
         """If one layer fails, pipeline should continue with remaining layers."""
@@ -169,21 +185,23 @@ class TestCompressionPipelineBehavior(unittest.TestCase):
 
         self.assertIn("snip_compact", result.layers_applied)
 
-    def test_microcompact_default_gate_is_a_noop(self) -> None:
-        """C3 contract: main-thread MC remains off unless explicitly gated on."""
+    def test_microcompact_default_gate_is_an_internal_noop(self) -> None:
+        """默认每轮进入 Microcompact，再由内部关闭的 feature gate 返回空操作。"""
         called = False
 
         def mock_microcompact(msgs, **kwargs):
             nonlocal called
             called = True
-            return msgs, 1
+            self.assertFalse(kwargs["force"])
+            self.assertFalse(kwargs["time_config"].enabled)
+            return msgs, 0
 
         with patch("src.services.compact.pipeline.microcompact_typed_messages", mock_microcompact):
             result = asyncio.run(run_compression_pipeline(
                 _make_messages(), config=PipelineConfig(provider=None),
             ))
 
-        self.assertFalse(called)
+        self.assertTrue(called)
         self.assertNotIn("microcompact", result.layers_applied)
 
     def test_autocompact_receives_tokens_after_cheap_layer_savings(self) -> None:

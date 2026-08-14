@@ -1,6 +1,6 @@
 schema_version: 1
 reference_target: claude-code-2.1.88
-baseline_commit: 4a77f068649e18351e4c51d97e5a6667c9c4a5fd
+baseline_commit: 95efbaec4796147657668c4947a0d2088ecc4738
 symbols:
-  - {id: UMS-001, path: "utils/sandbox/sandbox-adapter.ts", symbol: "convertToSandboxRuntimeConfig", criticality: P0, target: B4-C1-real-sandbox-process-boundary, reason: "No Python config-to-real-isolation equivalent."}
-  - {id: UMS-002, path: "utils/sandbox/sandbox-adapter.ts", symbol: "SandboxManager.wrapWithSandbox", criticality: P0, target: B4-C1-real-sandbox-process-boundary, reason: "No isolated launcher/process-tree lifecycle equivalent."}
+  - {id: UMS-001, path: "utils/sandbox/sandbox-adapter.ts", symbol: "convertToSandboxRuntimeConfig", criticality: P0, target: B5-A4-cross-platform-isolation, reason: "macOS 只实现部分文件和二进制网络策略；完整域名、socket、Linux、Windows 配置转换未映射。"}
+  - {id: UMS-002, path: "utils/sandbox/sandbox-adapter.ts", symbol: "SandboxManager.wrapWithSandbox", criticality: P0, target: B5-A4-cross-platform-isolation, reason: "macOS 有隔离启动路径；Linux、Windows 仍无真实隔离后端。"}

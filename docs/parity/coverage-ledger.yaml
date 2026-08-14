@@ -1,37 +1,37 @@
-schema_version: 1
-document: B4-7x5x14-coverage-ledger
+schema_version: 2
+document: B5-7x5x14-coverage-ledger
 baseline:
-  clauderuntime_commit: 4a77f068649e18351e4c51d97e5a6667c9c4a5fd
+  clauderuntime_commit: 95efbaec4796147657668c4947a0d2088ecc4738
   reference_commit: a8a678cb6244e6770e1e421767ff0987a1d95549
   reference_version: 2.1.88
 status_vocabulary: [NOT_STARTED, IN_PROGRESS, BLOCKED, PARTIAL, VERIFIED]
 completion_evidence: [EXACT, SEMANTIC_EQUIVALENT, PYTHON_ADAPTATION_VERIFIED]
 reference_7:
-  - {id: R7-01, owner: "screens/REPL.tsx + query.ts", python_owner: "src/cli.py + src/query/query.py", status: VERIFIED, work_item: B4-C5-cross-surface-runtime-trace}
-  - {id: R7-02, owner: "entrypoints/cli.tsx + screens/REPL.tsx", python_owner: "src/cli.py + ui-tui + ui-desktop", status: VERIFIED, work_item: B4-C5-cross-surface-runtime-trace}
+  - {id: R7-01, owner: "screens/REPL.tsx + query.ts", python_owner: "src/cli.py + src/query/query.py", status: PARTIAL, work_item: B4-C5-cross-surface-runtime-trace}
+  - {id: R7-02, owner: "entrypoints/cli.tsx + screens/REPL.tsx", python_owner: "src/cli.py + ui-tui + ui-desktop", status: PARTIAL, work_item: B4-C5-cross-surface-runtime-trace}
   - {id: R7-03, owner: "query.ts::query", python_owner: "src/query/query.py::query", status: PARTIAL, work_item: B4-C0-main-loop-callgraph}
   - {id: R7-04, owner: "hooks/toolPermission/PermissionContext.ts + tools/BashTool", python_owner: "src/permissions + src/services/tool_execution", status: PARTIAL, work_item: B4-C0-authorization-contract}
   - {id: R7-05, owner: "services/tools/toolOrchestration.ts + StreamingToolExecutor.ts", python_owner: "src/tool_system + src/query/tool_round.py", status: PARTIAL, work_item: B4-C0-tool-contract}
-  - {id: R7-06, owner: "tools/AgentTool/resumeAgent.ts + state/store.ts", python_owner: "src/agent/resume_agent.py + src/agent/transcript.py", status: VERIFIED, work_item: B4-C2-resume-true-reentry}
+  - {id: R7-06, owner: "tools/AgentTool/resumeAgent.ts + state/store.ts", python_owner: "src/agent/resume_agent.py + src/agent/transcript.py", status: PARTIAL, work_item: B4-C2-resume-true-reentry}
   - {id: R7-07, owner: "utils/sandbox/sandbox-adapter.ts + tools/BashTool/shouldUseSandbox.ts", python_owner: "src/execution/sandbox.py + src/execution/boundary.py", status: BLOCKED, work_item: B4-C1-real-sandbox-process-boundary}
 reference_5:
-  - {id: R5-01, owner: "entrypoints/cli.tsx + screens/REPL.tsx", python_owner: "src/cli.py + ui-tui + ui-desktop", status: VERIFIED, work_item: B4-C5-cross-surface-runtime-trace}
-  - {id: R5-02, owner: "query.ts + services/compact", python_owner: "src/query + src/services/compact", status: VERIFIED, work_item: B4-C3-compact-context-differential}
+  - {id: R5-01, owner: "entrypoints/cli.tsx + screens/REPL.tsx", python_owner: "src/cli.py + ui-tui + ui-desktop", status: PARTIAL, work_item: B4-C5-cross-surface-runtime-trace}
+  - {id: R5-02, owner: "query.ts + services/compact", python_owner: "src/query + src/services/compact", status: PARTIAL, work_item: B4-C3-compact-context-differential}
   - {id: R5-03, owner: "tools + hooks + services/mcp", python_owner: "src/permissions + src/tool_system + src/services/mcp", status: PARTIAL, work_item: B4-C1-C4-safety-lifecycle}
-  - {id: R5-04, owner: "state/store.ts + tools/AgentTool/resumeAgent.ts", python_owner: "src/state + src/agent/resume_agent.py + src/agent/transcript.py", status: VERIFIED, work_item: B4-C2-resume-fork-rewind}
+  - {id: R5-04, owner: "state/store.ts + tools/AgentTool/resumeAgent.ts", python_owner: "src/state + src/agent/resume_agent.py + src/agent/transcript.py", status: PARTIAL, work_item: B4-C2-resume-fork-rewind}
   - {id: R5-05, owner: "utils/sandbox/sandbox-adapter.ts + services/mcp", python_owner: "src/execution + src/services/mcp + src/remote", status: BLOCKED, work_item: B4-C1-real-sandbox-process-boundary}
 ccr_14:
-  - {id: CCR-01, owner: "schemas/hooks.ts + services/tools/toolHooks.ts", python_owner: "src/hooks", status: VERIFIED, work_item: B4-C5-hook-differential}
+  - {id: CCR-01, owner: "schemas/hooks.ts + services/tools/toolHooks.ts", python_owner: "src/hooks", status: PARTIAL, work_item: B4-C5-hook-differential}
   - {id: CCR-02, owner: "hooks/toolPermission/PermissionContext.ts", python_owner: "src/permissions", status: PARTIAL, work_item: B4-C0-authorization-contract}
-  - {id: CCR-03, owner: "services/compact/{compact,microCompact,autoCompact}.ts", python_owner: "src/services/compact + src/query/recovery.py", status: VERIFIED, work_item: B4-C3-compact-differential}
-  - {id: CCR-04, owner: "query.ts + memdir + system prompt assembly", python_owner: "src/context_system/prompt_assembly.py + src/memory", status: VERIFIED, work_item: B4-C3-context-9-matrix}
-  - {id: CCR-05, owner: "services/mcp + hooks/useMergedTools.ts", python_owner: "src/tool_system + src/services/mcp", status: VERIFIED, work_item: B4-C4-mcp-capability-lifecycle}
+  - {id: CCR-03, owner: "services/compact/{compact,microCompact,autoCompact}.ts", python_owner: "src/services/compact + src/query/recovery.py", status: PARTIAL, work_item: B4-C3-compact-differential}
+  - {id: CCR-04, owner: "query.ts + memdir + system prompt assembly", python_owner: "src/context_system/prompt_assembly.py + src/memory", status: PARTIAL, work_item: B4-C3-context-9-matrix}
+  - {id: CCR-05, owner: "services/mcp + hooks/useMergedTools.ts", python_owner: "src/tool_system + src/services/mcp", status: PARTIAL, work_item: B4-C4-mcp-capability-lifecycle}
   - {id: CCR-06, owner: "services/tools/toolOrchestration.ts", python_owner: "src/query/tool_round.py + src/tool_system", status: PARTIAL, work_item: B4-C0-tool-contract}
-  - {id: CCR-07, owner: "services/tools/StreamingToolExecutor.ts", python_owner: "src/query/tool_round.py", status: VERIFIED, work_item: B4-C5-streaming-fault-differential}
-  - {id: CCR-08, owner: "query.ts + services/rateLimitMessages.ts", python_owner: "src/query/recovery.py + src/query/model_call.py", status: VERIFIED, work_item: B4-C5-fault-differential}
+  - {id: CCR-07, owner: "services/tools/StreamingToolExecutor.ts", python_owner: "src/query/tool_round.py", status: PARTIAL, work_item: B4-C5-streaming-fault-differential}
+  - {id: CCR-08, owner: "query.ts + services/rateLimitMessages.ts", python_owner: "src/query/recovery.py + src/query/model_call.py", status: PARTIAL, work_item: B4-C5-fault-differential}
   - {id: CCR-09, owner: "services/tools/toolExecution.ts", python_owner: "src/tool_system + src/agent/transcript.py", status: PARTIAL, work_item: B4-C0-result-contract}
-  - {id: CCR-10, owner: "tools/AgentTool/resumeAgent.ts + state/store.ts", python_owner: "src/agent/resume_agent.py + src/agent/transcript.py", status: VERIFIED, work_item: B4-C2-resume-fork-rewind}
-  - {id: CCR-11, owner: "tools/AgentTool + query.ts", python_owner: "src/agent + src/tasks + src/background", status: VERIFIED, work_item: B4-C4-subagent-lifecycle}
+  - {id: CCR-10, owner: "tools/AgentTool/resumeAgent.ts + state/store.ts", python_owner: "src/agent/resume_agent.py + src/agent/transcript.py", status: PARTIAL, work_item: B4-C2-resume-fork-rewind}
+  - {id: CCR-11, owner: "tools/AgentTool + query.ts", python_owner: "src/agent + src/tasks + src/background", status: PARTIAL, work_item: B4-C4-subagent-lifecycle}
   - {id: CCR-12, owner: "utils/sandbox/sandbox-adapter.ts", python_owner: "src/execution/sandbox.py + src/execution/boundary.py", status: BLOCKED, work_item: B4-C1-real-sandbox-process-boundary}
   - {id: CCR-13, owner: "settings + hooks/toolPermission", python_owner: "src/permissions + src/settings", status: PARTIAL, work_item: B4-C0-trust-contract}
-  - {id: CCR-14, owner: "services/mcp + hooks/useScheduledTasks.ts", python_owner: "src/settings + src/scheduled_tasks + src/services/mcp", status: VERIFIED, work_item: B4-C4-runtime-config-lifecycle}
+  - {id: CCR-14, owner: "services/mcp + hooks/useScheduledTasks.ts", python_owner: "src/settings + src/scheduled_tasks + src/services/mcp", status: PARTIAL, work_item: B4-C4-runtime-config-lifecycle}
