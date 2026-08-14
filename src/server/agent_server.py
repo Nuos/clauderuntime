@@ -71,6 +71,7 @@ from src.scheduled_tasks import (
 from src.server.background_scheduler import SessionBackgroundScheduler
 from src.server.server import AgentHandle
 from src.utils.abort_controller import AbortController, AbortError
+from src.utils.clawcodex_dirs import get_user_config_dir
 
 logger = logging.getLogger(__name__)
 
@@ -243,7 +244,13 @@ class _AgentSession:
     # hands this to tool_context so the Cron*/ScheduleWakeup tools register
     # real firing jobs on it.
     cron_scheduler: SessionCronScheduler = field(
-        default_factory=SessionCronScheduler
+        default_factory=lambda: SessionCronScheduler(
+            # B6 P2 — file-backed durable scheduled tasks: every mutation is
+            # atomically persisted, so a service restart can rebuild tasks
+            # without the session resume file. Best-effort: persistence
+            # failures only log (never break scheduling).
+            persist_path=str(get_user_config_dir() / "scheduled_tasks.json"),
+        )
     )
     # Last cron_status snapshot pushed to the client (JSON string) — the
     # post-turn push only re-emits when the state actually changed.
@@ -2962,6 +2969,10 @@ class _AgentSession:
                     self.cron_scheduler.restore(saved_sched)
                     if isinstance(saved_sched, dict) else 0
                 )
+                # B6 P2 — the resume path cleared + restored the live
+                # scheduler; sync the file-backed store so the durable
+                # scheduled_tasks.json matches the resumed session.
+                self.cron_scheduler.persist()
                 if restored_n:
                     self._push_cron_state(
                         f"⏰ Restored {restored_n} scheduled task(s) "
