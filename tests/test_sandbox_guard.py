@@ -54,23 +54,38 @@ class TestGuardMapping:
     def _s(self, **sb):
         return SettingsSchema.from_dict({"sandbox": sb}) if sb else SettingsSchema.from_dict({})
 
-    def test_hard_gate_when_enabled_and_fail_if_unavailable(self):
+    def test_hard_gate_when_enabled_and_fail_if_unavailable(self, monkeypatch):
+        # Pin "no enforcement available on this platform" so the test is
+        # deterministic (on a machine where the macOS Seatbelt probe passes,
+        # the requirement is satisfiable and there is no gate).
+        import src.permissions.sandbox_guard as mod
+
+        monkeypatch.setattr(mod, "_enforcement_available", lambda: False)
         s = self._s(enabled=True, failIfUnavailable=True)
         assert sandbox_hard_gate_error(s) is not None
         assert sandbox_unsandboxed_warning(s) is None  # gate, not warning
         assert "hard gate" in sandbox_hard_gate_error(s).lower()
 
-    def test_warning_when_enabled_only(self):
+    def test_warning_when_enabled_only(self, monkeypatch):
+        import src.permissions.sandbox_guard as mod
+
+        monkeypatch.setattr(mod, "_enforcement_available", lambda: False)
         s = self._s(enabled=True)
         assert sandbox_hard_gate_error(s) is None
         assert "unsandboxed" in sandbox_unsandboxed_warning(s).lower()
 
-    def test_silent_when_disabled(self):
+    def test_silent_when_disabled(self, monkeypatch):
+        import src.permissions.sandbox_guard as mod
+
+        monkeypatch.setattr(mod, "_enforcement_available", lambda: False)
         s = self._s(enabled=False, failIfUnavailable=True)  # enabled gates both
         assert sandbox_hard_gate_error(s) is None
         assert sandbox_unsandboxed_warning(s) is None
 
-    def test_silent_when_absent(self):
+    def test_silent_when_absent(self, monkeypatch):
+        import src.permissions.sandbox_guard as mod
+
+        monkeypatch.setattr(mod, "_enforcement_available", lambda: False)
         s = self._s()
         assert not is_sandbox_requested(s)
         assert sandbox_hard_gate_error(s) is None
@@ -89,10 +104,11 @@ class TestValidateSettings:
 
 
 class TestWarnOnce:
-    def test_warns_once(self, caplog):
+    def test_warns_once(self, caplog, monkeypatch):
         import src.permissions.sandbox_guard as mod
 
         mod._warned_once = False
+        monkeypatch.setattr(mod, "_enforcement_available", lambda: False)
         s = SettingsSchema.from_dict({"sandbox": {"enabled": True}})
         with caplog.at_level(logging.WARNING, logger="src.permissions.sandbox_guard"):
             warn_if_unsandboxed_once(s)
@@ -103,6 +119,9 @@ class TestWarnOnce:
 class TestBashHardGateRefusal:
     def test_bash_refuses_under_hard_gate(self, monkeypatch, tmp_path):
         # the guaranteed-reached path: a hard-gate config makes _bash_call REFUSE
+        import src.permissions.sandbox_guard as mod
+
+        monkeypatch.setattr(mod, "_enforcement_available", lambda: False)
         from src.settings.types import SettingsSchema
         from src.tool_system.errors import ToolPermissionError
 
@@ -121,6 +140,7 @@ class TestBashHardGateRefusal:
         import src.permissions.sandbox_guard as mod
 
         mod._warned_once = False
+        monkeypatch.setattr(mod, "_enforcement_available", lambda: False)
         warn_only = SettingsSchema.from_dict({"sandbox": {"enabled": True}})
         monkeypatch.setattr("src.settings.settings.get_settings", lambda *a, **k: warn_only)
 
@@ -209,6 +229,9 @@ class TestBackgroundBashAlsoGuarded:
     run_in_background branch."""
 
     def test_background_bash_refused_under_hard_gate(self, monkeypatch, tmp_path):
+        import src.permissions.sandbox_guard as mod
+
+        monkeypatch.setattr(mod, "_enforcement_available", lambda: False)
         from src.settings.types import SettingsSchema
         from src.tool_system.context import ToolContext, ToolUseOptions
         from src.tool_system.errors import ToolPermissionError
@@ -229,6 +252,9 @@ class TestHardGateRefusesToStart:
     is set (the session refuses to start)."""
 
     def test_build_runtime_refuses_under_hard_gate(self, monkeypatch, tmp_path):
+        import src.permissions.sandbox_guard as mod
+
+        monkeypatch.setattr(mod, "_enforcement_available", lambda: False)
         from unittest.mock import MagicMock
 
         from src.server.agent_server import (

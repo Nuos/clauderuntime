@@ -24,6 +24,7 @@ DOCS_TOP_LEVEL_ALLOWLIST = {
     "20260813_0140_clauderuntime_B4_core_closure_delivery",
     "20260813_0843_clauderuntime_B5_source_aligned_final_closure_delivery",
     "20260813_1824_B4修复反馈建议_v2_交付包",
+    "20260814_0817_clauderuntime_B6_hierarchical_alignment_delivery_v1.1",
     "README.md",
     "architecture",
     "archive",
@@ -35,6 +36,7 @@ DOCS_TOP_LEVEL_ALLOWLIST = {
     "plans",
     "progress",
     "reference",
+    "reference-differences",
     "status",
     "sourcemap",
 }
@@ -69,6 +71,68 @@ ALLOWED_PARITY_STATUSES = {
     "DONE",
     "BLOCKED",
     "VERIFIED",
+}
+
+B6_CERTAINTY_VOCABULARY = {
+    "R1_CONFIRMED",
+    "R2_PARTIALLY_CONFIRMED",
+    "R3_UNKNOWN",
+    "R4_PRODUCT_EXTENSION",
+}
+
+B6_ALIGNMENT_POLICY_VOCABULARY = {
+    "MUST_ALIGN",
+    "ALIGN_KNOWN_PART",
+    "FUNCTIONAL_CORE_ONLY",
+    "PRODUCT_EXTENSION",
+}
+
+B6_STATUS_VOCABULARY = {
+    "FUNCTIONAL_COMPLETE",
+    "FUNCTIONAL_ADAPTATION",
+    "LIMITED",
+    "DEFERRED_REFERENCE_DETAIL",
+    "UNKNOWN_REFERENCE",
+    "MISSING",
+}
+
+B6_REASON_VOCABULARY = {
+    "PYTHON_RUNTIME_ADAPTATION",
+    "PYTHON_ECOSYSTEM_ADAPTATION",
+    "OS_PLATFORM_ADAPTATION",
+    "RECOVERED_SOURCE_GAP",
+    "PRODUCT_SCOPE_SIMPLIFICATION",
+    "SAFETY_STRENGTHENING",
+    "MAINTAINABILITY_SIMPLIFICATION",
+    "PERFORMANCE_OPTIMIZATION",
+    "LEGACY_COMPATIBILITY",
+    "DEFERRED_REFERENCE_DETAIL",
+    "UNKNOWN",
+}
+
+B6_IMPACT_VOCABULARY = {"NONE", "LOW", "MEDIUM", "HIGH"}
+
+REFERENCE_DIFFERENCES_REGISTRY = "docs/reference-differences/registry.yaml"
+
+REFERENCE_DIFFERENCES_REQUIRED_TOKENS = {
+    "schema_version:",
+    "purpose:",
+    "strategy:",
+    "items:",
+    "id:",
+    "area:",
+    "feature:",
+    "reference_certainty:",
+    "alignment_policy:",
+    "reference:",
+    "python:",
+    "difference:",
+    "reason:",
+    "user_impact:",
+    "safety_impact:",
+    "compatibility_impact:",
+    "status:",
+    "accepted:",
 }
 
 PARITY_SCHEMA_REQUIRED_TOKENS = {
@@ -393,6 +457,68 @@ def check_parity_unknowns(repo: Path, allowlist: set[str]) -> list[str]:
     ]
 
 
+def check_reference_differences(repo: Path) -> list[str]:
+    """Validate the B6 difference registry schema and controlled vocabulary.
+
+    The registry is the global ledger for Reference vs Python differences. It
+    must exist, carry the required fields, use only the B6 vocabulary for
+    certainty / alignment policy / status / reason / impact, and keep item ids
+    unique. Mirroring the parity maps, a regex-based scan keeps the gate
+    stdlib-only.
+    """
+    failures: list[str] = []
+    path = repo / REFERENCE_DIFFERENCES_REGISTRY
+    if not path.exists():
+        return [f"missing reference differences registry: {REFERENCE_DIFFERENCES_REGISTRY}"]
+    text = path.read_text(encoding="utf-8", errors="replace")
+    for token in sorted(REFERENCE_DIFFERENCES_REQUIRED_TOKENS):
+        if token not in text:
+            failures.append(
+                f"reference differences registry missing token {token} in {REFERENCE_DIFFERENCES_REGISTRY}"
+            )
+
+    def _check_vocabulary(pattern: str, vocabulary: set[str], label: str) -> None:
+        for value in re.findall(pattern, text):
+            if value not in vocabulary:
+                failures.append(
+                    f"reference differences registry has unknown {label} {value!r} in {REFERENCE_DIFFERENCES_REGISTRY}"
+                )
+
+    _check_vocabulary(
+        r"^\s+reference_certainty:\s+([A-Z0-9_]+)\s*$",
+        B6_CERTAINTY_VOCABULARY,
+        "reference_certainty",
+    )
+    _check_vocabulary(
+        r"^\s+alignment_policy:\s+([A-Z0-9_]+)\s*$",
+        B6_ALIGNMENT_POLICY_VOCABULARY,
+        "alignment_policy",
+    )
+    _check_vocabulary(
+        r"^\s+status:\s+([A-Z_]+)\s*$",
+        B6_STATUS_VOCABULARY,
+        "status",
+    )
+    _check_vocabulary(
+        r"^\s+reason:\s+([A-Z_]+)\s*$",
+        B6_REASON_VOCABULARY,
+        "reason",
+    )
+    for impact_label in ("user_impact", "safety_impact", "compatibility_impact"):
+        _check_vocabulary(
+            rf"^\s+{impact_label}:\s+([A-Z]+)\s*$",
+            B6_IMPACT_VOCABULARY,
+            impact_label,
+        )
+
+    ids = extract_yaml_ids(text)
+    for item_id in sorted({item_id for item_id in ids if ids.count(item_id) > 1}):
+        failures.append(
+            f"reference differences registry has duplicate id {item_id} in {REFERENCE_DIFFERENCES_REGISTRY}"
+        )
+    return failures
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -411,6 +537,7 @@ def main() -> int:
     files = repo_files(repo)
     failures = check_structure(files)
     failures.extend(check_parity_maps(repo))
+    failures.extend(check_reference_differences(repo))
     failures.extend(check_markdown_links(repo, files, read_allowlist(repo / args.allowlist)))
     failures.extend(check_archive_link_policy(files, repo))
     failures.extend(

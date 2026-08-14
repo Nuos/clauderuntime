@@ -1,0 +1,57 @@
+schema_version: 1
+purpose: "Track known differences between Claude Code reference behavior and ClaudeRuntime Python behavior."
+reference_certainty_vocabulary:
+  - R1_CONFIRMED
+  - R2_PARTIALLY_CONFIRMED
+  - R3_UNKNOWN
+  - R4_PRODUCT_EXTENSION
+alignment_policy_vocabulary:
+  - MUST_ALIGN
+  - ALIGN_KNOWN_PART
+  - FUNCTIONAL_CORE_ONLY
+  - PRODUCT_EXTENSION
+status_vocabulary:
+  - FUNCTIONAL_COMPLETE
+  - FUNCTIONAL_ADAPTATION
+  - LIMITED
+  - DEFERRED_REFERENCE_DETAIL
+  - UNKNOWN_REFERENCE
+  - MISSING
+reason_vocabulary:
+  - PYTHON_RUNTIME_ADAPTATION
+  - PYTHON_ECOSYSTEM_ADAPTATION
+  - OS_PLATFORM_ADAPTATION
+  - RECOVERED_SOURCE_GAP
+  - PRODUCT_SCOPE_SIMPLIFICATION
+  - SAFETY_STRENGTHENING
+  - MAINTAINABILITY_SIMPLIFICATION
+  - PERFORMANCE_OPTIMIZATION
+  - LEGACY_COMPATIBILITY
+  - DEFERRED_REFERENCE_DETAIL
+  - UNKNOWN
+items:
+  - id: DIFF-CCR03-001
+    area: CCR-03
+    feature: snip_compact
+    reference_certainty: R2_PARTIALLY_CONFIRMED
+    alignment_policy: ALIGN_KNOWN_PART
+    reference:
+      file: "services/compact/<unrecovered-body>"
+      symbol: snipCompactIfNeeded
+      behavior: "query.ts call-site and returned fields are known; implementation body is not fully recovered"
+      certainty: PARTIAL
+    python:
+      file: src/services/compact/snip_compact.py
+      symbol: snip_compact
+      behavior: "conservative no-op placeholder"
+    difference: "Python currently performs no Snip pruning."
+    reason: RECOVERED_SOURCE_GAP
+    user_impact: LOW
+    safety_impact: NONE
+    compatibility_impact: MEDIUM
+    status: DEFERRED_REFERENCE_DETAIL
+    accepted: true
+    acceptance_reason: "Other context shaping layers provide the core long-context function."
+    tests:
+      - tests/parity/test_compression_pipeline_parity.py
+    notes: "Do not claim the Reference implementation is also a no-op."

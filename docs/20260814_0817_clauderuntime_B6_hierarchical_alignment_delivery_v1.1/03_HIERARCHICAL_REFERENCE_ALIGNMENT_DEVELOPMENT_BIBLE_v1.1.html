@@ -1,0 +1,93 @@
+<!doctype html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>B6 分级 Reference 对齐开发圣经 v1.1</title><style>
+body{margin:0;background:#f5f7fb;color:#172033;font:14px/1.72 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}.layout{display:grid;grid-template-columns:330px minmax(0,1fr)}aside{position:sticky;top:0;height:100vh;overflow:auto;background:#10284c;padding:20px;color:#fff}nav a{display:block;color:#dce9ff;text-decoration:none;padding:5px 8px;font-size:12px}nav .l2{padding-left:18px}nav .l3{padding-left:30px}main{padding:28px 36px;max-width:1450px}article{background:#fff;border:1px solid #d8dfeb;border-radius:16px;padding:32px 38px}h1{font-size:29px;color:#10376b}h2{font-size:22px;color:#12457f;border-top:1px solid #edf0f5;padding-top:20px;margin-top:30px}h3{font-size:18px;color:#175493}code{background:#eef2f7;padding:2px 5px;border-radius:5px}pre{background:#102039;color:#eaf2ff;padding:15px;border-radius:10px;overflow:auto}pre code{background:none}blockquote{background:#eef8f6;border-left:4px solid #147d74;padding:12px 16px}@media(max-width:900px){.layout{display:block}aside{height:auto;position:relative}main{padding:12px}}</style></head><body><div class='layout'><aside><h2 style='color:white;border:0'>B6 v1.1</h2><nav><a class='l1' href='#ClaudeRuntime-分级-Reference-对齐开发圣经-v1-1'>ClaudeRuntime 分级 Reference 对齐开发圣经 v1.1</a><a class='l1' href='#核心修订-分级-Reference-对齐'>核心修订：分级 Reference 对齐</a><a class='l1' href='#0-最高原则'>0. 最高原则</a><a class='l1' href='#1-新目标'>1. 新目标</a><a class='l1' href='#2-三个不可妥协项'>2. 三个不可妥协项</a><a class='l2' href='#2-1-功能不能虚假完成'>2.1 功能不能虚假完成</a><a class='l2' href='#2-2-安全不能用-功能类似-作为借口降低'>2.2 安全不能用“功能类似”作为借口降低</a><a class='l2' href='#2-3-差异必须在代码附近和项目台账同时存在'>2.3 差异必须在代码附近和项目台账同时存在</a><a class='l1' href='#2-1-Reference-Certainty-与-Alignment-Policy'>2.1 Reference Certainty 与 Alignment Policy</a><a class='l1' href='#3-强制差异记录层级'>3. 强制差异记录层级</a><a class='l1' href='#4-模块级注释规则'>4. 模块级注释规则</a><a class='l1' href='#5-函数级-REF-DIFF-规则'>5. 函数级 REF-DIFF 规则</a><a class='l1' href='#6-差异原因枚举'>6. 差异原因枚举</a><a class='l1' href='#7-差异影响必须分开记录'>7. 差异影响必须分开记录</a><a class='l1' href='#8-功能状态'>8. 功能状态</a><a class='l3' href='#FUNCTIONAL-COMPLETE'>FUNCTIONAL_COMPLETE</a><a class='l3' href='#FUNCTIONAL-ADAPTATION'>FUNCTIONAL_ADAPTATION</a><a class='l3' href='#LIMITED'>LIMITED</a><a class='l3' href='#DEFERRED-REFERENCE-DETAIL'>DEFERRED_REFERENCE_DETAIL</a><a class='l3' href='#UNKNOWN-REFERENCE'>UNKNOWN_REFERENCE</a><a class='l3' href='#MISSING'>MISSING</a><a class='l1' href='#9-7-个核心组件继续保留'>9. 7 个核心组件继续保留</a><a class='l1' href='#10-五层架构继续保留'>10. 五层架构继续保留</a><a class='l1' href='#11-CCR-14-继续保留但重新定位'>11. CCR-14 继续保留但重新定位</a><a class='l1' href='#12-Compact-特别规则'>12. Compact 特别规则</a><a class='l1' href='#13-Resume-特别规则'>13. Resume 特别规则</a><a class='l1' href='#14-Sandbox-特别规则'>14. Sandbox 特别规则</a><a class='l1' href='#15-Scheduler-特别规则'>15. Scheduler 特别规则</a><a class='l1' href='#16-Testing-规则'>16. Testing 规则</a><a class='l1' href='#17-开发进度规则'>17. 开发进度规则</a><a class='l1' href='#18-代码评审规则'>18. 代码评审规则</a><a class='l1' href='#19-最终完成定义'>19. 最终完成定义</a></nav></aside><main><article><h1 id='ClaudeRuntime-分级-Reference-对齐开发圣经-v1-1'>ClaudeRuntime 分级 Reference 对齐开发圣经 v1.1</h1><blockquote>文档编号：<code>CR-HIERARCHICAL-REFERENCE-ALIGNMENT-BIBLE-v1.1</code>  </blockquote><blockquote>状态：<strong>B6 起最高开发约束</strong>  </blockquote><blockquote>当前 HEAD：<code>dc7393bb05de7dc328d5206e19ba2e15997c1656</code>  </blockquote><blockquote>Reference：Claude Code recovered source <code>2.1.88</code>  </blockquote><blockquote>核心命令：<strong>能确定则对齐；不能确定则功能一致；所有差异透明；安全不退化。</strong></blockquote><p>---</p><h1 id='核心修订-分级-Reference-对齐'>核心修订：分级 Reference 对齐</h1><blockquote><strong>凡是 Claude Code recovered source 能够确定的功能、模块、函数契约、关键控制行为，仍然以 Claude Code 2.1.88 为对齐目标；只有 Reference 具体实现无法确定或恢复不完整的部分，才降低为“核心功能一致 + Python-native 实现 + 差异透明记录”。</strong></blockquote><p>B6 不是“所有模块都只要求功能类似”，而是：</p><pre><code>Reference 可确定
+→ 必须优先对齐
+
+Reference 部分可确定
+→ 已确定部分必须对齐
+→ 未确定部分允许功能类似
+
+Reference 无法确定
+→ 只要求核心功能/用户目标一致
+→ 必须记录不确定性与 Python 实现
+
+Product Extension
+→ 明确与 Reference 分离
+→ 不得伪装为 Claude Code 原有行为</code></pre><p>| Reference 证据等级 | 定义 | 开发要求 |</p><p>|---|---|---|</p><p>| <code>R1_CONFIRMED</code> | 源文件、symbol、函数体/关键控制流能够确认 | <strong>必须对齐功能、模块职责、关键行为和已知安全/状态语义</strong> |</p><p>| <code>R2_PARTIALLY_CONFIRMED</code> | call-site、接口、返回契约或部分逻辑可确认，但实现体不完整 | <strong>已确认部分必须对齐；未知部分允许 Functional Adaptation</strong> |</p><p>| <code>R3_UNKNOWN</code> | recovered source 无法确认具体实现，只能确认功能名称/高层目的 | <strong>只要求核心功能一致，并明确标记 UNKNOWN_REFERENCE</strong> |</p><p>| <code>R4_PRODUCT_EXTENSION</code> | ClaudeRuntime 自己新增的功能或增强 | <strong>独立记录，不计作 Claude Code 对齐能力</strong> |</p><p>---</p><h1 id='0-最高原则'>0. 最高原则</h1><blockquote><strong>Reference 能确定的部分，不应以“Python 实现不同”为理由主动偏离；Reference 不能确定的部分，允许 Python-native adaptation，但不允许不说明不一致。</strong></blockquote><p>任何关键模块/函数只要参考 Claude Code 设计或行为，都必须回答五个问题：</p><pre><code>REF：Claude Code 是什么？
+PY：Python 现在是什么？
+DIFF：哪里不同？
+WHY：为什么不同？
+STATUS：这个差异当前是否接受？</code></pre><p>---</p><h1 id='1-新目标'>1. 新目标</h1><p>ClaudeRuntime 不再以“逐控制流 Source-Aligned”作为核心目标，而定位为：</p><blockquote><strong>Claude Code inspired / functionally similar Python Agent Runtime。</strong></blockquote><p>Reference 仍然重要，但用途从“必须复制”变成“必须理解并记录”。</p><p>---</p><h1 id='2-三个不可妥协项'>2. 三个不可妥协项</h1><h2 id='2-1-功能不能虚假完成'>2.1 功能不能虚假完成</h2><p><code>running</code> 必须真的在运行；<code>sandboxed</code> 必须真的有隔离；<code>connected</code> 必须真的能调用；<code>resumed</code> 必须真的重启了 Agent 生命周期。</p><h2 id='2-2-安全不能用-功能类似-作为借口降低'>2.2 安全不能用“功能类似”作为借口降低</h2><p>Permission、workspace boundary、sandbox-required fail-closed、secret handling、process cleanup、trust reset 等仍是硬底线。</p><h2 id='2-3-差异必须在代码附近和项目台账同时存在'>2.3 差异必须在代码附近和项目台账同时存在</h2><p>只写在一个总结文档里不够。</p><p>---</p><h1 id='2-1-Reference-Certainty-与-Alignment-Policy'>2.1 Reference Certainty 与 Alignment Policy</h1><p>核心模块/函数必须记录：</p><pre><code>REFERENCE_CERTAINTY:
+  R1_CONFIRMED | R2_PARTIALLY_CONFIRMED | R3_UNKNOWN | R4_PRODUCT_EXTENSION
+
+ALIGNMENT_POLICY:
+  MUST_ALIGN | ALIGN_KNOWN_PART | FUNCTIONAL_CORE_ONLY | PRODUCT_EXTENSION</code></pre><p>映射：</p><pre><code>R1_CONFIRMED → MUST_ALIGN
+R2_PARTIALLY_CONFIRMED → ALIGN_KNOWN_PART
+R3_UNKNOWN → FUNCTIONAL_CORE_ONLY
+R4_PRODUCT_EXTENSION → PRODUCT_EXTENSION</code></pre><p>对于 <code>R1_CONFIRMED</code>，Python 内部语法和 runtime primitive 可以不同，但已确认的功能、模块职责、关键函数契约、状态/失败/安全行为不得无理由偏离。</p><p>---</p><h1 id='3-强制差异记录层级'>3. 强制差异记录层级</h1><p>每个重要差异至少记录在以下两个位置：</p><pre><code>A. 代码附近：模块 docstring 或函数 REF-DIFF 块
+B. 全局 registry：docs/reference-differences/registry.yaml</code></pre><p>涉及阶段进度时还要有：</p><pre><code>C. progress 文档：本轮 Reference vs Python 差异摘要</code></pre><p>---</p><h1 id='4-模块级注释规则'>4. 模块级注释规则</h1><p>新增或重大修改的核心模块，模块 docstring 必须包含：</p><pre><code>Reference Mapping
+Reference source
+Reference behavior
+Python behavior
+Known differences
+Reason
+Functional status</code></pre><p>允许简洁，不要求复制源码解释全文。</p><p>---</p><h1 id='5-函数级-REF-DIFF-规则'>5. 函数级 REF-DIFF 规则</h1><p>以下函数必须加 REF-DIFF：</p><p>- 直接对应 Reference 关键 symbol；</p><p>- 行为与 Reference 已知不同；</p><p>- 使用 Python-native adaptation；</p><p>- Reference behavior unknown；</p><p>- 安全/状态/恢复逻辑发生简化；</p><p>- 产品扩展改变 Reference 行为。</p><p>标准格式：</p><pre><code># REF-DIFF:
+# REF: query.ts::queryLoop — model -&gt; tool -&gt; result -&gt; continue.
+# PY:  src/query/query.py::query — Python async generator + shared ToolContext.
+# DIFF: async/runtime wiring differs; user-visible loop goal is equivalent.
+# WHY: PYTHON_RUNTIME_ADAPTATION.
+# IMPACT: no known user-visible functional loss.
+# STATUS: FUNCTIONAL_ADAPTATION.</code></pre><p>---</p><h1 id='6-差异原因枚举'>6. 差异原因枚举</h1><p>WHY 字段只能优先使用以下标准原因：</p><pre><code>PYTHON_RUNTIME_ADAPTATION
+PYTHON_ECOSYSTEM_ADAPTATION
+OS_PLATFORM_ADAPTATION
+RECOVERED_SOURCE_GAP
+PRODUCT_SCOPE_SIMPLIFICATION
+SAFETY_STRENGTHENING
+MAINTAINABILITY_SIMPLIFICATION
+PERFORMANCE_OPTIMIZATION
+LEGACY_COMPATIBILITY
+DEFERRED_REFERENCE_DETAIL
+UNKNOWN</code></pre><p>不要写模糊的：</p><pre><code>“实现不一样”
+“Python 原因”
+“后续再看”</code></pre><p>---</p><h1 id='7-差异影响必须分开记录'>7. 差异影响必须分开记录</h1><p>每项差异至少判断：</p><pre><code>user_impact: NONE | LOW | MEDIUM | HIGH
+safety_impact: NONE | LOW | MEDIUM | HIGH
+compatibility_impact: NONE | LOW | MEDIUM | HIGH</code></pre><p>如果 safety impact 为 HIGH：</p><pre><code>不得标 FUNCTIONAL_COMPLETE</code></pre><p>---</p><h1 id='8-功能状态'>8. 功能状态</h1><p>正式功能状态：</p><pre><code>FUNCTIONAL_COMPLETE
+FUNCTIONAL_ADAPTATION
+LIMITED
+DEFERRED_REFERENCE_DETAIL
+UNKNOWN_REFERENCE
+MISSING</code></pre><h3 id='FUNCTIONAL-COMPLETE'>FUNCTIONAL_COMPLETE</h3><p>主要功能与 Reference 相近，用户路径完整，差异不影响核心能力。</p><h3 id='FUNCTIONAL-ADAPTATION'>FUNCTIONAL_ADAPTATION</h3><p>主要功能相近，但 Python 采用不同机制，例如 asyncio、snapshot persistence、不同 sandbox primitive。</p><h3 id='LIMITED'>LIMITED</h3><p>核心功能存在，但平台/场景有限制。</p><h3 id='DEFERRED-REFERENCE-DETAIL'>DEFERRED_REFERENCE_DETAIL</h3><p>Reference 的细节存在，但不阻塞主要功能。</p><h3 id='UNKNOWN-REFERENCE'>UNKNOWN_REFERENCE</h3><p>Reference source 无法确认。禁止猜测后标“等价”。</p><h3 id='MISSING'>MISSING</h3><p>重要功能未实现。</p><p>---</p><h1 id='9-7-个核心组件继续保留'>9. 7 个核心组件继续保留</h1><p>1. User</p><p>2. Interfaces</p><p>3. Agent Loop</p><p>4. Permission System</p><p>5. Tools</p><p>6. State &amp; Persistence</p><p>7. Execution Environment</p><p>它们现在是<strong>功能覆盖地图</strong>，不是 Source parity 得分表。</p><p>---</p><h1 id='10-五层架构继续保留'>10. 五层架构继续保留</h1><p>1. Surface Layer</p><p>2. Core Layer</p><p>3. Safety / Action Layer</p><p>4. State Layer</p><p>5. Backend Layer</p><p>只要求每层拥有稳定 Python owner 和主要能力。</p><p>---</p><h1 id='11-CCR-14-继续保留但重新定位'>11. CCR-14 继续保留但重新定位</h1><p>CCR-14 继续用于防止遗漏 Harness 功能，但不再要求逐机制完全复制 Reference。</p><p>一个 CCR 可以是：</p><pre><code>FUNCTIONAL_ADAPTATION</code></pre><p>例如 Scheduler 使用 Python snapshot/restore，而 Reference 使用不同 durable/file lifecycle，只要功能目标足够接近且差异被记录即可。</p><p>---</p><h1 id='12-Compact-特别规则'>12. Compact 特别规则</h1><p>Reference body 未恢复的 Snip：</p><pre><code>REF = call-site confirmed
+PY = no-op placeholder 或 Python-native conservative snip
+WHY = RECOVERED_SOURCE_GAP
+STATUS = UNKNOWN_REFERENCE / FUNCTIONAL_ADAPTATION</code></pre><p>禁止写：</p><pre><code>“Reference 也是 no-op”</code></pre><p>除非源码确实证明。</p><p>---</p><h1 id='13-Resume-特别规则'>13. Resume 特别规则</h1><p>B6 不要求内部重建过程完全一致，但必须：</p><p>- transcript 可读；</p><p>- 常见服务重启场景可恢复；</p><p>- current provider/tool registry 重新解析；</p><p>- API key/temp permission 不落盘；</p><p>- 并发单 winner；</p><p>- 失败明确；</p><p>- 不制造 false-running。</p><p>worktree auto-repair/content replacement 可标 <code>DEFERRED_REFERENCE_DETAIL</code>。</p><p>---</p><h1 id='14-Sandbox-特别规则'>14. Sandbox 特别规则</h1><p>允许不同平台采用不同 primitive。</p><p>但以下文字必须真实：</p><pre><code>available
+provides_isolation
+platform
+limitations</code></pre><p>如果没有真正 isolation：</p><pre><code>provides_isolation = False</code></pre><p>调用方要求 isolation 时必须 fail-closed。</p><p>---</p><h1 id='15-Scheduler-特别规则'>15. Scheduler 特别规则</h1><p>Python snapshot/restore 可以接受为 <code>FUNCTIONAL_ADAPTATION</code>。</p><p>Reference 的 file watch / cross-process owner takeover 可以延期，只要在 registry 写清楚：</p><pre><code>Reference
+Current Python
+Difference
+Reason
+Impact
+Deferred status</code></pre><p>---</p><h1 id='16-Testing-规则'>16. Testing 规则</h1><p>开发阶段：</p><pre><code>小改 → targeted tests
+跨模块 → combination tests
+阶段收尾 → full suite</code></pre><p>每个差异对应的功能测试至少验证“Python 当前承诺的行为”，不再强制要求 Reference differential。</p><p>但是安全相关必须有副作用断言。</p><p>---</p><h1 id='17-开发进度规则'>17. 开发进度规则</h1><p>每次阶段进度必须出现：</p><pre><code>本轮完成
+测试
+Reference 对照
+已知差异
+差异原因
+是否接受
+剩余功能缺口</code></pre><p>禁止只写：</p><pre><code>“已完成 / 已对齐 / 已验证”</code></pre><p>---</p><h1 id='18-代码评审规则'>18. 代码评审规则</h1><p>核心模块 PR 至少检查：</p><pre><code>[ ] 功能是否可用
+[ ] targeted tests 是否通过
+[ ] module Reference Mapping 是否更新
+[ ] function REF-DIFF 是否需要更新
+[ ] registry.yaml 是否更新
+[ ] progress 是否记录
+[ ] 是否引入安全旁路
+[ ] 是否把 UNKNOWN 错写成 Reference fact</code></pre><p>---</p><h1 id='19-最终完成定义'>19. 最终完成定义</h1><p>当：</p><pre><code>核心功能 MISSING = 0
+主要用户路径可工作
+核心安全旁路 = 0
+每个已知差异可追踪
+所有 7 组件有 FUNCTIONAL_* 状态
+所有 5 层有稳定 Python owner
+CCR-14 不存在未说明的功能空洞
+阶段 full suite 通过</code></pre><p>即可宣布：</p><pre><code>FUNCTIONALLY_SIMILAR_CORE_COMPLETE</code></pre><p>此状态明确<strong>不表示</strong>：</p><pre><code>Claude Code 2.1.88 Source-Aligned
+1:1 Compatible
+Exact Behavioral Clone</code></pre></article></main></div></body></html>

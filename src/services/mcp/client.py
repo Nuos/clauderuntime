@@ -201,6 +201,38 @@ class McpClient:
         """
         self._auth_provider = provider
 
+    def set_disconnect_handler(self, handler: Callable[[], None]) -> None:
+        """Register a callback fired once when the transport closes (peer
+        close or receive-loop error).
+
+        The runtime uses it to remove this server's tools from the live agent
+        registry so a disconnected server can never leave stale callable tools
+        behind (B6 hard rule: no stale MCP tools after disconnect). Called on
+        the receive-loop task; must not block.
+
+        REF-DIFF:
+        REF: useManageMCPConnections — server lifecycle; disconnect tears down tools.
+        PY: McpClient.set_disconnect_handler + _fire_disconnect on transport EOF.
+        DIFF: Reference transport details differ; the stale-tool removal goal is
+            aligned (B6 hard rule).
+        WHY: PYTHON_RUNTIME_ADAPTATION.
+        USER-IMPACT: LOW (fewer stale tool advertisements after a crash).
+        SAFETY-IMPACT: NONE.
+        STATUS: FUNCTIONAL_ADAPTATION.
+        """
+        self._on_disconnect = handler
+
+    def _fire_disconnect(self) -> None:
+        """Notify the disconnect handler exactly once per transport close."""
+        self._connected = False
+        handler = self._on_disconnect
+        if handler is None:
+            return
+        try:
+            handler()
+        except Exception:  # noqa: BLE001 — a handler failure must not crash the loop
+            logger.debug("MCP disconnect handler failed", exc_info=True)
+
     def _next_id(self) -> int:
         self._request_id += 1
         return self._request_id
@@ -391,6 +423,7 @@ class McpClient:
                         if not future.done():
                             future.set_exception(closed_exc)
                     self._pending_requests.clear()
+                    self._fire_disconnect()
                     break
                 if msg.id is not None and msg.id in self._pending_requests:
                     future = self._pending_requests.pop(msg.id)
@@ -423,6 +456,11 @@ class McpClient:
                 if not future.done():
                     future.set_exception(e)
             self._pending_requests.clear()
+            # A receive-loop failure means the connection is gone — fire the
+            # disconnect handler so the runtime can drop the stale tools.
+            # ``asyncio.CancelledError`` (the ``close()`` path) inherits from
+            # BaseException, so it is NOT caught here and never fires this.
+            self._fire_disconnect()
 
     async def _handle_incoming_request(self, msg: JsonRpcMessage) -> None:
         """Reply to a server→client request (elicitation/create, etc.)."""

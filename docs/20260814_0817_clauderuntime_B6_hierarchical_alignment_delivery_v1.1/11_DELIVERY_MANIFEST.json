@@ -1,0 +1,18 @@
+{
+  "version": "1.1",
+  "strategy": "hierarchical_reference_alignment",
+  "repository_head": "dc7393bb05de7dc328d5206e19ba2e15997c1656",
+  "hard_rule": "Reference-confirmed behavior must align; only unknown implementation details may use functional-core adaptation, with explicit annotations.",
+  "reference_certainty_levels": [
+    "R1_CONFIRMED",
+    "R2_PARTIALLY_CONFIRMED",
+    "R3_UNKNOWN",
+    "R4_PRODUCT_EXTENSION"
+  ],
+  "alignment_policies": [
+    "MUST_ALIGN",
+    "ALIGN_KNOWN_PART",
+    "FUNCTIONAL_CORE_ONLY",
+    "PRODUCT_EXTENSION"
+  ]
+}

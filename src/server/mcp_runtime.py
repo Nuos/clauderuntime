@@ -77,6 +77,10 @@ class McpRuntime:
         # the auth trigger instead of silently failing to connect.
         self.needs_auth: list[dict[str, Any]] = []
         self._auth_provider: Any = None
+        # Injected by the agent server: called as ``cb(server_name, removed_full_tool_names)``
+        # when a server's transport closes, so the live agent registry can drop the
+        # server's tools (B6 hard rule: no stale callable MCP tools after disconnect).
+        self._server_disconnect_callback: Any = None
         # Per-server locks serializing concurrent /mcp auth triggers so they
         # can't double-register tools / duplicate server_infos / leak a client
         # (m1). Created lazily on the runtime loop.
@@ -135,6 +139,9 @@ class McpRuntime:
                     client.set_auth_provider(self._auth_provider)
                 connected = self._run(client.connect(name, scoped), _CONNECT_TIMEOUT_S)
                 self.clients[name] = client
+                # Drop the server's tools from the runtime + live registry the
+                # moment its transport closes (B6: no stale MCP tools).
+                self._wire_disconnect_handler(name, client)
                 # An OAuth server returns needs-auth instead of connected:
                 # retain it (with its auth_url) + surface a prompt, and do NOT
                 # list_tools (there are none until the user authenticates).
@@ -172,6 +179,68 @@ class McpRuntime:
     def pending_auth(self) -> list[str]:
         """Names of servers awaiting authentication (for the /mcp UI)."""
         return [e["name"] for e in self.needs_auth]
+
+    def set_server_disconnect_callback(self, callback: Any) -> None:
+        """Inject ``callback(server_name, removed_full_tool_names)`` fired on
+        the runtime loop when a server's transport closes. The agent server
+        uses it to remove the server's tools from the live tool registry."""
+        self._server_disconnect_callback = callback
+
+    def _handle_client_disconnect(self, name: str, client: Any) -> None:
+        """Drop a disconnected server's tools from runtime state and notify the
+        registry via the injected callback (B6: no stale callable MCP tools
+        after disconnect).
+
+        Runs on the MCP loop thread (the disconnect handler fires from the
+        client's receive loop). Ignores closes from a client that was already
+        replaced — e.g. an OAuth reconnect swapped in a newer client, whose
+        stale predecessor must not nuke the fresh tools.
+
+        REF-DIFF:
+        REF: useManageMCPConnections — tools removed when a server disconnects.
+        PY: McpRuntime._handle_client_disconnect drops tools + notifies registry.
+        DIFF: transport/watch details differ; the no-stale-tools contract is aligned.
+        WHY: PYTHON_RUNTIME_ADAPTATION.
+        USER-IMPACT: LOW.
+        SAFETY-IMPACT: NONE.
+        STATUS: FUNCTIONAL_ADAPTATION.
+        """
+        if self.clients.get(name) is not client:
+            return
+        removed_names = self.servers.pop(name, [])
+        self.clients.pop(name, None)
+        self.server_infos = [
+            info for info in self.server_infos if getattr(info, "name", None) != name
+        ]
+        from src.services.mcp.mcp_string_utils import build_mcp_tool_name
+
+        removed_full = [build_mcp_tool_name(name, t) for t in removed_names]
+        removed_set = set(removed_full)
+        self.tools = [
+            t for t in self.tools if getattr(t, "name", "") not in removed_set
+        ]
+        if removed_full:
+            cb = self._server_disconnect_callback
+            if cb is not None:
+                try:
+                    cb(name, removed_full)
+                except Exception:  # noqa: BLE001
+                    logger.debug(
+                        "[mcp] disconnect callback failed for %s", name, exc_info=True
+                    )
+        logger.info("[mcp] %s disconnected; %d stale tool(s) dropped", name, len(removed_full))
+
+    def _wire_disconnect_handler(self, name: str, client: Any) -> None:
+        """Register the per-client disconnect handler (partial-bound so the
+        loop-variable closure can't capture a later iteration's name/client)."""
+        from functools import partial
+
+        try:
+            client.set_disconnect_handler(
+                partial(self._handle_client_disconnect, name, client)
+            )
+        except Exception:  # noqa: BLE001
+            logger.debug("[mcp] disconnect handler wiring failed for %s", name, exc_info=True)
 
     def submit(self, coro: Any) -> Any:
         """Submit a coroutine to the runtime loop, returning a
@@ -238,6 +307,7 @@ class McpRuntime:
                     except Exception:  # noqa: BLE001
                         pass
                 self.clients[name] = client
+                self._wire_disconnect_handler(name, client)
                 self.servers[name] = [t.name for t in mcp_tools]
                 self.server_infos.append(connected)
                 new_tools = [self._wrap(name, mt, client) for mt in mcp_tools]

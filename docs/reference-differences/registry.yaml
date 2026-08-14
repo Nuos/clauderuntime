@@ -1,0 +1,222 @@
+schema_version: 1
+purpose: "Track known differences between Claude Code 2.1.88 reference behavior and ClaudeRuntime Python behavior. B6 hierarchical alignment: reference-confirmed behavior must align; only unknown implementation details may use functional-core adaptation, with explicit annotations."
+strategy: hierarchical_reference_alignment
+repository_head: dc7393bb05de7dc328d5206e19ba2e15997c1656
+reference_version: 2.1.88
+reference_certainty_vocabulary:
+  - R1_CONFIRMED
+  - R2_PARTIALLY_CONFIRMED
+  - R3_UNKNOWN
+  - R4_PRODUCT_EXTENSION
+alignment_policy_vocabulary:
+  - MUST_ALIGN
+  - ALIGN_KNOWN_PART
+  - FUNCTIONAL_CORE_ONLY
+  - PRODUCT_EXTENSION
+status_vocabulary:
+  - FUNCTIONAL_COMPLETE
+  - FUNCTIONAL_ADAPTATION
+  - LIMITED
+  - DEFERRED_REFERENCE_DETAIL
+  - UNKNOWN_REFERENCE
+  - MISSING
+reason_vocabulary:
+  - PYTHON_RUNTIME_ADAPTATION
+  - PYTHON_ECOSYSTEM_ADAPTATION
+  - OS_PLATFORM_ADAPTATION
+  - RECOVERED_SOURCE_GAP
+  - PRODUCT_SCOPE_SIMPLIFICATION
+  - SAFETY_STRENGTHENING
+  - MAINTAINABILITY_SIMPLIFICATION
+  - PERFORMANCE_OPTIMIZATION
+  - LEGACY_COMPATIBILITY
+  - DEFERRED_REFERENCE_DETAIL
+  - UNKNOWN
+items:
+  - id: DIFF-CCR03-001
+    area: CCR-03
+    feature: snip_compact
+    reference_certainty: R2_PARTIALLY_CONFIRMED
+    alignment_policy: ALIGN_KNOWN_PART
+    reference:
+      file: "services/compact/<unrecovered-body>"
+      symbol: snipCompactIfNeeded
+      behavior: "query.ts call-site and returned fields (tokensFreed, boundaryMessage) are known; implementation body is not fully recovered"
+      certainty: PARTIAL
+    python:
+      file: src/services/compact/snip_compact.py
+      symbol: snip_compact
+      behavior: "conservative no-op placeholder returning messages unchanged"
+    difference: "Python currently performs no historical Snip pruning."
+    reason: RECOVERED_SOURCE_GAP
+    user_impact: LOW
+    safety_impact: NONE
+    compatibility_impact: MEDIUM
+    status: DEFERRED_REFERENCE_DETAIL
+    accepted: true
+    acceptance_reason: "Tool Result Budget / Microcompact / AutoCompact provide the core long-context function; Snip is not load-bearing."
+    tests:
+      - tests/parity/test_compression_pipeline_parity.py
+    notes: "Do not claim the Reference implementation is also a no-op."
+
+  - id: DIFF-CCR03-002
+    area: CCR-03
+    feature: compact_pipeline_algorithms
+    reference_certainty: R2_PARTIALLY_CONFIRMED
+    alignment_policy: ALIGN_KNOWN_PART
+    reference:
+      file: "services/compact/{compact,microCompact,autoCompact}.ts"
+      symbol: compact / microCompact / autoCompact
+      behavior: "five-layer context compaction; reference algorithm details partially recovered"
+      certainty: PARTIAL
+    python:
+      file: src/services/compact/{pipeline,compact,autocompact,tool_result_budget}.py
+      symbol: CompressionPipeline / compact_conversation / partial_compact_conversation
+      behavior: "Python-native compaction pipeline covering the B6 goals: bounded long conversations, old tool results budgeted/trimmed, summaries near window limits, rules/file context reloadable after compaction"
+    difference: "Internal algorithms and layer boundaries differ from Reference; user-visible goals are covered."
+    reason: PYTHON_RUNTIME_ADAPTATION
+    user_impact: LOW
+    safety_impact: NONE
+    compatibility_impact: MEDIUM
+    status: FUNCTIONAL_ADAPTATION
+    accepted: true
+    acceptance_reason: "B6 Wave F2 accepts functionally equivalent compaction; exact five-layer parity is not required."
+    tests:
+      - tests/parity/test_compression_pipeline_parity.py
+      - tests/integration/test_compression_integration.py
+    notes: ""
+
+  - id: DIFF-RESUME-001
+    area: CCR-10
+    feature: durable_resume_worktree_repair
+    reference_certainty: R2_PARTIALLY_CONFIRMED
+    alignment_policy: ALIGN_KNOWN_PART
+    reference:
+      file: "tools/AgentTool/resumeAgent.ts + state/store.ts"
+      symbol: resumeAgent / content replacement / worktree auto-recovery
+      behavior: "Reference restores messages and agent environment and performs content replacement / worktree auto-recovery"
+      certainty: PARTIAL
+    python:
+      file: src/agent/resume_agent.py
+      symbol: resume_agent_background / _rebuild_run_params_from_current_runtime
+      behavior: "resumes from transcript + DurableResumeMetadata using current-process provider/tool registry; fails clearly when the recorded worktree is missing; no content replacement / worktree auto-repair"
+    difference: "Missing worktree raises a clear error instead of Reference auto-recovery; content replacement not implemented."
+    reason: PRODUCT_SCOPE_SIMPLIFICATION
+    user_impact: LOW
+    safety_impact: NONE
+    compatibility_impact: LOW
+    status: DEFERRED_REFERENCE_DETAIL
+    accepted: true
+    acceptance_reason: "B6 Wave F3 requires common restart resume only; missing worktree must fail explicitly rather than fake running."
+    tests:
+      - tests/test_resume_agent.py
+      - tests/test_resume_agent_contract.py
+      - tests/test_b6_resume_new_process_smoke.py
+    notes: "Resume metadata intentionally never persists API keys, provider objects, temporary permissions, or AbortController."
+
+  - id: DIFF-SCHED-001
+    area: CCR-14
+    feature: scheduler_persistence
+    reference_certainty: R2_PARTIALLY_CONFIRMED
+    alignment_policy: ALIGN_KNOWN_PART
+    reference:
+      file: "cronScheduler.ts"
+      symbol: cronScheduler / file-backed scheduled_tasks.json / filesystem watcher / cross-process owner takeover
+      behavior: "durable file-backed task store with filesystem watcher and cross-process owner lifecycle"
+      certainty: PARTIAL
+    python:
+      file: src/scheduled_tasks/scheduler.py
+      symbol: SessionCronScheduler.snapshot / SessionCronScheduler.restore
+      behavior: "in-session state with snapshot/restore for resume; no filesystem watcher, no cross-process owner takeover"
+    difference: "Persistence and ownership architecture differ from Reference."
+    reason: PRODUCT_SCOPE_SIMPLIFICATION
+    user_impact: LOW
+    safety_impact: NONE
+    compatibility_impact: LOW
+    status: FUNCTIONAL_ADAPTATION
+    accepted: true
+    acceptance_reason: "B6 Wave F4 accepts Python-native snapshot/restore; create/list/delete/recurring/one-shot/durable restore are covered."
+    tests:
+      - tests/server/test_background_scheduler.py
+    notes: ""
+
+  - id: DIFF-SANDBOX-001
+    area: CCR-12
+    feature: platform_isolation_backends
+    reference_certainty: R1_CONFIRMED
+    alignment_policy: MUST_ALIGN
+    reference:
+      file: "utils/sandbox/sandbox-adapter.ts + tools/BashTool/shouldUseSandbox.ts"
+      symbol: sandbox adapter / isolation contract
+      behavior: "commands execute inside a real OS sandbox when isolation is required; capability and provides_isolation are truthful"
+      certainty: CONFIRMED
+    python:
+      file: src/execution/sandbox.py
+      symbol: MacOSSandboxBackend / LinuxSandboxBackend / WindowsSandboxBackend / NoSandboxBackend / default_sandbox_backend
+      behavior: "macOS uses Seatbelt (real isolation); Linux uses bubblewrap (real isolation); Windows uses Job Object process-tree containment (LIMITED, no filesystem/network sandbox); no-sandbox backend reports provides_isolation=False; require_isolation always fails closed"
+    difference: "Platform primitive selection differs per OS; isolation must not silently degrade to unrestricted execution."
+    reason: OS_PLATFORM_ADAPTATION
+    user_impact: LOW
+    safety_impact: NONE
+    compatibility_impact: LOW
+    status: FUNCTIONAL_ADAPTATION
+    accepted: true
+    acceptance_reason: "B6 Wave F5: every platform must report real capability and fail closed under require_isolation; never claim sandboxed without isolation. Windows Job Object path is LIMITED until verified on win32."
+    tests:
+      - tests/test_b6_linux_windows_sandbox.py
+      - tests/test_b6_sandbox_guard_capability.py
+      - tests/test_sandbox_guard.py
+    notes: "Windows Job Object launcher (src/execution/win_job_launcher.py) follows MSDN layouts; requires a win32 host to execute — unit tests on macOS pin capability/prepare/fail-closed and the argv shape. Linux bubblewrap requires a Linux host for real container execution. Real-device verification is tracked in docs/reference-differences/platform-verification.md (PENDING_REAL_DEVICE)."
+
+  - id: DIFF-SURFACE-001
+    area: CCR-06
+    feature: surface_event_envelope
+    reference_certainty: R2_PARTIALLY_CONFIRMED
+    alignment_policy: ALIGN_KNOWN_PART
+    reference:
+      file: "entrypoints/{cli,tui,desktop,ide}.tsx + screens/REPL.tsx"
+      symbol: surface event envelopes
+      behavior: "each surface emits reference-shaped event envelopes; full trace fields identical across surfaces"
+      certainty: PARTIAL
+    python:
+      file: src/entrypoints + src/server + ui-tui + ui-desktop
+      symbol: CLI / TUI / Server / Desktop entry points
+      behavior: "all surfaces share the Python core; per-surface event envelopes differ; smoke compatibility is verified per surface"
+    difference: "Event envelope details differ; B6 accepts smoke compatibility instead of full trace differential."
+    reason: PYTHON_RUNTIME_ADAPTATION
+    user_impact: LOW
+    safety_impact: NONE
+    compatibility_impact: MEDIUM
+    status: FUNCTIONAL_ADAPTATION
+    accepted: true
+    acceptance_reason: "B6 Wave F7: each supported surface must pass startup/answer/Read/permission/interrupt/continue smoke."
+    tests:
+      - tests/test_b6_surface_smoke.py
+    notes: ""
+
+  - id: DIFF-PERM-001
+    area: CCR-02
+    feature: permission_classifier_internals
+    reference_certainty: R2_PARTIALLY_CONFIRMED
+    alignment_policy: ALIGN_KNOWN_PART
+    reference:
+      file: "hooks/toolPermission/PermissionContext.ts + BashTool"
+      symbol: permission classifier / deny-allow-ask gates
+      behavior: "deny / allow / ask tri-state with interactive approval, headless fail-safe, tool-specific checks; internal classifier pattern details partially recovered"
+      certainty: PARTIAL
+    python:
+      file: src/permissions/{handler,levels,check,bash_security}.py
+      symbol: permission handler / classify_command / deny-allow-ask gates
+      behavior: "deny / allow / ask, interactive approval, headless fail-safe, tool-specific checks all present; internal classifier pattern tables are Python-native"
+    difference: "Internal classifier patterns / modes may differ from Reference; the public gate contract is aligned."
+    reason: PYTHON_ECOSYSTEM_ADAPTATION
+    user_impact: LOW
+    safety_impact: NONE
+    compatibility_impact: LOW
+    status: FUNCTIONAL_ADAPTATION
+    accepted: true
+    acceptance_reason: "B6 Wave F1: the deny/allow/ask gate and safety invariants are the alignment target; classifier internals may adapt."
+    tests:
+      - tests/test_permission_system.py
+      - tests/integration/test_permission_integration.py
+    notes: ""

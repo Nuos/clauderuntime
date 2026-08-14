@@ -5170,6 +5170,41 @@ def _make_mcp_notification_handler(mcp_rt: Any, sess: "_AgentSession", server: s
     return _handle
 
 
+def _make_mcp_disconnect_handler(sess: "_AgentSession") -> Any:
+    """Build the MCP disconnect callback for a session.
+
+    Fired by ``McpRuntime`` on the MCP loop thread when a server's transport
+    closes: removes the server's ``mcp__<server>__*`` tools from the live
+    agent registry so a disconnected server can never leave stale callable
+    tools behind (B6 hard rule). Resolves ``sess.tool_registry`` at callback
+    time, mirroring the list_changed handler (a provider/model switch rebinds
+    ``sess.tool_registry`` to a fresh registry).
+
+    REF-DIFF:
+    REF: useManageMCPConnections — disconnect lifecycle removes MCP tools.
+    PY: _make_mcp_disconnect_handler → registry.remove_tool per removed tool.
+    DIFF: no identical transport state machine; the stale-tool contract is aligned.
+    WHY: PYTHON_RUNTIME_ADAPTATION.
+    USER-IMPACT: LOW.
+    SAFETY-IMPACT: NONE.
+    STATUS: FUNCTIONAL_ADAPTATION.
+    """
+
+    def _on_disconnect(server: str, removed_full: list[str]) -> None:
+        registry = getattr(sess, "tool_registry", None)
+        if registry is None:
+            return
+        for full in removed_full:
+            try:
+                registry.remove_tool(full)
+            except Exception:  # noqa: BLE001
+                logger.debug(
+                    "[mcp] remove_tool on disconnect failed: %s", full, exc_info=True
+                )
+
+    return _on_disconnect
+
+
 def _make_elicitation_handler(sess: "_AgentSession") -> Any:
     """Async MCP elicitation handler that bridges a server's input request to the
     TUI via the session's control-request round-trip (reusing the permission
@@ -5537,6 +5572,14 @@ def _build_runtime(sess: _AgentSession, perm_mode: str | None) -> None:
                 sess._mcp_runtime = mcp_rt
                 # Wire MCP elicitation → TUI form (servers can request user input).
                 _eh = _make_elicitation_handler(sess)
+                # B6 hard rule — no stale callable MCP tools after a server
+                # disconnect: drop the server's tools from the live registry.
+                try:
+                    mcp_rt.set_server_disconnect_callback(
+                        _make_mcp_disconnect_handler(sess)
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.debug("[mcp] disconnect handler wiring failed", exc_info=True)
                 # ch15 round-4 — wire tools/list_changed → live tool refresh.
                 # A server that changes its tools mid-session pushes
                 # notifications/tools/list_changed; we re-fetch and SWAP the
