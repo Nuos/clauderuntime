@@ -100,4 +100,7 @@ Exact Behavioral Clone
 
 - Windows/Linux 真机验证：`PENDING_REAL_DEVICE`（平台验证台账），需在
   对应平台执行后关闭。
-- GitHub CI 首跑结果：workflow 已配置，待推送到 GitHub 后观察首跑并单独记录。
+- GitHub CI 首跑结果：workflow 已配置并触发（PR #3 首次运行），但 job 未启动
+  —— GitHub 返回 `account is locked due to a billing issue`（账户计费锁定，
+  托管 runner 无法启动）。这是账户级外部阻塞，与代码无关；解除锁定后需重跑并
+  单独记录结果。不得把“未运行”写成“CI 通过”。
