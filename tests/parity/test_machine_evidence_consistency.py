@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import yaml
 
 from scripts.audit.check_parity_evidence import check_evidence
+from scripts.audit.generate_parity_evidence import generate
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -49,3 +51,37 @@ def test_checker_rejects_unproven_verified_and_score_mismatch(tmp_path):
     codes = {issue.code for issue in check_evidence(tmp_path, FIXTURE_SUBJECT)}
     assert "UNPROVEN_VERIFIED" in codes
     assert "SCORECARD_MISMATCH" in codes
+
+
+def test_generator_updates_all_subjects_and_writes_matching_manifest(tmp_path, monkeypatch):
+    """生成器必须独立完成提交切换，禁止要求维护者先手工修改台账。"""
+    from scripts.audit import generate_parity_evidence as generator
+    from scripts.audit.check_parity_evidence import CONTROLLED_ASSETS, CONTROL_MANIFEST
+
+    old_subject = "2" * 40
+    new_subject = "3" * 40
+    for relative in CONTROLLED_ASSETS:
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "subject_commit": old_subject,
+            "reference_commit": "4" * 40,
+        }
+        if relative.endswith("coverage-ledger.yaml"):
+            payload.update({"reference_7": [], "reference_5": [], "ccr_14": []})
+        elif relative.endswith("known-divergences.yaml"):
+            payload["divergences"] = []
+        elif relative.endswith("unmapped-reference-symbols.yaml"):
+            payload["symbols"] = []
+        path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+    monkeypatch.setattr(generator, "_validate_subject", lambda *_: None)
+    generate(tmp_path, new_subject)
+
+    manifest = yaml.safe_load((tmp_path / CONTROL_MANIFEST).read_text(encoding="utf-8"))
+    assert manifest["subject_commit"] == new_subject
+    for relative in CONTROLLED_ASSETS:
+        path = tmp_path / relative
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        assert document["subject_commit"] == new_subject
+        assert manifest["assets"][relative] == hashlib.sha256(path.read_bytes()).hexdigest()

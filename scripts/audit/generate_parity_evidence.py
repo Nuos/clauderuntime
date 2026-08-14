@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
 import subprocess
 import tempfile
 from datetime import date
@@ -31,13 +32,6 @@ DIVERGENCES_PATH = "docs/parity/divergences/known-divergences.yaml"
 UNMAPPED_PATH = "docs/parity/source-map/unmapped-reference-symbols.yaml"
 
 
-def _load_yaml(path: Path) -> dict[str, Any]:
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        raise ValueError(f"{path} 的 YAML 根节点必须是对象")
-    return raw
-
-
 def _count_statuses(rows: Any) -> dict[str, int]:
     records = rows if isinstance(rows, list) else []
     counts = {"total": len(records), "verified": 0, "blocked": 0, "partial": 0}
@@ -56,6 +50,16 @@ def _sha256_bytes(payload: bytes) -> str:
 
 def _yaml_bytes(payload: dict[str, Any]) -> bytes:
     return yaml.safe_dump(payload, allow_unicode=True, sort_keys=False).encode("utf-8")
+
+
+def _replace_subject(payload: bytes, subject_commit: str, relative: str) -> bytes:
+    """只替换证据文件的顶层提交字段，保留人工审阅所需的原有 YAML 排版。"""
+    text = payload.decode("utf-8")
+    pattern = re.compile(r"(?m)^subject_commit:\s*[^\r\n]+$")
+    updated, count = pattern.subn(f'subject_commit: "{subject_commit}"', text)
+    if count != 1:
+        raise ValueError(f"{relative} 必须且只能包含一个顶层 subject_commit")
+    return updated.encode("utf-8")
 
 
 def _validate_subject(repo_root: Path, subject_commit: str) -> None:
@@ -83,17 +87,30 @@ def _write_temp(target: Path, payload: bytes) -> Path:
 def generate(repo_root: Path, subject_commit: str) -> None:
     """从台账生成计分卡，并以清单最后落盘的方式提交整组证据。"""
     _validate_subject(repo_root, subject_commit)
-    ledger = _load_yaml(repo_root / LEDGER_PATH)
-    if ledger.get("subject_commit") != subject_commit:
-        raise ValueError("覆盖台账 subject_commit 与命令参数不一致")
+    generated_assets: dict[str, bytes] = {}
+    for relative in CONTROLLED_ASSETS:
+        if relative == SCORECARD_PATH:
+            continue
+        generated_assets[relative] = _replace_subject(
+            (repo_root / relative).read_bytes(), subject_commit, relative
+        )
 
-    divergences = _load_yaml(repo_root / DIVERGENCES_PATH)
+    ledger = yaml.safe_load(generated_assets[LEDGER_PATH])
+    if not isinstance(ledger, dict):
+        raise ValueError("覆盖台账 YAML 根节点必须是对象")
+
+    divergences = yaml.safe_load(generated_assets[DIVERGENCES_PATH])
+    if not isinstance(divergences, dict):
+        raise ValueError("差异台账 YAML 根节点必须是对象")
     open_divergences = [
         row.get("id")
         for row in divergences.get("divergences", [])
         if isinstance(row, dict) and row.get("status") == "OPEN"
     ]
-    unmapped = _load_yaml(repo_root / UNMAPPED_PATH).get("symbols", [])
+    unmapped_document = yaml.safe_load(generated_assets[UNMAPPED_PATH])
+    if not isinstance(unmapped_document, dict):
+        raise ValueError("未映射符号台账 YAML 根节点必须是对象")
+    unmapped = unmapped_document.get("symbols", [])
     reference_commit = ledger.get("reference_commit")
     scorecard = {
         "schema_version": 3,
@@ -113,13 +130,11 @@ def generate(repo_root: Path, subject_commit: str) -> None:
         "blocking_divergences": open_divergences,
     }
     scorecard_bytes = _yaml_bytes(scorecard)
+    generated_assets[SCORECARD_PATH] = scorecard_bytes
 
     asset_hashes: dict[str, str] = {}
     for relative in CONTROLLED_ASSETS:
-        if relative == SCORECARD_PATH:
-            asset_hashes[relative] = _sha256_bytes(scorecard_bytes)
-        else:
-            asset_hashes[relative] = _sha256_bytes((repo_root / relative).read_bytes())
+        asset_hashes[relative] = _sha256_bytes(generated_assets[relative])
     manifest = {
         "schema_version": 1,
         "subject_commit": subject_commit,
@@ -129,15 +144,21 @@ def generate(repo_root: Path, subject_commit: str) -> None:
     }
     manifest_bytes = _yaml_bytes(manifest)
 
-    scorecard_target = repo_root / SCORECARD_PATH
     manifest_target = repo_root / MANIFEST_PATH
-    scorecard_temp = _write_temp(scorecard_target, scorecard_bytes)
+    asset_temps = {
+        relative: _write_temp(repo_root / relative, payload)
+        for relative, payload in generated_assets.items()
+    }
     manifest_temp = _write_temp(manifest_target, manifest_bytes)
     try:
-        os.replace(scorecard_temp, scorecard_target)
+        # 先替换整组证据，最后替换清单。进程若在中间退出，旧清单哈希会使检查失败，
+        # 不会把半更新状态误判为有效证据。
+        for relative in CONTROLLED_ASSETS:
+            os.replace(asset_temps[relative], repo_root / relative)
         os.replace(manifest_temp, manifest_target)
     finally:
-        scorecard_temp.unlink(missing_ok=True)
+        for temp_path in asset_temps.values():
+            temp_path.unlink(missing_ok=True)
         manifest_temp.unlink(missing_ok=True)
 
 
