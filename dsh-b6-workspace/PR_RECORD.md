@@ -38,9 +38,11 @@
 
 ## 状态备注
 
-- GitHub CI: workflow 已配置（`.github/workflows/ci.yml`），PR #3 触发后 job 未启动
-  （`account is locked due to a billing issue`，账户计费锁定，外部阻塞）。
-  解除锁定后重跑，结果单独记录。
+- GitHub CI（2026-08-15 计费锁定解除后的真实首跑）：
+  - `docs-governance` ✅（修复：空目录 .gitkeep）
+  - `tests` ⚠️ `10004 passed / 4 failed` —— 4 项为 CI 环境特定的既有时序/HTTP
+    mock 问题（stream_watchdog×2、ch04 watchdog、opencode compat），测试文件与
+    基线一致、本地全过；sandbox guard 相关 4 项首跑失败已修复并在次跑通过
 - Windows/Linux 真机验证: `PENDING_REAL_DEVICE`
   （`docs/reference-differences/platform-verification.md`）。
 
