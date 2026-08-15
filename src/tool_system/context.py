@@ -144,12 +144,18 @@ class ToolContext:
     #   resume (WI-7.4).
     agent_name_registry: AgentNameRegistry = field(default_factory=AgentNameRegistry)
     # Background Bash commands spawned via ``run_in_background: true``.
-    # Kept as a deprecated dict-of-dicts compatibility view during the
-    # Chunk-B migration cycle; the bash spawn writer now populates
-    # ``runtime_tasks`` as the source of truth and mirrors the legacy dict
-    # shape here so any external test fixtures or readers that haven't
-    # migrated yet continue to work. Removed in a follow-up phase.
-    background_bash_tasks: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # B7 W4 — now a READ-ONLY projection over ``runtime_tasks``
+    # (``LegacyTaskProjection``): readers that grew up on the historical
+    # dict-of-dicts keep working, but RuntimeTaskRegistry is the ONLY
+    # writable owner (Task Law, Behavior Bible §J). Writes raise
+    # RuntimeError. Assigned in ``__post_init__``.
+    background_bash_tasks: Any = field(default=None, init=False)
+    # B7 W4 — stuck-task guard bookkeeping (TaskOutput polling telemetry).
+    # NOT runtime task state — the single writable owner for task state is
+    # ``runtime_tasks`` (Behavior Bible §J); this dict only holds the guard's
+    # derived counters (stuck polls / wall-clock since / last log size)
+    # keyed by task_id, so it never shadows the registry.
+    stuck_task_tracking: dict[str, dict[str, Any]] = field(default_factory=dict)
     worktree_root: Path | None = None
     outbox: list[dict[str, Any]] = field(default_factory=list)
     # Collects answers for AskUserQuestion. Returning ``None`` means the user
@@ -290,6 +296,12 @@ class ToolContext:
             self.cwd = self.workspace_root
         else:
             self.cwd = Path(self.cwd).resolve()
+        # B7 W4 — the legacy background-task dict is a read-only projection
+        # over runtime_tasks (single-writer contract); see
+        # src/runtime/legacy_task_projection.py.
+        from src.runtime.legacy_task_projection import LegacyTaskProjection
+
+        self.background_bash_tasks = LegacyTaskProjection(self.runtime_tasks)
 
     def mark_file_read(self, path: Path, *, partial: bool = False) -> None:
         stat = path.stat()

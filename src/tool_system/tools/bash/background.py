@@ -158,10 +158,9 @@ def spawn_background_bash(
         agent_id=getattr(context, "agent_id", None),
     )
     context.runtime_tasks.upsert(state)
-    # Chunk-B compat view: keep the legacy dict-of-dicts alive in lockstep
-    # so readers that haven't migrated yet still work. The dict shares the
-    # task id with runtime_tasks; the reaper updates both.
-    context.background_bash_tasks[task_id] = state.to_legacy_dict()
+    # B7 W4 — RuntimeTaskRegistry is the single writable owner; the legacy
+    # ``context.background_bash_tasks`` view is now a READ-ONLY projection
+    # (LegacyTaskProjection) derived from runtime_tasks — no dual-write.
 
     def _reap() -> None:
         try:
@@ -250,18 +249,9 @@ def spawn_background_bash(
                     context.runtime_tasks.update(task_id, _force_notified)
                 except Exception:  # noqa: BLE001
                     pass
-            # Mirror to the legacy dict in lockstep so old readers see the
-            # exit code without round-tripping through runtime_tasks. The
-            # legacy dict carries the chapter-10 status string too — older
-            # callers that grew up reading ``entry["status"]`` get the same
-            # vocabulary as the typed registry. The whole legacy dict goes
-            # away when bg_tasks is removed in a follow-up.
-            entry = context.background_bash_tasks.get(task_id)
-            if entry is not None:
-                entry["exit_code"] = rc
-                entry["finished_at"] = finished_at
-                entry["status"] = "completed" if rc == 0 else "failed"
-                entry["end_time"] = finished_at
+            # B7 W4 — no legacy-dict mirror here: ``background_bash_tasks`` is
+            # a read-only projection over runtime_tasks, so the reaper's
+            # terminal-state update above is the single write.
 
     threading.Thread(
         target=_reap,

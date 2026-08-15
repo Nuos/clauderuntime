@@ -630,36 +630,42 @@ def _guard_repeated_polls(
     if task.get("task_type") != "bash_background":
         return result
 
-    entry = context.background_bash_tasks.get(task_id)
-    if not isinstance(entry, dict):
+    # B7 W4 — single-writer: read the live task from the registry (the legacy
+    # ``background_bash_tasks`` view is a read-only projection). Guard
+    # bookkeeping lives in the context's dedicated tracking store, not on the
+    # task state.
+    state = context.runtime_tasks.get(task_id)
+    if state is None:
         return result
+    output_path = getattr(state, "output_path", None)
+    tracking = context.stuck_task_tracking.setdefault(task_id, {})
 
     # A terminal task needs no nudge — the model will stop polling naturally.
     # Reset so a later stall on a reused id starts fresh. Any non-running
     # status lands here regardless of retrieval_status.
     if task.get("status") != "running":
-        entry["_stuck_polls"] = 0
-        entry.pop("_stuck_since", None)
+        tracking["_stuck_polls"] = 0
+        tracking.pop("_stuck_since", None)
         return result
 
-    cur_size = _bg_output_size(entry)
-    prev_size = entry.get("_stuck_last_size")
+    cur_size = _bg_output_size({"output_path": output_path})
+    prev_size = tracking.get("_stuck_last_size")
     if prev_size is not None and cur_size == prev_size:
-        entry["_stuck_polls"] = int(entry.get("_stuck_polls", 0)) + 1
-        entry.setdefault("_stuck_since", time.monotonic())
+        tracking["_stuck_polls"] = int(tracking.get("_stuck_polls", 0)) + 1
+        tracking.setdefault("_stuck_since", time.monotonic())
     else:
-        entry["_stuck_polls"] = 0
-        entry["_stuck_last_size"] = cur_size
-        entry.pop("_stuck_since", None)
+        tracking["_stuck_polls"] = 0
+        tracking["_stuck_last_size"] = cur_size
+        tracking.pop("_stuck_since", None)
 
-    stalled_for = time.monotonic() - entry.get("_stuck_since", time.monotonic())
+    stalled_for = time.monotonic() - tracking.get("_stuck_since", time.monotonic())
     if (
-        entry.get("_stuck_polls", 0) < _STUCK_POLL_THRESHOLD
+        tracking.get("_stuck_polls", 0) < _STUCK_POLL_THRESHOLD
         or stalled_for < _STUCK_MIN_WALL_SECONDS
     ):
         return result
 
-    polls = entry["_stuck_polls"] + 1  # +1: the first poll set the baseline
+    polls = tracking["_stuck_polls"] + 1  # +1: the first poll set the baseline
     hint = (
         f"[stuck-task guard] This background task has been polled {polls} "
         f"times with no new output for ~{stalled_for / 60:.0f} min and is "

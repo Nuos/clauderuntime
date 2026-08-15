@@ -18,6 +18,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import time
+
+from src.tasks.local_shell import LocalShellTaskState
 
 from src.tool_system.context import ToolContext
 from src.tool_system.protocol import ToolResult
@@ -42,7 +45,18 @@ def _ctx(tmp_path: Path) -> ToolContext:
     ctx = ToolContext(workspace_root=tmp_path)
     log = tmp_path / "b1.log"
     log.write_bytes(b"")
-    ctx.background_bash_tasks["b1"] = {"output_path": str(log)}
+    # B7 W4 — single-writer: register through RuntimeTaskRegistry; the legacy
+    # background_bash_tasks view is a read-only projection.
+    ctx.runtime_tasks.upsert(
+        LocalShellTaskState(
+            id="b1",
+            status="running",
+            description="",
+            start_time=time.time(),
+            output_file=str(log),
+            output_path=str(log),
+        )
+    )
     return ctx
 
 
@@ -179,7 +193,16 @@ class TestStuckGuardStaysQuiet:
         ctx = _ctx(tmp_path)
         log = tmp_path / "a1.log"
         log.write_bytes(b"data")
-        ctx.background_bash_tasks["a1"] = {"output_path": str(log)}
+        ctx.runtime_tasks.upsert(
+            LocalShellTaskState(
+                id="a1",
+                status="running",
+                description="",
+                start_time=time.time(),
+                output_file=str(log),
+                output_path=str(log),
+            )
+        )
         agent_poll = ToolResult(
             name="TaskOutput",
             output={
