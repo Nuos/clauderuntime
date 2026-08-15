@@ -127,9 +127,26 @@
   向后兼容（新增字段带默认值）
 - rollback：回退本提交即可
 
-## W6 — Query/Server Ownership Extraction ⏳
+## W6 — Query/Server Ownership Extraction ✅（2026-08-15）
 
-## W6 — Query/Server Ownership Extraction ⏳
+- `ModelCapabilityResolver`（src/runtime/model_capability_resolver.py）：capability
+  判定唯一 owner。query.py 的 4 个 allowlist 谓词（extended/adaptive thinking、
+  effort、xhigh）迁入 resolver（正则与清单逐字迁移，行为字节一致）；query 谓词
+  改为薄委托。`ModelCapabilities` 不可变快照；prompt_cache 按 provider 家族判定。
+- `CompletionVerifier`（src/runtime/completion_verifier.py）：protocol +
+  StructuralCompletionVerifier 最小接线（终态 + evidence 存在性，不要求模型自评）。
+- AgentServer facades（src/runtime/server_session_facades.py）：PermissionBridge /
+  SurfaceEmitter / SchedulerBridge / SessionState / ServerSessionFacades；
+  `_AgentSession.facades()` 懒构建并引用 LIVE 对象（零 wire 协议改动）。
+- 测试：test_b7_model_capability 9 + test_b7_completion_verifier_and_facades 7；
+  既有 query/server/effort 测试 75 项通过。
+
+### changed owner / unchanged semantics / rollback
+- changed owner：model capability 判定 = ModelCapabilityResolver；completion 判定
+  protocol = CompletionVerifier；server 生命周期拆分为 typed facades
+- unchanged semantics：query 状态机 / WebSocket / worker-thread / permission
+  roundtrip / 能力判定结果全部不变（委托等价性测试证明）
+- rollback：回退本提交即可
 
 ## W7 — CI / Platform / Evidence Truth ⏳
 
