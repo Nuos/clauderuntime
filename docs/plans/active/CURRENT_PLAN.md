@@ -21,17 +21,16 @@ evidence。每个 Wave 独立提交/可回滚，禁止"大提交一次改完"。
 
 | Wave | 目标 | 类型 | 退出条件 | 状态 |
 |---|---|---|---|---|
-| W0 | Truth Reset / Evidence Rebase | P0 | CURRENT assets 全部绑定同一 subject SHA | IN_PROGRESS |
-| W1 | Permission Safe-by-Default | P0 | implicit bypass=0 | PENDING |
-| W2 | Canonical Turn Preparation | P0 | production prompt/context owner=1 | PENDING |
-| W3 | Extension Trust Boundary | P0 | executable activation 必经 trust gate | PENDING |
-| W4 | Task / Session / Persistence Owner | P0 | runtime task writable owner=1 | PENDING |
-| W5 | Context / Compact Closure | P1 | outcome/ownership/retention contract 固定 | PENDING |
-| W6 | Query/Server Ownership Extraction | P1 | 不改状态机/协议，只减 owner density | PENDING |
-| W7 | CI / Platform / Evidence Truth | P0 | quarantine + matrix + artifact truth 完整 | PENDING |
-| W8 | Identity / Legacy Cleanup | P1 | README/package/legacy path 清晰 | PENDING |
-| W9 | Freeze Gate / Baseline Lock | Release | 所有 Freeze Gate PASS | PENDING |
-
+| W0 | Truth Reset / Evidence Rebase | P0 | CURRENT assets 全部绑定同一 subject SHA | DONE (486c55f) |
+| W1 | Permission Safe-by-Default | P0 | implicit bypass=0 | DONE (9f3f097) |
+| W2 | Canonical Turn Preparation | P0 | production prompt/context owner=1 | DONE (1557f2c) |
+| W3 | Extension Trust Boundary | P0 | executable activation 必经 trust gate | DONE (ade48ca) |
+| W4 | Task / Session / Persistence Owner | P0 | runtime task writable owner=1 | DONE (b7158f0) |
+| W5 | Context / Compact Closure | P1 | outcome/ownership/retention contract 固定 | DONE (0ee21e3) |
+| W6 | Query/Server Ownership Extraction | P1 | 不改状态机/协议，只减 owner density | DONE (fa9f4df) |
+| W7 | CI / Platform / Evidence Truth | P0 | quarantine + matrix + artifact truth 完整 | DONE (21789fe) |
+| W8 | Identity / Legacy Cleanup | P1 | README/package/legacy path 清晰 | DONE (416739a) |
+| W9 | Freeze Gate / Baseline Lock | Release | 所有 Freeze Gate PASS | DONE (ARCHITECTURE_FREEZE) |
 ## 3. 硬约束（来自 34_CODEX_MASTER_EXECUTION_PROMPT）
 
 1. 先读取当前 HEAD，若不是 package baseline（`16da0cf...`），先比较差异并更新

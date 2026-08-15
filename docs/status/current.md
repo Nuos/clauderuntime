@@ -11,21 +11,23 @@ superseded_by: none
 
 ## Summary
 
-ClaudeRuntime / ClawCodex 当前状态（B7 口径）：功能 `FUNCTIONALLY_SIMILAR_CORE_COMPLETE`，
-架构 `FINAL_CLOSURE_REQUIRED`（依据 `docs/baseline/PROJECT_BASELINE.md`）。B7 正在执行
-最后一次架构收口（W0–W9），详见 `docs/plans/active/CURRENT_PLAN.md`。历史迁移记录在
-`docs/history/`；B6 阶段记录在 `docs/progress/2026/`。
+ClaudeRuntime / ClawCodex 当前状态（B7 口径）：**ARCHITECTURE_FREEZE**（2026-08-15，
+记录见 `docs/progress/2026/2026-08-15-b7-architecture-freeze.md`）。功能
+`FUNCTIONALLY_SIMILAR_CORE_COMPLETE`；W0–W9 全部落地，Gate A–J 全 PASS。历史迁移
+记录在 `docs/history/`；B6 阶段记录在 `docs/progress/2026/`。
 
 ## B7 状态（2026-08-15 更新）
 
-- 阶段：**最后一次大规模架构收口 → ARCHITECTURE_FREEZE → 测试/调试**。
-- 进度：W0 Truth Reset 进行中；W1–W9 待执行（见 `docs/plans/active/CURRENT_PLAN.md`）。
-- 规则约束：`docs/governance/BEHAVIOR_BIBLE.md`（Behavior Bible v2.2）；
-  验收门：`docs/clauderuntime-final-architecture-freeze-delivery-v2-complete-20260814/docs/11_ACCEPTANCE_AND_FREEZE_GATE.md`（Gate A–J）。
-- 不得写成"已完成"：Windows/Linux isolation 真机证据（PENDING_REAL_DEVICE）、
-  strict Source-Aligned parity、ToolContext 隐式 bypass（W1 修）、Turn Preparation
-  双 owner（W2 修）、extension trust 边界（W3 修）、task 双写（W4 修）、
-  CI quarantine 机器清单（W7 修）。
+- **ARCHITECTURE_FREEZE**：最后一次架构收口（W0–W9）完成，全部并入 main；
+  门禁 A–J 全 PASS（`scripts/check_architecture_freeze.py`）。
+- 收口内容：Truth Reset / Permission Safe-by-Default / Canonical Turn Preparation
+  / Extension Trust Boundary / Task·Session·Persistence Owner / Context·Compact
+  Closure / Query·Server Ownership Extraction / CI·Platform·Evidence Truth /
+  Identity·Legacy Cleanup / Freeze Gate。
+- Freeze 后：runtime 主脊柱与 owner 不再移动（Behavior Bible §S）；测试/调试走
+  交付包 T0–T14 管线。
+- 未闭合（真实披露）：Windows/Linux 真机隔离 `PENDING_REAL_DEVICE`；
+  Python 3.10/3.14 + Ubuntu/Windows smoke 为声明（`machine/test-matrix.yaml`）。
 
 ## B6 状态（2026-08-14，已并入 main，保留为历史口径）
 
