@@ -4,6 +4,10 @@ candidates:
   - path: src/cli_backup
     precondition: production_reference_count_zero
     action: remove_or_move_outside_package
+    status: resolved_w8
+    note: "W8: zero-ref proven (no src/tests import; only historical sourcemap
+      docs mention it) and moved to archive/legacy-src/cli_backup
+      (non-package, cannot be imported as src.cli_backup)."
   - symbol: QueryEngine._build_system_prompt_parts
     precondition: TurnPreparationService_cutover_complete
     action: delete_or_delegate_only

@@ -117,9 +117,12 @@ dev = [
 clawcodex = "src.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/agentforce314/clawcodex"
-Repository = "https://github.com/agentforce314/clawcodex"
-Documentation = "https://github.com/agentforce314/clawcodex#readme"
+# B7 W8 — canonical identity: the repository is Nuos/clauderuntime. The
+# distribution/CLI name stays ``clawcodex`` (product identity); the old
+# agentforce314/clawcodex URLs pointed at a stale mirror and are corrected.
+Homepage = "https://github.com/Nuos/clauderuntime"
+Repository = "https://github.com/Nuos/clauderuntime"
+Documentation = "https://github.com/Nuos/clauderuntime#readme"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
