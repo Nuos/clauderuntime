@@ -502,8 +502,22 @@ def has_permissions_to_use_tool_inner(
             except Exception:  # noqa: BLE001 — exemption failure falls through to the ask
                 pass
 
+    # B7 W1 — Permission Safe-by-Default: ``bypassPermissions`` mode is
+    # honored ONLY when the context carries explicit bypass provenance
+    # (``is_bypass_justified``). An unjustified bypass (e.g. a bare
+    # ``ToolPermissionContext(mode="bypassPermissions")``) is treated as
+    # invalid and falls through to the normal permission flow, which fails
+    # closed (ask without a channel → deny). This kills the historical
+    # implicit-bypass footgun at the decision layer, not just at the
+    # constructor.
+    if context.mode == "bypassPermissions" and not context.is_bypass_justified():
+        log.warning(
+            "permission: bypassPermissions mode without bypass_origin/bypass_reason "
+            "is not honored (fail closed)"
+        )
+
     should_bypass = (
-        context.mode == "bypassPermissions"
+        (context.mode == "bypassPermissions" and context.is_bypass_justified())
         or (
             context.mode == "plan"
             and context.is_bypass_permissions_mode_available

@@ -100,11 +100,11 @@ def test_non_bypass_modes_still_refuse(mode: str) -> None:
 def test_bypass_mode_without_availability_still_refuses() -> None:
     """The load-bearing half of the predicate.
 
-    ``ToolContext.permission_context`` DEFAULTS to
-    ``ToolPermissionContext(mode="bypassPermissions")`` while leaving
-    ``is_bypass_permissions_mode_available`` False. Keying the skip on mode
-    alone would therefore disarm the blocklist for every default-constructed
-    context — mcp_serve, tests, any caller that never considered permissions.
+    Since B7 W1 the ``ToolContext`` default is the SAFE
+    ``mode="default"`` (no implicit bypass). A context that resolves
+    ``bypassPermissions`` must set both the mode AND
+    ``is_bypass_permissions_mode_available``; keying the skip on mode alone
+    would disarm the blocklist for any caller that set a bare bypass mode.
     Only a session that actually resolved the posture sets both.
     """
     with pytest.raises(ToolPermissionError):
@@ -118,7 +118,7 @@ def test_real_default_tool_context_still_refuses() -> None:
     from src.tool_system.context import ToolContext
 
     ctx = ToolContext(workspace_root=Path("."))
-    assert ctx.permission_context.mode == "bypassPermissions"
+    assert ctx.permission_context.mode == "default"
     with pytest.raises(ToolPermissionError):
         bash_command_safety_guard("sudo rm -rf /etc", ctx)
 

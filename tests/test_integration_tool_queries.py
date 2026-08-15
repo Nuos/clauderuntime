@@ -333,7 +333,11 @@ def _run(provider, workspace: Path, query: str, max_turns: int = 10, mode: str =
     registry = build_default_registry(include_user_tools=False)
     ctx = ToolContext(
         workspace_root=workspace,
-        permission_context=ToolPermissionContext(mode=mode),
+        permission_context=ToolPermissionContext(
+            mode=mode,
+            bypass_origin="test:fixture",
+            bypass_reason="test fixture permissive context",
+        ),
     )
     conv = Conversation()
     conv.add_user_message(query)

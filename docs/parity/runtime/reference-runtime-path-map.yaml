@@ -1,6 +1,6 @@
 schema_version: 1
 reference_target: claude-code-2.1.88
-subject_commit: "7619ff2886160de3409acd1d4e87880d04da6e9e"
+subject_commit: "16da0cfea98d69987739a319ff6ae42cfd432d2c"
 evidence_generated_from: scripts/audit/generate_parity_evidence.py
 governance_status: LEGACY_SUPPORTING_MAP
 runtime_paths:

@@ -4,20 +4,25 @@ candidates:
   - id: PERM-WEBSEARCH-AUTOALLOW
     area: permission
     classification: FUNCTIONAL_ADAPTATION
-    status: registry_required
+    status: registered
+    registry_entry: docs/reference-differences/registry.yaml
   - id: PERM-ASKUSER-NO-DOUBLE-PROMPT
     area: permission
     classification: FUNCTIONAL_ADAPTATION
-    status: registry_required
+    status: registered
+    registry_entry: docs/reference-differences/registry.yaml
   - id: PERM-SENDUSERMESSAGE
     area: permission
     classification: FUNCTIONAL_ADAPTATION
-    status: registry_required
+    status: registered
+    registry_entry: docs/reference-differences/registry.yaml
   - id: PERM-STRUCTUREDOUTPUT
     area: permission
     classification: FUNCTIONAL_ADAPTATION
-    status: registry_required
+    status: registered
+    registry_entry: docs/reference-differences/registry.yaml
   - id: SKILL-PERMISSION-MODEL
     area: skills
     classification: FUNCTIONAL_ADAPTATION
-    status: registry_required
+    status: registered
+    registry_entry: docs/reference-differences/registry.yaml

@@ -24,7 +24,7 @@ class TestE2EEditFlow(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name).resolve()
         self.registry = build_default_registry(include_user_tools=False)
-        self.ctx = ToolContext(workspace_root=self.root)
+        self.ctx = ToolContext(workspace_root=self.root, permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
 
         # Create a file to edit
         self.test_file = self.root / "target.py"
@@ -61,7 +61,7 @@ class TestE2EEditFlow(unittest.TestCase):
     def test_edit_without_read_fails(self) -> None:
         """Edit without prior Read should fail (TS requires Read first)."""
         # Create a fresh context where the file was NOT read
-        fresh_ctx = ToolContext(workspace_root=self.root)
+        fresh_ctx = ToolContext(workspace_root=self.root, permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
         try:
             edit_result = self.registry.dispatch(
                 ToolCall(name="Edit", input={
@@ -119,7 +119,7 @@ class TestE2EWriteFlow(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name).resolve()
         self.registry = build_default_registry(include_user_tools=False)
-        self.ctx = ToolContext(workspace_root=self.root)
+        self.ctx = ToolContext(workspace_root=self.root, permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
 
     def tearDown(self) -> None:
         self.tmp.cleanup()

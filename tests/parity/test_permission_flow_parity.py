@@ -87,8 +87,13 @@ class TestPermissionVectorParity(unittest.TestCase):
         cls.snapshot = _load_json("ts_permission_vectors.json")
 
     def _run_vector(self, vector: dict) -> str:
+        vector_mode = vector.get("mode", "default")
         ctx = ToolPermissionContext(
-            mode=vector.get("mode", "default"),
+            mode=vector_mode,
+            bypass_origin=vector.get("bypass_origin")
+            or ("test:vector" if vector_mode == "bypassPermissions" else None),
+            bypass_reason=vector.get("bypass_reason")
+            or ("parity test vector" if vector_mode == "bypassPermissions" else None),
             always_deny_rules=vector.get("deny_rules", {}),
             always_allow_rules=vector.get("allow_rules", {}),
             always_ask_rules=vector.get("ask_rules", {}),
@@ -180,7 +185,11 @@ class TestPermissionCheckFlowOrdering(unittest.TestCase):
 
     def test_tool_deny_overrides_bypass_mode(self) -> None:
         """Tool custom deny (step 1c/1d) is respected even in bypass mode."""
-        ctx = ToolPermissionContext(mode="bypassPermissions")
+        ctx = ToolPermissionContext(
+            mode="bypassPermissions",
+            bypass_origin="test:fixture",
+            bypass_reason="test fixture",
+        )
         tool = _make_mock_tool("TestTool")
         tool.check_permissions = MagicMock(
             return_value=PermissionDenyDecision(
@@ -193,7 +202,11 @@ class TestPermissionCheckFlowOrdering(unittest.TestCase):
 
     def test_bypass_mode_allows_passthrough(self) -> None:
         """Step 2a: bypass mode converts passthrough to allow."""
-        ctx = ToolPermissionContext(mode="bypassPermissions")
+        ctx = ToolPermissionContext(
+            mode="bypassPermissions",
+            bypass_origin="test:fixture",
+            bypass_reason="test fixture",
+        )
         tool = _make_mock_tool("TestTool")
         decision = has_permissions_to_use_tool(tool, {}, ctx)
         self.assertEqual(decision.behavior, "allow")

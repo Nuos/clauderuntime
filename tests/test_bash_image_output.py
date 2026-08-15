@@ -16,6 +16,7 @@ from pathlib import Path
 from PIL import Image
 
 from src.tool_system.context import ToolContext
+from src.permissions.types import ToolPermissionContext
 from src.tool_system.defaults import build_default_registry
 from src.tool_system.protocol import ToolCall
 from src.tool_system.tools.bash.bash_tool import (
@@ -175,7 +176,7 @@ class TestBashImageE2E(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name).resolve()
         self.registry = build_default_registry(include_user_tools=False)
-        self.ctx = ToolContext(workspace_root=self.root)
+        self.ctx = ToolContext(workspace_root=self.root, permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
 
     def tearDown(self) -> None:
         self.tmp.cleanup()

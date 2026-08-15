@@ -12,8 +12,9 @@ Design decisions (mirroring the TS engine unless noted):
   tool context with ``getEmptyToolPermissionContext()`` — an ENFORCING
   posture (``mode:'default'``, bypass unavailable; Tool.ts:142) — and routes
   execution through ``hasPermissionsToUseTool``. Python's ``ToolContext``
-  default is the OPPOSITE (``mode="bypassPermissions"``, context.py) — so
-  this module explicitly constructs ``ToolPermissionContext()`` (mode
+  default is ALSO enforcing since B7 W1 (``mode="default"`` — the historical
+  implicit ``bypassPermissions`` default was removed) — and this module
+  additionally constructs ``ToolPermissionContext()`` (mode
   "default", empty rules, bypass unavailable) and executes via
   ``registry.dispatch``, which runs the full pipeline
   (schema validation → ``validate_input`` → ``has_permissions_to_use_tool``

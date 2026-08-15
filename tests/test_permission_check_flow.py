@@ -90,7 +90,11 @@ class TestStep1g_SafetyCheck(unittest.TestCase):
                 classifier_approvable=True,
             ),
         )
-        ctx = ToolPermissionContext(mode="bypassPermissions")
+        ctx = ToolPermissionContext(
+            mode="bypassPermissions",
+            bypass_origin="test:explicit-bypass",
+            bypass_reason="explicit test bypass",
+        )
         tool = _MockTool(perm_result=safety_ask)
         result = has_permissions_to_use_tool(tool, {}, ctx)
         self.assertEqual(result.behavior, "ask")
@@ -98,7 +102,11 @@ class TestStep1g_SafetyCheck(unittest.TestCase):
 
 class TestStep2a_BypassMode(unittest.TestCase):
     def test_bypass_mode_allows(self) -> None:
-        ctx = ToolPermissionContext(mode="bypassPermissions")
+        ctx = ToolPermissionContext(
+            mode="bypassPermissions",
+            bypass_origin="test:explicit-bypass",
+            bypass_reason="explicit test bypass",
+        )
         tool = _MockTool()
         result = has_permissions_to_use_tool(tool, {}, ctx)
         self.assertEqual(result.behavior, "allow")
@@ -212,7 +220,11 @@ class TestEndToEnd(unittest.TestCase):
         self.assertEqual(result.behavior, "ask")
 
     def test_allowed_tool_with_bypass_mode(self) -> None:
-        ctx = ToolPermissionContext(mode="bypassPermissions")
+        ctx = ToolPermissionContext(
+            mode="bypassPermissions",
+            bypass_origin="test:explicit-bypass",
+            bypass_reason="explicit test bypass",
+        )
         tool = _MockTool()
         result = has_permissions_to_use_tool(tool, {"key": "val"}, ctx)
         self.assertEqual(result.behavior, "allow")

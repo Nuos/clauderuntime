@@ -67,8 +67,14 @@ class GlobLimits:
 @dataclass
 class ToolContext:
     workspace_root: Path
+    # B7 W1 — Permission Safe-by-Default: the default permission context is
+    # ``mode="default"`` (fail-closed ask semantics), NEVER ``bypassPermissions``.
+    # Any production entrypoint that wants a permissive mode must construct an
+    # explicit, justified ``ToolPermissionContext`` (see
+    # ``ToolPermissionContext.is_bypass_justified``). Callers that relied on the
+    # historical implicit bypass default now receive the safe default.
     permission_context: ToolPermissionContext = field(
-        default_factory=lambda: ToolPermissionContext(mode="bypassPermissions")
+        default_factory=lambda: ToolPermissionContext(mode="default")
     )
     cwd: Path | None = None
     read_file_fingerprints: dict[Path, tuple[int, int] | tuple[int, int, bool]] = field(default_factory=dict)

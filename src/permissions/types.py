@@ -352,6 +352,14 @@ def _empty_rules_by_source() -> ToolPermissionRulesBySource:
 @dataclass
 class ToolPermissionContext:
     mode: PermissionMode = "default"
+    # B7 W1 — explicit bypass provenance. ``mode="bypassPermissions"`` is
+    # only honored when BOTH ``bypass_origin`` and ``bypass_reason`` are set
+    # (see ``is_bypass_justified`` and the enforcement in
+    # ``permissions/check.py``). A bare ``mode="bypassPermissions"`` with no
+    # justification is treated as invalid and fails closed. These fields
+    # replace the historical silent high-privilege default.
+    bypass_origin: str | None = None
+    bypass_reason: str | None = None
     additional_working_directories: dict[str, AdditionalWorkingDirectory] = field(
         default_factory=dict
     )
@@ -400,3 +408,14 @@ class ToolPermissionContext:
                 if rule_str.lower() == lowered:
                     return True
         return False
+
+    def is_bypass_justified(self) -> bool:
+        """True only for an explicit, justified bypass.
+
+        B7 W1 Permission Safe-by-Default: ``bypassPermissions`` mode must
+        carry an explicit ``bypass_origin`` and ``bypass_reason``. An
+        unjustified bypass is not honored by the permission decision layer
+        (fail closed). This deliberately makes it impossible to open a
+        bypass with a bare boolean or mode string.
+        """
+        return self.mode == "bypassPermissions" and bool(self.bypass_origin) and bool(self.bypass_reason)

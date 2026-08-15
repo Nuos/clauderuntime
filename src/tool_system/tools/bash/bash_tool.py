@@ -502,13 +502,12 @@ def _is_bypass_permissions(context: Any) -> bool:
 
     Requires ``is_bypass_permissions_mode_available`` as well as the mode, and
     that second condition is load-bearing — it is not belt-and-braces.
-    ``ToolContext.permission_context`` defaults to
-    ``ToolPermissionContext(mode="bypassPermissions")`` (context.py:69-71), an
-    inversion of the TS default that ``entrypoints/mcp_serve.py:11-23`` already
-    documents and works around. So ``mode`` ALONE is true for every
-    default-constructed context — including ones built by callers that never
-    thought about permissions at all — and keying only on it would silently
-    drop the blocklist far outside the sessions the user opted in for.
+    Since B7 W1 the ``ToolContext`` default is the SAFE ``mode="default"``
+    (context.py), so ``mode`` alone is never enough to establish a bypass
+    posture; a real session must resolve BOTH the mode AND
+    ``is_bypass_permissions_mode_available`` (and, since W1, carry explicit
+    ``bypass_origin``/``bypass_reason`` provenance — see
+    ``ToolPermissionContext.is_bypass_justified``).
 
     ``is_bypass_permissions_mode_available`` is not part of that default
     (``types.py:367`` → ``False``); it is set only where a real session

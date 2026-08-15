@@ -42,7 +42,11 @@ def test_exit_gate_c_blocks_workspace_escape_after_permission_misgrant(tmp_path)
     """Permission says bypass, execution boundary still blocks outside root."""
     ctx = ToolContext(
         workspace_root=tmp_path,
-        permission_context=ToolPermissionContext(mode="bypassPermissions"),
+        permission_context=ToolPermissionContext(
+            mode="bypassPermissions",
+            bypass_origin="test:fixture",
+            bypass_reason="test fixture",
+        ),
         execution_boundary=ExecutionBoundary(workspace_guard=StrictWorkspaceGuard()),
     )
 

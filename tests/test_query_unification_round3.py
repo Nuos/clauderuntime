@@ -20,6 +20,7 @@ from src.providers.base import ChatResponse
 from src.query.query import QueryParams, run_query
 from src.tool_system.build_tool import build_tool
 from src.tool_system.context import ToolContext
+from src.permissions.types import ToolPermissionContext
 from src.tool_system.protocol import ToolResult
 from src.tool_system.registry import ToolRegistry
 from src.types.messages import UserMessage
@@ -76,7 +77,7 @@ class _Base(unittest.TestCase):
 
     def _params(self, tools, provider, mode="bypassPermissions"):
         registry = ToolRegistry(tools)
-        ctx = ToolContext(workspace_root=self.workspace)
+        ctx = ToolContext(workspace_root=self.workspace, permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
         ctx.permission_context.mode = mode
         return QueryParams(
             messages=[UserMessage(content="Hi")],
@@ -223,7 +224,7 @@ class TestUnifiedLane(_Base):
             call=lambda _i, _c: ToolResult(name="DictTool", output=structured),
             prompt="d", description="d",
         )
-        ctx = ToolContext(workspace_root=self.workspace)
+        ctx = ToolContext(workspace_root=self.workspace, permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
         ctx.permission_context.mode = "bypassPermissions"
         ctx.options.tools = [tool]
 
@@ -269,7 +270,7 @@ class TestCanUseToolAdapter(_Base):
             call=lambda _i, _c: ToolResult(name="AskTool", output="ok"),
             prompt="a", description="a",
         )
-        ctx = ToolContext(workspace_root=self.workspace)
+        ctx = ToolContext(workspace_root=self.workspace, permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
         ctx.permission_context.mode = "default"
 
         def handler(_request):
@@ -299,7 +300,7 @@ class TestCanUseToolAdapter(_Base):
             call=lambda _i, _c: ToolResult(name="FreeTool", output="ok"),
             prompt="f", description="f",
         )
-        ctx = ToolContext(workspace_root=self.workspace)
+        ctx = ToolContext(workspace_root=self.workspace, permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
         ctx.permission_context.mode = "bypassPermissions"
         adapter = build_can_use_tool(ctx)
         decision = adapter(tool, {}, ctx, None, "toolu_um2")

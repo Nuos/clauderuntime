@@ -145,7 +145,11 @@ class TestEndToEndPermissionFlow(unittest.TestCase):
         self.assertIsInstance(result, PermissionAskDecision)
 
     def test_bypass_mode_allows(self) -> None:
-        ctx = ToolPermissionContext(mode="bypassPermissions")
+        ctx = ToolPermissionContext(
+            mode="bypassPermissions",
+            bypass_origin="test:fixture",
+            bypass_reason="test fixture",
+        )
         tool = _MockToolForPerm()
         result = has_permissions_to_use_tool(tool, {"key": "val"}, ctx)
         self.assertEqual(result.behavior, "allow")
@@ -173,7 +177,7 @@ class TestRegistryDispatchWithNewPermissions(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name).resolve()
-        self.ctx = ToolContext(workspace_root=self.root)
+        self.ctx = ToolContext(workspace_root=self.root, permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
 
     def tearDown(self) -> None:
         self.tmp.cleanup()

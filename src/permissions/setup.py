@@ -105,11 +105,23 @@ def setup_permissions(
     managed_settings_path: str | None = None,
     is_bypass_available: bool = False,
     should_avoid_prompts: bool = False,
+    bypass_origin: str | None = None,
+    bypass_reason: str | None = None,
 ) -> PermissionSetupResult:
     effective_cwd = cwd or os.getcwd()
 
+    # B7 W1 — a requested ``bypassPermissions`` mode must carry explicit
+    # provenance. Callers that know the source (CLI flag, profile selection)
+    # pass it in; anything that reaches setup as bare bypass gets a clear
+    # generic origin so the decision layer still sees a justified bypass.
+    if mode == "bypassPermissions":
+        bypass_origin = bypass_origin or "permission_setup:mode=bypassPermissions"
+        bypass_reason = bypass_reason or "explicit bypassPermissions mode requested at permission setup"
+
     context = ToolPermissionContext(
         mode=mode,
+        bypass_origin=bypass_origin,
+        bypass_reason=bypass_reason,
         is_bypass_permissions_mode_available=is_bypass_available,
         should_avoid_permission_prompts=should_avoid_prompts,
     )
@@ -171,6 +183,8 @@ def setup_permissions(
     if additional_dirs:
         context = ToolPermissionContext(
             mode=context.mode,
+            bypass_origin=context.bypass_origin,
+            bypass_reason=context.bypass_reason,
             additional_working_directories={
                 **context.additional_working_directories,
                 **additional_dirs,

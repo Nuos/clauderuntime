@@ -261,6 +261,8 @@ def _wrap_avoid_prompts(ctx: ToolPermissionContext) -> ToolPermissionContext:
         return ctx
     return ToolPermissionContext(
         mode=ctx.mode,
+        bypass_origin=ctx.bypass_origin,
+        bypass_reason=ctx.bypass_reason,
         additional_working_directories=ctx.additional_working_directories,
         always_allow_rules=ctx.always_allow_rules,
         always_deny_rules=ctx.always_deny_rules,

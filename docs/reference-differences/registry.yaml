@@ -223,3 +223,133 @@ items:
       - tests/test_permission_system.py
       - tests/integration/test_permission_integration.py
     notes: ""
+
+  - id: PERM-WEBSEARCH-AUTOALLOW
+    area: CCR-02
+    feature: web_search_auto_allow
+    reference_certainty: R2_PARTIALLY_CONFIRMED
+    alignment_policy: ALIGN_KNOWN_PART
+    reference:
+      file: "<recovered: WebSearch tool permission wiring>"
+      symbol: WebSearch permission decision
+      behavior: "reference surfaces an ask for search tools under default mode in specific flows; exact rule table partially recovered"
+      certainty: PARTIAL
+    python:
+      file: src/tool_system/tools/web_search.py
+      symbol: WebSearch permission handling
+      behavior: "search tool follows the normal deny/allow/ask gate with the same headless fail-closed behavior as other tools"
+    difference: "deliberate UX divergence: search auto-allow posture may differ from Reference's ask flow; registered as accepted diff per B7 W1 (Permission Safe-by-Default does not change this decision)."
+    reason: PRODUCT_SCOPE_SIMPLIFICATION
+    user_impact: LOW
+    safety_impact: NONE
+    compatibility_impact: LOW
+    status: FUNCTIONAL_ADAPTATION
+    accepted: true
+    acceptance_reason: "B7 W1: registered from machine/accepted-differences.yaml candidate PERM-WEBSEARCH-AUTOALLOW; gate contract unchanged, only the default UX posture differs."
+    tests:
+      - tests/test_web_search_tavily.py
+    notes: ""
+
+  - id: PERM-ASKUSER-NO-DOUBLE-PROMPT
+    area: CCR-02
+    feature: ask_user_no_double_prompt
+    reference_certainty: R2_PARTIALLY_CONFIRMED
+    alignment_policy: ALIGN_KNOWN_PART
+    reference:
+      file: "<recovered: AskUserQuestion flow>"
+      symbol: AskUserQuestion permission interaction
+      behavior: "reference may surface both a permission ask and the question dialog in some flows; exact sequencing partially recovered"
+      certainty: PARTIAL
+    python:
+      file: src/tool_system/tools/ask_user.py
+      symbol: AskUserQuestion permission interaction
+      behavior: "single prompt: the permission gate and the question dialog are collapsed so the user is never double-prompted"
+    difference: "deliberate UX divergence: no double prompt; the permission decision and the answer are combined in one interaction."
+    reason: PRODUCT_SCOPE_SIMPLIFICATION
+    user_impact: LOW
+    safety_impact: NONE
+    compatibility_impact: LOW
+    status: FUNCTIONAL_ADAPTATION
+    accepted: true
+    acceptance_reason: "B7 W1: registered from machine/accepted-differences.yaml candidate PERM-ASKUSER-NO-DOUBLE-PROMPT; UX simplification, permission gate still enforced."
+    tests:
+      - tests/test_permission_ask_flow.py
+    notes: ""
+
+  - id: PERM-SENDUSERMESSAGE
+    area: CCR-02
+    feature: send_user_message_permission
+    reference_certainty: R2_PARTIALLY_CONFIRMED
+    alignment_policy: ALIGN_KNOWN_PART
+    reference:
+      file: "<recovered: SendUserMessage wiring>"
+      symbol: SendUserMessage permission
+      behavior: "reference permission treatment of user-directed message tools partially recovered"
+      certainty: PARTIAL
+    python:
+      file: src/tool_system/tools/send_message.py
+      symbol: SendUserMessage permission
+      behavior: "send-message tools flow through the normal permission gate with headless fail-closed"
+    difference: "deliberate divergence in the default permission posture for user-directed message tools."
+    reason: PRODUCT_SCOPE_SIMPLIFICATION
+    user_impact: LOW
+    safety_impact: NONE
+    compatibility_impact: LOW
+    status: FUNCTIONAL_ADAPTATION
+    accepted: true
+    acceptance_reason: "B7 W1: registered from machine/accepted-differences.yaml candidate PERM-SENDUSERMESSAGE; gate contract unchanged."
+    tests:
+      - tests/tool_system/test_send_message.py
+    notes: ""
+
+  - id: PERM-STRUCTUREDOUTPUT
+    area: CCR-02
+    feature: structured_output_permission
+    reference_certainty: R2_PARTIALLY_CONFIRMED
+    alignment_policy: ALIGN_KNOWN_PART
+    reference:
+      file: "<recovered: structured output gate>"
+      symbol: structured output permission
+      behavior: "reference permission treatment of structured-output tool results partially recovered"
+      certainty: PARTIAL
+    python:
+      file: src/tool_system/structured_output.py
+      symbol: structured output gate
+      behavior: "structured output is gated by the same permission pipeline as ordinary tool output"
+    difference: "deliberate divergence in how structured output interacts with the permission gate."
+    reason: PRODUCT_SCOPE_SIMPLIFICATION
+    user_impact: LOW
+    safety_impact: NONE
+    compatibility_impact: LOW
+    status: FUNCTIONAL_ADAPTATION
+    accepted: true
+    acceptance_reason: "B7 W1: registered from machine/accepted-differences.yaml candidate PERM-STRUCTUREDOUTPUT; gate contract unchanged."
+    tests:
+      - tests/test_structured_output_gate.py
+    notes: ""
+
+  - id: SKILL-PERMISSION-MODEL
+    area: CCR-05
+    feature: skill_permission_model
+    reference_certainty: R2_PARTIALLY_CONFIRMED
+    alignment_policy: ALIGN_KNOWN_PART
+    reference:
+      file: "<recovered: Skill permission wiring>"
+      symbol: Skill permission model
+      behavior: "reference skill permission model partially recovered (per-skill deny/ask content rules)"
+      certainty: PARTIAL
+    python:
+      file: src/tool_system/tools/skill.py
+      symbol: Skill permission model
+      behavior: "skills flow through the normal permission gate; per-skill content rules supported"
+    difference: "deliberate adaptation: skill permission model is Python-native and may differ in rule-source precedence from Reference."
+    reason: PYTHON_ECOSYSTEM_ADAPTATION
+    user_impact: LOW
+    safety_impact: NONE
+    compatibility_impact: LOW
+    status: FUNCTIONAL_ADAPTATION
+    accepted: true
+    acceptance_reason: "B7 W1: registered from machine/accepted-differences.yaml candidate SKILL-PERMISSION-MODEL; deny/ask rules still enforced."
+    tests:
+      - tests/test_skills_bundled.py
+    notes: ""

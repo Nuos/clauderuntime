@@ -13,6 +13,7 @@ from typing import Any
 from unittest.mock import patch
 
 from src.tool_system.context import ToolContext
+from src.permissions.types import ToolPermissionContext
 from src.tool_system.defaults import build_default_registry
 from src.tool_system.protocol import ToolCall
 from src.tool_system.registry import ToolRegistry
@@ -59,7 +60,7 @@ class ToolSystemTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name).resolve()
-        self.ctx = ToolContext(workspace_root=self.root)
+        self.ctx = ToolContext(workspace_root=self.root, permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
@@ -800,14 +801,14 @@ class TestBriefAndAgentTools(ToolSystemTests):
         from src.tool_system.errors import ToolInputError
         reg = build_default_registry(include_user_tools=False)
         agent_tool = reg.get("Agent")
-        ctx = ToolContext(workspace_root=self.root)
+        ctx = ToolContext(workspace_root=self.root, permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
         with self.assertRaises(ToolInputError):
             agent_tool.call({"prompt": ""}, ctx)
 
     def test_agent_tool_no_provider_returns_error(self) -> None:
         reg = build_default_registry(include_user_tools=False)
         agent_tool = reg.get("Agent")
-        ctx = ToolContext(workspace_root=self.root)
+        ctx = ToolContext(workspace_root=self.root, permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
         result = agent_tool.call({"prompt": "search for bugs"}, ctx)
         self.assertTrue(result.is_error)
         self.assertEqual(result.output["status"], "error")

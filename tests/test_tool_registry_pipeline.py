@@ -81,7 +81,7 @@ class TestToolRegistry(unittest.TestCase):
 class TestRegistryDispatch(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
-        self.ctx = ToolContext(workspace_root=Path(self.tmp.name))
+        self.ctx = ToolContext(workspace_root=Path(self.tmp.name), permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
         self.reg = ToolRegistry()
         self.tool = _make_tool("Echo")
         self.reg.register(self.tool)

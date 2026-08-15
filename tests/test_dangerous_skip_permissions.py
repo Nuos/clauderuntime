@@ -570,7 +570,11 @@ def test_runtime_check_returns_allow_in_bypass_mode():
 
             return PermissionPassthroughResult(behavior="passthrough")
 
-    ctx = ToolPermissionContext(mode="bypassPermissions")
+    ctx = ToolPermissionContext(
+        mode="bypassPermissions",
+        bypass_origin="cli:--dangerously-skip-permissions",
+        bypass_reason="explicit user request via CLI flag",
+    )
     decision = has_permissions_to_use_tool(_StubTool(), {}, ctx)
     assert isinstance(decision, PermissionAllowDecision)
     assert decision.behavior == "allow"

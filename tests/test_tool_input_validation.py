@@ -27,6 +27,7 @@ import pytest
 
 from src.tool_system.build_tool import build_tool
 from src.tool_system.context import ToolContext, ToolUseOptions
+from src.permissions.types import ToolPermissionContext
 from src.tool_system.errors import ToolInputError
 from src.tool_system.protocol import ToolCall, ToolResult
 from src.tool_system.registry import ToolRegistry
@@ -260,7 +261,7 @@ class TestRegistryDispatchCoercion(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.received: dict = {}
         self.registry = ToolRegistry([_capture_tool(self.received)])
-        self.ctx = ToolContext(workspace_root=Path(self.tmp.name).resolve())
+        self.ctx = ToolContext(workspace_root=Path(self.tmp.name).resolve(), permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
         self.ctx.permission_context.mode = "bypassPermissions"
 
     def tearDown(self):
@@ -315,6 +316,8 @@ class TestRunToolUseValidation(unittest.TestCase):
             options=ToolUseOptions(tools=[self.tool]),
         )
         ctx.permission_context.mode = "bypassPermissions"
+        ctx.permission_context.bypass_origin = "test:fixture"
+        ctx.permission_context.bypass_reason = "test fixture"
 
         async def drive():
             updates = []

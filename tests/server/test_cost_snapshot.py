@@ -116,11 +116,12 @@ class TestToolCallSiteLineCounts:
     @pytest.fixture(autouse=True)
     def _workspace(self, tmp_path):
         from src.tool_system.context import ToolContext
+        from src.permissions.types import ToolPermissionContext
         from src.tool_system.defaults import build_default_registry
 
         self.root = tmp_path
         self.registry = build_default_registry(include_user_tools=False)
-        self.ctx = ToolContext(workspace_root=tmp_path)
+        self.ctx = ToolContext(workspace_root=tmp_path, permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
         yield
 
     def _dispatch(self, name: str, **input_data) -> None:

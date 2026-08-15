@@ -49,6 +49,8 @@ def apply_rules_to_context(
 
     return ToolPermissionContext(
         mode=context.mode,
+        bypass_origin=context.bypass_origin,
+        bypass_reason=context.bypass_reason,
         additional_working_directories=dict(context.additional_working_directories),
         always_allow_rules=allow_rules,
         always_deny_rules=deny_rules,

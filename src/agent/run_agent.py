@@ -160,6 +160,14 @@ def _build_permission_context(
 
     return ToolPermissionContext(
         mode=effective_mode,
+        # B7 W1 — propagate the parent's explicit bypass provenance so a
+        # subagent inheriting ``bypassPermissions`` stays justified. If the
+        # parent carries no provenance (should not happen post-W1) the
+        # subagent gets its own explicit origin so it does not silently
+        # inherit an unjustified bypass.
+        bypass_origin=parent_perm.bypass_origin or "subagent:inherit_bypass",
+        bypass_reason=parent_perm.bypass_reason
+        or "subagent inherits parent's permissive permission mode",
         additional_working_directories=parent_perm.additional_working_directories,
         always_allow_rules=parent_perm.always_allow_rules,
         always_deny_rules=parent_perm.always_deny_rules,

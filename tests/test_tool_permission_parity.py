@@ -38,7 +38,12 @@ _GATED = {
 
 def _ctx(mode: str, ws: Path) -> ToolContext:
     return ToolContext(
-        workspace_root=ws, permission_context=ToolPermissionContext(mode=mode)
+        workspace_root=ws,
+        permission_context=ToolPermissionContext(
+            mode=mode,
+            bypass_origin="test:fixture",
+            bypass_reason="test fixture",
+        ),
     )
 
 
@@ -123,7 +128,10 @@ class TestGatedToolsStillAsk(_Base):
         ctx = ToolContext(
             workspace_root=self.ws,
             permission_context=ToolPermissionContext(
-                mode="bypassPermissions", is_bypass_permissions_mode_available=True
+                mode="bypassPermissions",
+                bypass_origin="test:fixture",
+                bypass_reason="test fixture",
+                is_bypass_permissions_mode_available=True
             ),
         )
         if self.reg.get("ExitPlanMode") is not None:

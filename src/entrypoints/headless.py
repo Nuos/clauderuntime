@@ -405,15 +405,29 @@ def run_headless(options: HeadlessOptions) -> int:
     if options.skip_permissions and not is_bypass_permissions_mode_disabled():
         effective_mode: str = "bypassPermissions"
         bypass_available = True
+        bypass_origin = "cli:--dangerously-skip-permissions"
+        bypass_reason = "user explicitly skipped permission prompts via the CLI flag"
     elif options.skip_permissions:
         # C12: a disableBypassPermissionsMode lockdown overrides
         # --dangerously-skip-permissions — do NOT force bypass mode/availability
         # (TS refuses/skips), fall through to the configured mode + no bypass.
         effective_mode = options.permission_mode or "default"
         bypass_available = False
+        bypass_origin = None
+        bypass_reason = None
     else:
         effective_mode = options.permission_mode or "default"
         bypass_available = bool(options.is_bypass_permissions_mode_available)
+        bypass_origin = (
+            "cli:permission_mode=bypassPermissions"
+            if effective_mode == "bypassPermissions"
+            else None
+        )
+        bypass_reason = (
+            "user requested bypassPermissions via the permission_mode option"
+            if effective_mode == "bypassPermissions"
+            else None
+        )
 
     # Per-session abort controller. SIGINT trips this so the running
     # tool (Bash supervisor, Agent subagent) unwinds immediately rather
@@ -432,6 +446,8 @@ def run_headless(options: HeadlessOptions) -> int:
         cwd=str(workspace_root),
         mode=effective_mode,  # type: ignore[arg-type]
         is_bypass_available=bypass_available,
+        bypass_origin=bypass_origin,
+        bypass_reason=bypass_reason,
         **default_setup_paths(str(workspace_root)),
     )
     tool_context = ToolContext(

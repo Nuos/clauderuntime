@@ -34,6 +34,7 @@ import pytest
 from src.providers.base import ChatResponse
 from src.query.agent_loop_compat import run_query_as_agent_loop_sync as run_agent_loop
 from src.tool_system.context import ToolContext
+from src.permissions.types import ToolPermissionContext
 from src.tool_system.protocol import ToolResult
 from src.tool_system.registry import ToolRegistry
 from src.tool_system.build_tool import build_tool
@@ -95,7 +96,7 @@ def _patch_anthropic_check(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _make_context(workspace: Path) -> ToolContext:
-    return ToolContext(workspace_root=workspace)
+    return ToolContext(workspace_root=workspace, permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
 
 
 def _build_registry_with_blocking_tool(
@@ -305,7 +306,7 @@ def test_query_engine_plumbs_abort_controller_into_tool_context(
     """
     from src.query.engine import QueryEngine, QueryEngineConfig
 
-    context = ToolContext(workspace_root=tmp_path)
+    context = ToolContext(workspace_root=tmp_path, permission_context=ToolPermissionContext(mode="bypassPermissions", bypass_origin="test:fixture", bypass_reason="test fixture requires permissive tool context"))
     # Pre-condition: a freshly constructed context now carries a default
     # (untripped) controller from the dataclass factory. The engine must
     # OVERWRITE this with its own controller — otherwise the engine's

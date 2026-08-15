@@ -9,6 +9,7 @@ from src.agent.conversation import Conversation
 from src.providers.base import ChatResponse
 from src.tool_system.defaults import build_default_registry
 from src.tool_system.context import ToolContext
+from src.permissions.types import ToolPermissionContext
 from src.query.agent_loop_compat import run_query_as_agent_loop_sync as run_agent_loop
 from src.tool_system.renderers import AgentLoopResult
 
@@ -21,7 +22,13 @@ class TestAgentLoop(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.workspace = Path(self.temp_dir.name)
         self.registry = build_default_registry()
-        self.context = ToolContext(workspace_root=self.workspace)
+        self.context = ToolContext(
+            workspace_root=self.workspace,
+            permission_context=ToolPermissionContext(
+                mode="bypassPermissions", bypass_origin="test:fixture",
+                bypass_reason="test fixture requires permissive tool context",
+            ),
+        )
 
     def tearDown(self):
         """Clean up test fixtures."""

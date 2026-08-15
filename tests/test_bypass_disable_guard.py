@@ -124,7 +124,11 @@ class TestEndToEndEnforcement:
         mode = initial_permission_mode_from_cli(dangerously_skip_permissions=True)
         assert mode == "default"
         # and default mode does NOT bypass — the tool's own ask stands
-        ctx = ToolPermissionContext(mode=mode)
+        ctx = ToolPermissionContext(
+            mode=mode,
+            bypass_origin="test:fixture",
+            bypass_reason="test fixture",
+        )
         result = has_permissions_to_use_tool(self._mock_tool(), {}, ctx)
         assert result.behavior != "allow", "lockdown defeated — tool auto-allowed!"
 
@@ -138,7 +142,11 @@ class TestEndToEndEnforcement:
         )
         mode = initial_permission_mode_from_cli(dangerously_skip_permissions=True)
         assert mode == "bypassPermissions"
-        ctx = ToolPermissionContext(mode=mode)
+        ctx = ToolPermissionContext(
+            mode=mode,
+            bypass_origin="test:fixture",
+            bypass_reason="test fixture",
+        )
         result = has_permissions_to_use_tool(self._mock_tool(), {}, ctx)
         assert result.behavior == "allow"  # bypass still works when not disabled
 
