@@ -4,7 +4,7 @@ status: CURRENT
 owner: repository-governance
 created: 2026-08-15
 last_verified: 2026-08-15
-subject_commit: 16da0cfea98d69987739a319ff6ae42cfd432d2c
+subject_commit: a01b089b4cef06c05a941b2c0dedaa30ba02069a
 supersedes: seven-component-optimization-development-plan.md（已标 HISTORICAL）
 superseded_by: none
 

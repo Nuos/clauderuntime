@@ -1,5 +1,5 @@
 schema: 1
-subject_commit: 16da0cfea98d69987739a319ff6ae42cfd432d2c
+subject_commit: a01b089b4cef06c05a941b2c0dedaa30ba02069a
 candidates:
   - id: PERM-WEBSEARCH-AUTOALLOW
     area: permission

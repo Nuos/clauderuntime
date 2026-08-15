@@ -1,5 +1,5 @@
 schema: 1
-subject_commit: 16da0cfea98d69987739a319ff6ae42cfd432d2c
+subject_commit: a01b089b4cef06c05a941b2c0dedaa30ba02069a
 reference_id: claude-code-2.1.88-recovered-g1
 source_kind: recovered_source_map_snapshot
 repository: ChinaSiro/claude-code-sourcemap

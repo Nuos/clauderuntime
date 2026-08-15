@@ -4,8 +4,8 @@ status: FREEZE
 owner: repository-governance
 created: 2026-08-15
 last_verified: 2026-08-15
-freeze_sha: <FREEZE_SHA>
-subject_entry_commit: <FREEZE_SHA>
+freeze_sha: a01b089b4cef06c05a941b2c0dedaa30ba02069a
+subject_entry_commit: a01b089b4cef06c05a941b2c0dedaa30ba02069a
 reference_commit: a8a678cb6244e6770e1e421767ff0987a1d95549
 supersedes: B6 FUNCTIONALLY_SIMILAR_CORE_COMPLETE
 superseded_by: none
@@ -19,7 +19,7 @@ superseded_by: none
 **ARCHITECTURE_FREEZE** —— B7 最后一次架构收口完成。W0–W9 全部落地，
 Gate A–J 全部 PASS（`python scripts/check_architecture_freeze.py` → FREEZE PASS）。
 
-## 门禁结果（2026-08-15，subject `<FREEZE_SHA>`）
+## 门禁结果（2026-08-15，subject `a01b089b4cef06c05a941b2c0dedaa30ba02069a`）
 
 | Gate | 检查 | 结果 |
 |---|---|---|
@@ -47,7 +47,7 @@ Gate A–J 全部 PASS（`python scripts/check_architecture_freeze.py` → FREEZ
 | W6 | fa9f4df | Query/Server Ownership Extraction |
 | W7 | 21789fe | CI/Platform/Evidence Truth |
 | W8 | 416739a | Identity/Legacy Cleanup |
-| W9 | <FREEZE_SHA> | Freeze Gate / Baseline Lock |
+| W9 | a01b089b4cef06c05a941b2c0dedaa30ba02069a | Freeze Gate / Baseline Lock |
 
 ## Freeze 后的约束（Behavior Bible §S）
 

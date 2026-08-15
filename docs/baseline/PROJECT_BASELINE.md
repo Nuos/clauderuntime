@@ -4,7 +4,7 @@ status: CURRENT
 owner: repository-governance
 created: 2026-08-15
 last_verified: 2026-08-15
-subject_commit: 16da0cfea98d69987739a319ff6ae42cfd432d2c
+subject_commit: a01b089b4cef06c05a941b2c0dedaa30ba02069a
 reference_commit: a8a678cb6244e6770e1e421767ff0987a1d95549
 supersedes: B6 completion baseline
 superseded_by: none
