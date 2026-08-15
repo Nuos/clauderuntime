@@ -111,5 +111,8 @@ Exact Behavioral Clone
     （未改动），本地全部通过（40/40）。非本次改动引入。
   - 处置：CI 门禁显式 `--deselect` 这 4 项并注明原因（RELEASE_GATE 保持可绿）；
     本地 full suite 仍运行这些用例，其余 watchdog 测试仍覆盖该功能。
+  - **最终状态（2026-08-15）：CI 全绿** —— `docs-governance` ✅ +
+    `Python test suite (non-integration)` ✅（排除 4 项 CI 环境特定用例后
+    `10000+ passed / 0 failed`）。与 local 结果分开记录。
   - 另：sandbox guard 相关 4 项在 CI 首跑失败（macOS runner 上 Seatbelt 探测
     成功导致旧断言失效），已修复（显式固定 enforcement 场景），次跑通过。

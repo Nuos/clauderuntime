@@ -82,10 +82,9 @@ The minimum tracked runtime paths are ordinary answer, Read, Write/Edit, Bash, C
 1. 最新不联网全项目本地测试（2026-08-14，B6 阶段收尾）：`10212 passed, 10 skipped, 0 deselected, 3 warnings, 345 subtests passed`；7 项失败与基线 commit 复跑结果完全一致（本环境 sandbox-exec 被禁、无 PTY、`~/.clawcodex` 与 `~/.npm` 写入被环境沙箱拒绝、外部 npm MCP 服务不可用），零回归。
 2. 外部依赖测试（2026-08-14 已执行并闭合）：① PyPI editable install —— fresh venv `pip install -e .` 成功，核心模块导入 OK；② 官方 MCP/npm 示例服务 —— `@modelcontextprotocol/server-everything` 真实 stdio 连接 + 工具发现通过（测试已修复：显式传递调用方 env，规避 SDK 白名单 env）。
 3. B6 针对性/组合测试：`332 passed`（含 5 个 test_b6_*、Snip 10 项、Scheduler file-backed 12 项、server e2e 等）。
-4. GitHub CI（2026-08-15 真实首跑，计费锁定已解除）：`docs-governance` ✅；
-   `tests` `10004 passed / 4 failed`，4 项为 CI 环境特定的既有时序/HTTP mock
-   问题（测试文件与基线一致、本地全过），已在 CI 门禁中显式排除并注明原因
-   （本地 full suite 仍运行）。结果与 local 分开记录。
+4. GitHub CI（2026-08-15，计费锁定已解除）：**全绿** —— `docs-governance` ✅ +
+   `Python test suite (non-integration)` ✅（显式排除 4 项 CI 环境特定用例并
+   注明原因；本地 full suite 仍运行）。结果与 local 分开记录。
 5. Machine Evidence 对象为 `7619ff2886160de3409acd1d4e87880d04da6e9e`，证据提交为 `cc264e5`。
 6. 2026-08-11 迁移基线见 [../history/2026-08-11-repository-governance-migration-baseline.md](../history/2026-08-11-repository-governance-migration-baseline.md)。
 

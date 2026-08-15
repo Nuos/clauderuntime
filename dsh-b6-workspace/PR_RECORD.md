@@ -38,11 +38,13 @@
 
 ## 状态备注
 
-- GitHub CI（2026-08-15 计费锁定解除后的真实首跑）：
+- GitHub CI（2026-08-15 计费锁定解除后）：**最终全绿** ✅
   - `docs-governance` ✅（修复：空目录 .gitkeep）
-  - `tests` ⚠️ `10004 passed / 4 failed` —— 4 项为 CI 环境特定的既有时序/HTTP
-    mock 问题（stream_watchdog×2、ch04 watchdog、opencode compat），测试文件与
-    基线一致、本地全过；sandbox guard 相关 4 项首跑失败已修复并在次跑通过
+  - `Python test suite (non-integration)` ✅（排除 4 项 CI 环境特定用例：
+    stream_watchdog×2、ch04 watchdog、opencode compat —— 测试文件与基线一致、
+    本地全过；本地 full suite 仍运行）
+  - 首跑曾修复：sandbox guard 4 项（macOS runner Seatbelt 探测成功 → 测试显式
+    固定 enforcement 场景）
 - Windows/Linux 真机验证: `PENDING_REAL_DEVICE`
   （`docs/reference-differences/platform-verification.md`）。
 
