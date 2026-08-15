@@ -1,5 +1,26 @@
 """执行 `/loop`、Cron 工具和动态唤醒的会话任务调度。
 
+Reference Mapping
+-----------------
+REF Source:
+    cronScheduler.ts（file-backed scheduled_tasks.json + filesystem watcher +
+    cross-process owner takeover）
+REF Behavior:
+    调度任务持久化到磁盘，服务重启后恢复；跨进程单一 owner。
+PY Owner:
+    src/scheduled_tasks/scheduler.py::SessionCronScheduler
+PY Behavior:
+    会话内状态 + snapshot/restore + （P2 增强）可选的 file-backed 持久化
+    （``persist_path``，原子写 ``scheduled_tasks.json``）；每次变更即落盘，
+    服务重启后可跨进程恢复，无需依赖会话 resume 文件。
+Known Differences:
+    不实现 filesystem watcher 与跨进程 owner takeover（Python 单进程场景）；
+    持久化为每次变更原子写而非 watcher。
+Reason:
+    PRODUCT_SCOPE_SIMPLIFICATION + PYTHON_RUNTIME_ADAPTATION
+Functional Status:
+    FUNCTIONAL_ADAPTATION
+
 任务只在模型轮次之间触发，避免定时提示与正在执行的工具轮次交错。重复任务对错过
 的多个周期只补执行一次；普通会话型一次性任务错过后丢弃，标记为 durable 的一次
 性任务在恢复后补执行一次。所有状态读写共用同一把锁，并记录最近触发时间，供恢复
@@ -9,16 +30,23 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import logging
+import os
+import tempfile
 import threading
 import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 from src.utils.env import is_env_truthy
 
 from .cron_expr import CronExpression, describe_cron
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "CronJob",
@@ -128,6 +156,73 @@ class SessionCronScheduler:
     #: Last ScheduleWakeup action inside the current turn window — drives
     #: the fallback-wakeup decision after a wakeup-fired iteration.
     _wakeup_action: Optional[str] = None  # "set" | "stopped" | None
+    #: 可选 file-backed 持久化路径（P2 增强，DIFF-SCHED-001）：设置后每次
+    #: 变更原子写盘，服务重启后可由新进程恢复，无需依赖会话 resume 文件。
+    #: 不设置则保持纯会话内行为（向后兼容）。
+    persist_path: Optional[str] = field(default=None, repr=False, compare=False)
+
+    # ── file-backed persistence (P2 enhancement) ────────────────────────
+
+    def _persist_locked(self) -> None:
+        """原子写 snapshot 到 ``persist_path``（临时文件 + fsync + replace）。
+
+        失败只记日志，绝不阻断调度操作；写入目录按需创建。
+        """
+        if not self.persist_path:
+            return
+        target = Path(self.persist_path)
+        try:
+            payload = json.dumps(
+                self._snapshot_locked(), ensure_ascii=False, sort_keys=True
+            ).encode("utf-8")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            handle = tempfile.NamedTemporaryFile(
+                dir=str(target.parent), prefix=f".{target.name}.", delete=False
+            )
+            temporary = Path(handle.name)
+            try:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+                handle.close()
+                os.replace(temporary, target)
+            finally:
+                if not handle.closed:
+                    handle.close()
+                temporary.unlink(missing_ok=True)
+        except Exception:  # noqa: BLE001 — persistence is best-effort
+            logger.warning(
+                "[scheduler] persist failed: %s", self.persist_path, exc_info=True,
+            )
+
+    def persist(self) -> None:
+        """公开落盘入口（持锁）；供调用方在 restore 后主动同步文件。"""
+        with self._lock:
+            self._persist_locked()
+
+    def restore_persisted(self) -> int:
+        """从 ``persist_path`` 读取 snapshot 并恢复任务（规则同
+        :meth:`restore`）。文件缺失/损坏返回 0；调度禁用时返回 0。"""
+        if not self.persist_path or scheduled_tasks_disabled():
+            return 0
+        try:
+            raw = json.loads(Path(self.persist_path).read_text(encoding="utf-8"))
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            return 0
+        if not isinstance(raw, dict):
+            return 0
+        return self.restore(raw)
+
+    @classmethod
+    def from_persisted(
+        cls,
+        persist_path: str | Path,
+        **kwargs: Any,
+    ) -> "SessionCronScheduler":
+        """构造并立即从持久化文件恢复任务（若存在）。"""
+        scheduler = cls(persist_path=str(persist_path), **kwargs)
+        scheduler.restore_persisted()
+        return scheduler
 
     # ── cron jobs ───────────────────────────────────────────────────────
 
@@ -188,6 +283,7 @@ class SessionCronScheduler:
                 expires_at=(now + RECURRING_EXPIRY_SECONDS) if recurring else None,
             )
             self._jobs[job.id] = job
+            self._persist_locked()
             return job
 
     def list_jobs(self) -> list[CronJob]:
@@ -196,7 +292,10 @@ class SessionCronScheduler:
 
     def delete(self, job_id: str) -> bool:
         with self._lock:
-            return self._jobs.pop(job_id, None) is not None
+            removed = self._jobs.pop(job_id, None) is not None
+            if removed:
+                self._persist_locked()
+            return removed
 
     # ── dynamic-loop wakeup slot ────────────────────────────────────────
 
@@ -220,6 +319,7 @@ class SessionCronScheduler:
             self._wakeup = wakeup
             if not is_fallback:
                 self._wakeup_action = "set"
+            self._persist_locked()
             return wakeup
 
     def clear_wakeup(self) -> bool:
@@ -229,6 +329,8 @@ class SessionCronScheduler:
             had = self._wakeup is not None
             self._wakeup = None
             self._wakeup_action = "stopped"
+            if had:
+                self._persist_locked()
             return had
 
     def wakeup_info(self) -> Optional[PendingWakeup]:
@@ -294,17 +396,22 @@ class SessionCronScheduler:
                     recurring=job.recurring,
                     deleted=deleted,
                 ))
+            if fired:
+                self._persist_locked()
         return fired
 
     # ── snapshot / restore (TUI events + session persistence) ──────────
 
+    def _snapshot_locked(self) -> dict[str, Any]:
+        return {
+            "jobs": [job.to_dict() for job in
+                     sorted(self._jobs.values(), key=lambda j: j.created_at)],
+            "wakeup": self._wakeup.to_dict() if self._wakeup else None,
+        }
+
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
-            return {
-                "jobs": [job.to_dict() for job in
-                         sorted(self._jobs.values(), key=lambda j: j.created_at)],
-                "wakeup": self._wakeup.to_dict() if self._wakeup else None,
-            }
+            return self._snapshot_locked()
 
     def restore(self, snapshot: dict[str, Any]) -> int:
         """Re-arm persisted tasks on session resume, applying the resume

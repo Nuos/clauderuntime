@@ -46,16 +46,18 @@ items:
     python:
       file: src/services/compact/snip_compact.py
       symbol: snip_compact
-      behavior: "conservative no-op placeholder returning messages unchanged"
-    difference: "Python currently performs no historical Snip pruning."
+      behavior: "Python-native conservative Snip: trims only OLD tool results of reconstructable (read-only) tools (Read/Glob/Grep/ListDir/WebFetch/TaskOutput); conversation text, tool_use blocks, mutating-tool results and the recent keep_recent results are always kept"
+    difference: "Python implements a conservative read-only allowlist instead of the unrecovered Reference body; no historical tool result is ever dropped unless its tool can re-derive it."
     reason: RECOVERED_SOURCE_GAP
     user_impact: LOW
     safety_impact: NONE
     compatibility_impact: MEDIUM
-    status: DEFERRED_REFERENCE_DETAIL
+    status: FUNCTIONAL_ADAPTATION
     accepted: true
-    acceptance_reason: "Tool Result Budget / Microcompact / AutoCompact provide the core long-context function; Snip is not load-bearing."
+    acceptance_reason: "B6 P2 方案 B: safe Python-native Snip covers the long-context goal without inventing Reference details; mutating-tool results are never trimmed."
     tests:
+      - tests/test_snip_compact.py
+      - tests/test_compression_pipeline.py
       - tests/parity/test_compression_pipeline_parity.py
     notes: "Do not claim the Reference implementation is also a no-op."
 
@@ -126,19 +128,20 @@ items:
       certainty: PARTIAL
     python:
       file: src/scheduled_tasks/scheduler.py
-      symbol: SessionCronScheduler.snapshot / SessionCronScheduler.restore
-      behavior: "in-session state with snapshot/restore for resume; no filesystem watcher, no cross-process owner takeover"
-    difference: "Persistence and ownership architecture differ from Reference."
+      symbol: SessionCronScheduler.persist / restore_persisted / from_persisted / snapshot / restore
+      behavior: "file-backed persistence (persist_path, atomic write of scheduled_tasks.json on every mutation) + in-session state; new processes restore from the file; no filesystem watcher, no cross-process owner takeover"
+    difference: "Persistence is atomic-write-on-mutation instead of a watcher; owner takeover is single-process by scope."
     reason: PRODUCT_SCOPE_SIMPLIFICATION
     user_impact: LOW
     safety_impact: NONE
     compatibility_impact: LOW
     status: FUNCTIONAL_ADAPTATION
     accepted: true
-    acceptance_reason: "B6 Wave F4 accepts Python-native snapshot/restore; create/list/delete/recurring/one-shot/durable restore are covered."
+    acceptance_reason: "B6 P2: durable file-backed restore now covers restart without the session resume file; create/list/delete/recurring/one-shot/durable restore are covered."
     tests:
+      - tests/scheduled_tasks/test_scheduler_file_backed.py
       - tests/server/test_background_scheduler.py
-    notes: ""
+    notes: "File watcher / cross-process owner takeover remain DEFERRED_REFERENCE_DETAIL (Python single-process scope)."
 
   - id: DIFF-SANDBOX-001
     area: CCR-12

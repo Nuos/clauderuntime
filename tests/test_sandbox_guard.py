@@ -93,7 +93,12 @@ class TestGuardMapping:
 
 
 class TestValidateSettings:
-    def test_hard_gate_is_a_validation_error(self):
+    def test_hard_gate_is_a_validation_error(self, monkeypatch):
+        import src.permissions.sandbox_guard as mod
+
+        # Pin "no enforcement available" — on a machine where the Seatbelt
+        # probe succeeds the requirement is satisfiable and there is no gate.
+        monkeypatch.setattr(mod, "_enforcement_available", lambda: False)
         s = SettingsSchema.from_dict({"sandbox": {"enabled": True, "failIfUnavailable": True}})
         assert any(e.field == "sandbox" for e in validate_settings(s))
 
@@ -364,6 +369,9 @@ class TestSkillShellFailsClosed:
     the hard gate refuses it too (fail-closed)."""
 
     def test_skill_shell_refused_under_hard_gate(self, monkeypatch, tmp_path):
+        import src.permissions.sandbox_guard as mod
+
+        monkeypatch.setattr(mod, "_enforcement_available", lambda: False)
         from src.settings.types import SettingsSchema
         from src.tool_system.context import ToolContext, ToolUseOptions
         from src.tool_system.errors import ToolPermissionError
@@ -399,6 +407,9 @@ class TestEnabledPlatforms:
         from src.settings.types import SettingsSchema
 
         monkeypatch.setattr(sandbox_guard, "_current_platform", lambda: "macos")
+        # 固定“无 enforcement”：若 Seatbelt 探测成功（CI macOS runner 正是如此），
+        # 该硬门禁是可满足的，不应再断言 gate 触发。
+        monkeypatch.setattr(sandbox_guard, "_enforcement_available", lambda: False)
         s = SettingsSchema.from_dict({"sandbox": {
             "enabled": True, "failIfUnavailable": True, "enabledPlatforms": ["macos"],
         }})
@@ -409,5 +420,6 @@ class TestEnabledPlatforms:
         from src.settings.types import SettingsSchema
 
         monkeypatch.setattr(sandbox_guard, "_current_platform", lambda: "windows")
+        monkeypatch.setattr(sandbox_guard, "_enforcement_available", lambda: False)
         s = SettingsSchema.from_dict({"sandbox": {"enabled": True, "failIfUnavailable": True}})
         assert sandbox_guard.sandbox_hard_gate_error(s) is not None

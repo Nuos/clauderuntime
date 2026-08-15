@@ -93,8 +93,13 @@ class TestCompressionPipelineLayers(unittest.TestCase):
         self.assertIn("tool_result_budget", result.layers_applied)
         self.assertGreater(result.tokens_saved, 0)
 
-    def test_layer2_snip_compact_is_noop(self):
-        """Layer 2 is a no-op stub (matches TS snipCompact.ts)."""
+    def test_layer2_snip_compact_trims_old_reconstructable_results(self):
+        """Layer 2 (Snip) trims old reconstructable tool results.
+
+        B6 方案 B：Python-native 保守 Snip 只裁剪可重建的旧工具结果（默认
+        ``_make_simple_messages`` 使用只读 Read 工具）。不再是无操作占位 —
+        参考实现函数体未恢复，不能宣称“Reference 也是 no-op”。
+        """
         messages = _make_simple_messages(15)
         config = PipelineConfig(
             budget_dir=self.budget_dir,
@@ -103,7 +108,55 @@ class TestCompressionPipelineLayers(unittest.TestCase):
             mc_keep_recent=100,
         )
         result = asyncio.run(run_compression_pipeline(messages, config=config))
+        self.assertIn("snip_compact", result.layers_applied)
+        self.assertGreater(result.tokens_saved, 0)
+        # 旧 Read 结果被替换为 marker；最近 2 条保留
+        from src.services.compact.snip_compact import SNIPPED_MARKER
+
+        snipped = [
+            m for m in result.messages
+            if getattr(m, "role", None) == "user"
+            and isinstance(getattr(m, "content", None), list)
+            and any(
+                getattr(b, "content", None) == SNIPPED_MARKER
+                for b in m.content
+                if not isinstance(b, dict) or b.get("type") == "tool_result"
+            )
+        ]
+        self.assertTrue(snipped)
+        kept = [
+            m for m in result.messages
+            if getattr(m, "role", None) == "user"
+            and isinstance(getattr(m, "content", None), list)
+            and any(
+                getattr(b, "content", None) not in (None, SNIPPED_MARKER)
+                for b in m.content
+                if not isinstance(b, dict) or b.get("type") == "tool_result"
+            )
+        ]
+        self.assertEqual(len(kept), 2)
+
+    def test_layer2_snip_keeps_mutating_tool_results(self):
+        """变更类工具的结果（不可重建）不被 Snip 裁剪。"""
+        from src.services.compact.snip_compact import SNIPPED_MARKER
+
+        messages = []
+        for i in range(6):
+            messages.append(_make_assistant(f"w{i}", "Write"))
+            messages.append(_make_user_result(f"w{i}", f"side effect {i} " * 50))
+        config = PipelineConfig(
+            budget_dir=self.budget_dir,
+            max_result_tokens=999_999,
+            snip_keep_recent=1,
+            mc_keep_recent=100,
+        )
+        result = asyncio.run(run_compression_pipeline(messages, config=config))
+        # Write 结果不可重建 —— Snip 不裁剪
         self.assertNotIn("snip_compact", result.layers_applied)
+        assert all(
+            SNIPPED_MARKER not in str(getattr(m, "content", ""))
+            for m in result.messages
+        )
 
     def test_layer3_microcompact(self):
         """Layer 3 triggers when compactable tool results exist."""

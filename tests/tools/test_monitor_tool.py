@@ -191,6 +191,11 @@ class TestMonitorSafetyGuards:
                           self._ctx(tmp_path))
 
     def test_sandbox_hard_gate_refused(self, tmp_path, monkeypatch):
+        import src.permissions.sandbox_guard as mod
+
+        # 固定“无 enforcement”：CI macOS runner 上 Seatbelt 探测成功时该硬门禁
+        # 可满足、不触发；本用例锁定 enforcement 不可用时的拒绝路径。
+        monkeypatch.setattr(mod, "_enforcement_available", lambda: False)
         from src.settings.types import SettingsSchema
         from src.tool_system.errors import ToolPermissionError
         from src.tool_system.tools.monitor import _monitor_call
