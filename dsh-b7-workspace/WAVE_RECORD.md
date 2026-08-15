@@ -170,8 +170,20 @@
 - unchanged semantics：deselect 结果与之前手写完全一致（5 项逐一验证）
 - rollback：回退本提交即可
 
-## W8 — Identity / Legacy Cleanup ⏳
+## W8 — Identity / Legacy Cleanup ✅（2026-08-15）
 
-## W8 — Identity / Legacy Cleanup ⏳
+- pyproject URLs：`agentforce314/clawcodex` → `Nuos/clauderuntime`（canonical identity；
+  CLI/distribution 名 `clawcodex` 保留为产品身份）。
+- `src/cli_backup`：zero-ref 证明（src/tests 无任何 import/字符串/importlib 引用；
+  仅 sourcemap 历史分析文档提及）→ 移出包至 `archive/legacy-src/cli_backup`
+  （不可再被 import 为 src.cli_backup）；deprecation-plan 标记 resolved_w8。
+- docs/README.md：新增 Current Deliverables（B7）+ Historical Deliverables
+  （B3–B6 标 HISTORICAL/SUPERSEDED）。
+- 测试：tests/test_b7_identity_legacy.py 5 项（URL、CLI 入口、zero-ref、归档存在）。
+
+### changed owner / unchanged semantics / rollback
+- changed owner：项目 identity URLs；cli_backup 移出包
+- unchanged semantics：CLI 名与入口不变；无运行时代码改动
+- rollback：回退本提交即可
 
 ## W9 — Freeze Gate / Baseline Lock ⏳
