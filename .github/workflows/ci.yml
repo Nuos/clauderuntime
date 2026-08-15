@@ -43,9 +43,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.dev.txt
       - name: Run test suite
-        # 排除 4 项已知 CI 环境特定用例（本地全部通过，测试文件与基线一致，
+        # 排除已知 CI 环境特定用例（本地全部通过，测试文件与基线一致，
         # 见 docs/progress/2026/2026-08-14-b6-completion-checklist.md 剩余/阻塞节）：
-        # - stream_watchdog ×2 + ch04 watchdog：threading.Timer 时序敏感，CI 负载下波动
+        # - stream_watchdog ×2 + ch04 TestWatchdogWarning ×2（test_half_time_... /
+        #   test_reset_before_half_time_...）：time.sleep 精确断言 threading.Timer
+        #   计时，CI 负载下抖动
         # - opencode compat：httpx mock 在 CI 环境行为不同
         # 其余 watchdog 测试仍覆盖该功能；本地 full suite 仍运行这些用例。
         run: >-
@@ -53,4 +55,5 @@ jobs:
           --deselect tests/test_stream_watchdog.py::TestStreamWatchdogFires::test_reset_pushes_deadline_forward
           --deselect tests/test_stream_watchdog.py::TestPingAwareLiveness::test_byte_progress_prevents_fire
           --deselect tests/test_ch04_api_round4.py::TestWatchdogWarning::test_half_time_warning_fires_once_and_reset_cancels
+          --deselect tests/test_ch04_api_round4.py::TestWatchdogWarning::test_reset_before_half_time_prevents_warning
           --deselect tests/test_opencode_compat_providers.py::test_xai_requests_go_to_chat_completions
