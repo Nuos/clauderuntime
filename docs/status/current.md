@@ -3,7 +3,7 @@
 status: CURRENT
 owner: repository-governance
 created: 2026-08-13
-last_verified: 2026-08-14
+last_verified: 2026-08-15
 reference_target: Claude Code v2.1.88 analysis baseline
 evidence_subject_commit: 7619ff2886160de3409acd1d4e87880d04da6e9e
 supersedes: none
@@ -24,6 +24,9 @@ B6 起采用“分级 Reference 对齐”口径（`docs/reference-differences/re
   （sandbox guard 能力感知、MCP 断开 stale 工具清理）、P1（新进程 Resume smoke、
   Linux/Windows 最低隔离、Surface smoke）、P2（Python-native Snip、
   Scheduler file-backed 持久化）。
+- **全部已并入 main**（2026-08-15）：PR #2（合并提交 `7ca77c0`）+
+  PR #3（合并提交 `ff2ce32`，合并前 CI 全绿、CLEAN）。B6 代码、配置、
+  说明文档均已在主仓库 main 分支。
 - 完成度核对见
   `docs/progress/2026/2026-08-14-b6-completion-checklist.md`：
   结论 `FUNCTIONALLY_SIMILAR_CORE_COMPLETE`（不表示 Source-Aligned / 1:1 Compatible）。
@@ -73,7 +76,7 @@ The minimum tracked runtime paths are ordinary answer, Read, Write/Edit, Bash, C
 3. CLI、TUI、Desktop、IDE 全 Surface runtime differential → B6 改为每 Surface
    smoke compatibility（已实现）。
 4. current-HEAD GitHub CI → `.github/workflows/ci.yml` 已配置（RELEASE_GATE），
-   首跑结果待记录。
+   结果已记录并**全绿**（见"当前验证"第 4 条）。
 5. Snip 参考实现函数体恢复 → Python-native 保守 Snip 已实现（DIFF-CCR03-001）；
    参考函数体本身仍 `R2_PARTIALLY_CONFIRMED`（未伪造）。
 

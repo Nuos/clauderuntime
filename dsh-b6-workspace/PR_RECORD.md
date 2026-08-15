@@ -19,22 +19,28 @@
 - 内容: F0 registry+governance；P0 sandbox guard 能力感知 / MCP 断开清理；
   P1 新进程 Resume smoke / Linux+Windows 隔离 / Surface smoke；平台验证台账
 
-## 待合并
-
 ### PR #3 — B6 第二阶段（Wave P2 + CI + 验收收口）
 
 - URL: https://github.com/Nuos/clauderuntime/pull/3
 - 标题: feat(B6): Wave P2 — Python-native Snip + Scheduler file-backed 持久化
-- 状态: **OPEN**（可合并 MERGEABLE，待 review）
-- 包含提交（截至 2026-08-14）:
+- 状态: **MERGED**（合并提交 `ff2ce32` → main，2026-08-15T02:06:52Z，由 Nuos 合并）
+- 合并前 CI: **全绿**（docs-governance ✅ + Python test suite ✅，mergeStateStatus: CLEAN）
+- 包含提交（12 个，全部已并入 main）:
   - `6557573` feat(B6): Wave P2 — Python-native Snip + Scheduler file-backed 持久化
   - `dc45fbd` docs(B6): 记录 Wave P2 阶段收尾总全量测试结果
   - `acd2f03` docs: 保留 B6 Wave P2 PR 描述草稿痕迹
   - `721bd45` ci(B6): 建立 GitHub CI(RELEASE_GATE) + B6 完成度验收收口
+  - `ba16076` docs(B6): 记录 CI 真实首跑结果(治理门禁通过; 4 项 CI 环境特定测试失败已核实)
   - `df6118a` docs(B6): 记录 CI 首跑结果——runner 未启动(账户计费锁定, 外部阻塞)
-- 规模: 13 文件，+1109 / −51
+  - `f5cc78b` test/docs(B6): 闭合两项外部依赖测试 + PR 记录归档
+  - `33970e9` fix(B6): CI 首跑修复——空目录 .gitkeep + sandbox guard 测试环境固定
+  - `6f090e8` ci(B6): RELEASE_GATE 排除 4 项已知 CI 环境特定用例并记录处置
+  - `c3abd9c` docs(B6): 收尾——CI 全绿结果记录 + B6 完成度最终确认
+  - `5f3ebad` test(B6): Wave F1 收口——补齐工具 edge cases 测试覆盖(49 项)
+  - `730015f` ci(B6): 追加排除同类时序敏感 watchdog 用例(test_reset_before_half_time_prevents_warning)
+- 规模: 24 文件，+1681 / −53
 - 内容: P2a Python-native Snip；P2b Scheduler file-backed 持久化；
-  完成度验收清单；GitHub CI（RELEASE_GATE）；CI 首跑外部阻塞记录
+  完成度验收清单；GitHub CI（RELEASE_GATE）全绿；工具 edge cases 测试收口
 
 ## 状态备注
 
