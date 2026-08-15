@@ -361,120 +361,60 @@ def _yield_missing_tool_result_blocks(
 
 
 
-_THINKING_ELIGIBLE_MODEL_PATTERN = re.compile(
-    r"claude-(?:sonnet|opus|haiku|fable)-(?:4-\d+|[5-9]\b|\d{2,})",
-    re.IGNORECASE,
-)
+# B7 W6 — capability allowlists moved to the single owner
+# ``src.runtime.model_capability_resolver``; the predicates below are thin
+# delegates so every caller keeps its signature and the allowlists live in
+# exactly one place.
 
 
 def _model_supports_extended_thinking(model: str | None) -> bool:
     """True iff the model supports extended thinking at all (any type).
 
-    Thinking was introduced with the Claude 4 series — the Anthropic API
-    rejects any ``thinking`` param on 3.x and earlier. On the first-party
-    endpoint every Claude 4+ model (Sonnet, Opus, AND Haiku 4.5) supports
-    thinking (TS ``modelSupportsThinking``, thinking.ts:117-148, firstParty
-    branch). Detection is by name pattern so unreleased snapshots
-    (e.g. ``claude-opus-4-7-20260201``) opt in automatically.
-
-    NOTE: supporting thinking does NOT imply supporting the *adaptive*
-    thinking type — that's the narrower :func:`_model_supports_adaptive_thinking`
-    allowlist. Models here that aren't adaptive-capable take a token budget
-    instead (see the caller in ``_call_model_sync``).
+    Delegates to :class:`ModelCapabilityResolver` (single owner for model
+    capability allowlists, B7 W6). See the resolver module docstring for the
+    allowlist semantics (first-party Claude 4+ by name pattern).
     """
-    if not model:
-        return False
-    return bool(_THINKING_ELIGIBLE_MODEL_PATTERN.search(model))
+    from ..runtime.model_capability_resolver import resolve_model_capabilities
+
+    return resolve_model_capabilities(None, model).extended_thinking
 
 
 def _model_supports_adaptive_thinking(model: str | None) -> bool:
     """True iff the model supports the *adaptive* thinking type.
 
-    Only a subset of Claude 4 models accept ``thinking={"type": "adaptive"}``;
-    the rest support thinking only with an explicit ``budget_tokens``. Sending
-    adaptive to a non-adaptive model is rejected with HTTP 400 "adaptive
-    thinking is not supported on this model". Allowlist ported from TS
-    ``modelSupportsAdaptiveThinking`` (thinking.ts:152-169): Opus 4.6/4.7
-    and Sonnet 4.6; extended with Opus 4.8, Opus 5 and Fable 5, where
-    adaptive is the ONLY accepted thinking config — the budget fallback
-    below would be a hard 400 on them (``budget_tokens`` is removed on
-    4.7+; Fable 5 also rejects ``{"type": "disabled"}``, and accepts
-    adaptive or an omitted param). On Opus 5 thinking is ON by default, so
-    ``{"type": "adaptive"}`` is equivalent to omitting the param; the one
-    combination it rejects is ``{"type": "disabled"}`` at effort xhigh/max,
-    which this code never emits (it sends adaptive or budget, never
-    disabled). Substring match mirrors the reference's ``.includes()`` so
-    dated snapshots (``claude-sonnet-4-6-20250929``) match.
+    Delegates to :class:`ModelCapabilityResolver` (single owner, B7 W6); the
+    adaptive allowlist (Opus 4.6/4.7/4.8, Opus 5, Sonnet 4.6, Fable 5) lives
+    in ``src/runtime/model_capability_resolver.py``.
     """
-    if not model:
-        return False
-    m = model.lower()
-    return (
-        "fable-5" in m
-        or "opus-5" in m
-        or "opus-4-8" in m
-        or "opus-4-7" in m
-        or "opus-4-6" in m
-        or "sonnet-4-6" in m
-    )
+    from ..runtime.model_capability_resolver import resolve_model_capabilities
+
+    return resolve_model_capabilities(None, model).adaptive_thinking
 
 
 def _model_supports_effort(model: str | None) -> bool:
     """True iff the model accepts ``output_config={"effort": ...}``.
 
-    Narrower than thinking support — Opus 4.6/4.8, Opus 5, Sonnet 4.6, and
-    Fable 5 (TS ``modelSupportsEffort``, effort.ts:32-51, plus the
-    4.8/Fable/Opus-5 additions where effort is GA). Sending effort to a
-    model that doesn't support it is rejected, so the caller gates on this
-    independently of the thinking type. Being absent here is silent, not
-    fatal: the request succeeds with the API's own default effort and a
-    requested ``--effort`` is dropped on the floor — which is why a new
-    effort-capable model has to be added here, not just to the thinking
-    allowlist.
+    Delegates to :class:`ModelCapabilityResolver` (single owner, B7 W6); the
+    effort allowlist (Opus 4.6/4.8, Opus 5, Sonnet 4.6, Fable 5) lives in
+    ``src/runtime/model_capability_resolver.py``.
     """
-    if not model:
-        return False
-    m = model.lower()
-    return (
-        "fable-5" in m
-        or "opus-5" in m
-        or "opus-4-8" in m
-        or "opus-4-6" in m
-        or "sonnet-4-6" in m
-    )
+    from ..runtime.model_capability_resolver import resolve_model_capabilities
+
+    return resolve_model_capabilities(None, model).effort_supported
 
 
 def _model_supports_xhigh_effort(model: str | None) -> bool:
     """True iff the model accepts ``output_config={"effort": "xhigh"}``.
 
-    The Claude effort ladder is low|medium|high|xhigh|max, but ``xhigh``
-    acceptance is model-dependent. Wire-probed on the first-party API
-    2026-07-18: opus-4-8 accepts it; sonnet-4-6 and opus-4-6 reject it with
-    400 "This model does not support effort level 'xhigh'. Supported
-    levels: high, low, max, medium" — note the same error confirms ``max``
-    is broadly accepted, so only ``xhigh`` needs gating (the vendored TS
-    snapshot's opus-4-6-only ``modelSupportsMaxEffort`` predates this).
-    Fable 5 is included by analogy with opus-4-8 (Claude Code exposes the
-    full ladder on it; unprobed — subscription plans don't carry it).
-    Opus 5 carries the full ladder (low|medium|high|xhigh|max), with xhigh
-    the recommended setting for coding/agentic work — wire-probed
-    2026-07-25 over subscription OAuth: ``claude-opus-5`` + adaptive
-    thinking accepts both ``xhigh`` and ``max`` (200, ``stop_reason:
-    end_turn``).
-
-    Note which direction is safe: an entry MISSING from this allowlist is
-    harmless to the REQUEST (resolve_thinking_effort clamps xhigh to high)
-    though a requested xhigh is then silently downgraded — the same quiet
-    failure the effort allowlist above warns about. A WRONG entry is
-    outright fatal: being listed here sends xhigh to the wire, and a 400
-    on the effort level is not retried or downgraded anywhere, so every
-    request fails. Add a model here on documentation or a probe, never on
-    the theory that a bad guess degrades gracefully.
+    Delegates to :class:`ModelCapabilityResolver` (single owner, B7 W6); the
+    xhigh allowlist (Opus 4.8, Opus 5, Fable 5) lives in
+    ``src/runtime/model_capability_resolver.py``. The safety direction is
+    unchanged: a MISSING entry clamps xhigh→high (silent downgrade), a WRONG
+    entry sends xhigh to the wire and hard-fails every request.
     """
-    if not model:
-        return False
-    m = model.lower()
-    return "opus-5" in m or "opus-4-8" in m or "fable-5" in m
+    from ..runtime.model_capability_resolver import resolve_model_capabilities
+
+    return resolve_model_capabilities(None, model).xhigh_effort
 
 
 # Kept in sync with settings.constants.VALID_EFFORT_VALUES (minus the empty

@@ -256,6 +256,50 @@ class _AgentSession:
     # post-turn push only re-emits when the state actually changed.
     _cron_push_json: str = ""
 
+    # B7 W6 — ownership facades (decomposition boundary; NO wire-protocol
+    # change). Lazy-built on first access so the dataclass default machinery
+    # never touches cross-field references; see ``facades()``.
+    _facades: Any = field(default=None, init=False)
+
+    # ─── B7 W6: typed session facades ────────────────────────────────────
+    def facades(self) -> "Any":
+        """The session's typed sub-objects (src/runtime/server_session_facades.py).
+
+        Splits the God-Session's lifecycle concerns — permission roundtrip,
+        surface emission, scheduler, read-side state — into explicit facades
+        without moving any logic or changing the wire protocol. Tests can
+        target one facade instead of "one change affecting the whole session".
+        """
+        if self._facades is None:
+            from src.runtime.server_session_facades import (
+                PermissionBridge,
+                SchedulerBridge,
+                ServerSessionFacades,
+                SessionState,
+                SurfaceEmitter,
+            )
+
+            def _messages() -> list:
+                session = getattr(self, "session", None)
+                if session is None:
+                    return []
+                return list(getattr(session, "conversation", None).messages or [])
+
+            self._facades = ServerSessionFacades(
+                permission_bridge=PermissionBridge(
+                    ask_handler=getattr(self, "permission_handler", None),
+                    pending_requests=getattr(self, "_pending", None) or {},
+                ),
+                surface_emitter=SurfaceEmitter(emit=self._emit),
+                scheduler_bridge=SchedulerBridge(scheduler=self.cron_scheduler),
+                session_state=SessionState(
+                    app_state=self.app_state_store,
+                    messages=_messages,
+                    stats={"turns": self._stats_turns},
+                ),
+            )
+        return self._facades
+
     # Worker + cross-thread coordination.
     _inbox: _queue.Queue = field(default_factory=_queue.Queue)
     _worker: threading.Thread | None = None
