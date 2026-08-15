@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>command_system 源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-r7-r5-ccr-14-映射-启发式初版" data-nav>5. R7/R5/CCR-14 映射（启发式初版）</a></li>
+<li><a href="#6-文件级映射细分" data-nav>6. 文件级映射细分</a></li>
+<li><a href="#7-未确认项与待核实项" data-nav>7. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>command_system 源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">09</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260815_0013</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="command-system-源码盘点">command_system 源码盘点</h1>
+<blockquote>
+<p>编号: 09</p>
+<p>时间戳: 20260815_0013</p>
+<p>基线: def709361a86</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>类型: package（目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: command_system</li>
+<li>类型: package（目录模块）</li>
+<li>Python 文件数: 38</li>
+<li>总行数: 8250</li>
+<li>依赖的 src 内部模块: context_system, cost_tracker, history, providers, skills, utils</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">command_system/__init__.py</code> — 218 行（类 0，函数 0）</li>
+<li><code class="inline-code">command_system/aggregator.py</code> — 261 行（类 0，函数 7）</li>
+<li><code class="inline-code">command_system/argument_substitution.py</code> — 120 行（类 0，函数 2）</li>
+<li><code class="inline-code">command_system/buddy_command.py</code> — 194 行（类 0，函数 7）</li>
+<li><code class="inline-code">command_system/builtins.py</code> — 1601 行（类 0，函数 26）</li>
+<li><code class="inline-code">command_system/copy_command.py</code> — 319 行（类 2，函数 13）</li>
+<li><code class="inline-code">command_system/diff_command.py</code> — 87 行（类 1，函数 2）</li>
+<li><code class="inline-code">command_system/doctor_command.py</code> — 88 行（类 1，函数 1）</li>
+<li><code class="inline-code">command_system/eco_command.py</code> — 100 行（类 0，函数 2）</li>
+<li><code class="inline-code">command_system/effort_command.py</code> — 270 行（类 1，函数 7）</li>
+<li><code class="inline-code">command_system/engine.py</code> — 341 行（类 2，函数 1）</li>
+<li><code class="inline-code">command_system/export_command.py</code> — 269 行（类 1，函数 6）</li>
+<li><code class="inline-code">command_system/fusion_command.py</code> — 179 行（类 0，函数 5）</li>
+<li><code class="inline-code">command_system/input_processing.py</code> — 935 行（类 2，函数 19）</li>
+<li><code class="inline-code">command_system/logo_command.py</code> — 103 行（类 1，函数 2）</li>
+<li><code class="inline-code">command_system/mcp_command.py</code> — 111 行（类 1，函数 2）</li>
+<li><code class="inline-code">command_system/memory_command.py</code> — 218 行（类 1，函数 4）</li>
+<li><code class="inline-code">command_system/model_command.py</code> — 189 行（类 1，函数 7）</li>
+<li><code class="inline-code">command_system/moved_to_plugin.py</code> — 90 行（类 1，函数 2）</li>
+<li><code class="inline-code">command_system/output_style_command.py</code> — 52 行（类 1，函数 0）</li>
+<li><code class="inline-code">command_system/permissions_command.py</code> — 141 行（类 1，函数 1）</li>
+<li><code class="inline-code">command_system/registry.py</code> — 196 行（类 1，函数 6）</li>
+<li><code class="inline-code">command_system/release_notes_command.py</code> — 56 行（类 0，函数 1）</li>
+<li><code class="inline-code">command_system/rename_command.py</code> — 144 行（类 1，函数 2）</li>
+<li><code class="inline-code">command_system/resume_command.py</code> — 101 行（类 1，函数 1）</li>
+<li><code class="inline-code">command_system/safe_commands.py</code> — 66 行（类 0，函数 2）</li>
+<li><code class="inline-code">command_system/security_review.py</code> — 252 行（类 0，函数 1）</li>
+<li><code class="inline-code">command_system/shell_prompt.py</code> — 122 行（类 0，函数 2）</li>
+<li><code class="inline-code">command_system/skills_integration.py</code> — 210 行（类 0，函数 6）</li>
+<li><code class="inline-code">command_system/statusline.py</code> — 58 行（类 1，函数 0）</li>
+<li><code class="inline-code">command_system/stickers_command.py</code> — 34 行（类 0，函数 1）</li>
+<li><code class="inline-code">command_system/tasks_command.py</code> — 72 行（类 1，函数 2）</li>
+<li><code class="inline-code">command_system/theme_command.py</code> — 125 行（类 1，函数 2）</li>
+<li><code class="inline-code">command_system/types.py</code> — 439 行（类 15，函数 3）</li>
+<li><code class="inline-code">command_system/vim_command.py</code> — 58 行（类 0，函数 2）</li>
+<li><code class="inline-code">command_system/vision_command.py</code> — 155 行（类 0，函数 3）</li>
+<li><code class="inline-code">command_system/workflows_command.py</code> — 92 行（类 1，函数 1）</li>
+<li><code class="inline-code">command_system/workflows_integration.py</code> — 184 行（类 0，函数 7）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">command_system/__init__.py</code></li>
+<li>文件 <code class="inline-code">command_system/aggregator.py</code></li>
+<li>函数 _builtin_plugin_skill_commands — L52</li>
+<li>函数 _load_skill_commands_cached — L69</li>
+<li>函数 _load_workflow_commands_cached — L88</li>
+<li>函数 get_commands — L102</li>
+<li>函数 get_skill_tool_commands — L155</li>
+<li>函数 get_slash_command_tool_skills — L203</li>
+<li>函数 clear_commands_cache — L245</li>
+<li>文件 <code class="inline-code">command_system/argument_substitution.py</code></li>
+<li>函数 substitute_arguments — L14</li>
+<li>函数 parse_argument_names — L86</li>
+<li>文件 <code class="inline-code">command_system/buddy_command.py</code></li>
+<li>函数 _fnv1a_32 — L61</li>
+<li>函数 _pick_deterministic — L69</li>
+<li>函数 _title_case — L73</li>
+<li>函数 _save_companion — L77</li>
+<li>函数 _set_companion_muted — L83</li>
+<li>函数 buddy_command_call — L87</li>
+<li>函数 is_buddy_command_enabled — L179</li>
+<li>文件 <code class="inline-code">command_system/builtins.py</code></li>
+<li>函数 clear_command_call — L151</li>
+<li>函数 help_command_call — L188</li>
+<li>函数 skills_command_call — L225</li>
+<li>函数 exit_command_call — L263</li>
+<li>函数 cost_command_call — L280</li>
+<li>函数 context_command_call — L333</li>
+<li>函数 _compact_async — L430</li>
+<li>函数 _read_current_advisor_model — L491</li>
+<li>函数 _write_advisor_model — L516</li>
+<li>函数 _read_current_advisor_provider — L549</li>
+<li>函数 _write_advisor_provider — L567</li>
+<li>函数 _list_configured_providers — L592</li>
+<li>函数 _read_current_advisor_client_mode — L608</li>
+<li>函数 _write_advisor_client_mode — L625</li>
+<li>函数 _read_current_advisor_enabled — L646</li>
+<li>函数 _write_advisor_enabled — L662</li>
+<li>函数 _valid_advisor_efforts — L691</li>
+<li>函数 _read_current_advisor_effort — L699</li>
+<li>函数 _write_advisor_effort — L714</li>
+<li>函数 advisor_command_call — L730</li>
+<li>函数 compact_command_call — L1171</li>
+<li>函数 _sync_compact_fallback — L1198</li>
+<li>函数 execute_command_sync — L1435</li>
+<li>函数 get_builtin_commands — L1487</li>
+<li>函数 register_builtin_commands — L1548</li>
+<li>函数 execute_command_async — L1560</li>
+<li>文件 <code class="inline-code">command_system/copy_command.py</code></li>
+<li>类 CodeBlock — L63</li>
+<li>类 CopyCommand — L220</li>
+<li>函数 _strip_prompt_xml_tags — L53</li>
+<li>函数 _copy_dir — L58</li>
+<li>函数 _extract_code_blocks — L68</li>
+<li>函数 _message_role — L97</li>
+<li>函数 _message_text — L103</li>
+<li>函数 collect_recent_assistant_texts — L124</li>
+<li>函数 _file_extension — L139</li>
+<li>函数 _truncate_line — L148</li>
+<li>函数 _set_clipboard — L157</li>
+<li>函数 _write_to_file — L177</li>
+<li>函数 _copy_or_write — L185</li>
+<li>函数 _copy_full_response_enabled — L206</li>
+<li>函数 _persist_copy_full_response — L212</li>
+<li>文件 <code class="inline-code">command_system/diff_command.py</code></li>
+<li>类 DiffCommand — L49</li>
+<li>函数 _cap — L29</li>
+<li>函数 _section — L41</li>
+<li>文件 <code class="inline-code">command_system/doctor_command.py</code></li>
+<li>类 DoctorCommand — L70</li>
+<li>函数 build_doctor_report — L26</li>
+<li>文件 <code class="inline-code">command_system/eco_command.py</code></li>
+<li>函数 _status_text — L41</li>
+<li>函数 eco_command_call — L62</li>
+<li>文件 <code class="inline-code">command_system/effort_command.py</code></li>
+<li>类 EffortCommand — L187</li>
+<li>函数 _valid_options_str — L93</li>
+<li>函数 _invalid_msg — L100</li>
+<li>函数 _levels — L119</li>
+<li>函数 _settings_effort — L130</li>
+<li>函数 _current_effort — L138</li>
+<li>函数 _effort_options — L143</li>
+<li>函数 _show_current — L178</li>
+<li>文件 <code class="inline-code">command_system/engine.py</code></li>
+<li>类 CommandResult — L30</li>
+<li>类 CommandEngine — L95</li>
+<li>函数 create_command_context — L290</li>
+<li>文件 <code class="inline-code">command_system/export_command.py</code></li>
+<li>类 ExportCommand — L153</li>
+<li>函数 format_timestamp — L78</li>
+<li>函数 _message_type — L83</li>
+<li>函数 _block_text — L89</li>
+<li>函数 extract_first_prompt — L95</li>
+<li>函数 sanitize_filename — L132</li>
+<li>函数 _default_filename — L142</li>
+<li>文件 <code class="inline-code">command_system/fusion_command.py</code></li>
+<li>函数 _list_text — L43</li>
+<li>函数 _create — L63</li>
+<li>函数 _delete — L108</li>
+<li>函数 _set_enabled — L120</li>
+<li>函数 fusion_command_call — L135</li>
+<li>文件 <code class="inline-code">command_system/input_processing.py</code></li>
+<li>类 ParsedInput — L64</li>
+<li>类 InputHistory — L802</li>
+<li>函数 parse_user_input — L77</li>
+<li>函数 _extract_file_mentions — L130</li>
+<li>函数 _extract_urls — L162</li>
+<li>函数 _detect_bom_encoding — L226</li>
+<li>函数 _looks_like_binary — L234</li>
+<li>函数 _decoded_text_looks_garbled — L279</li>
+<li>函数 _read_text_with_encoding — L314</li>
+<li>函数 _binary_hint_for_ext — L363</li>
+<li>函数 _try_build_image_attachment — L380</li>
+<li>函数 _get_read_max_output_tokens — L472</li>
+<li>函数 expand_at_mentions — L490</li>
+<li>函数 format_at_mention_attachments — L631</li>
+<li>函数 build_image_content_blocks — L690</li>
+<li>函数 expand_agent_mentions — L721</li>
+<li>函数 _extract_image_paths — L768</li>
+<li>函数 validate_input — L783</li>
+<li>函数 is_multiline_trigger — L862</li>
+<li>函数 is_multiline_complete — L877</li>
+<li>函数 suggest_commands — L909</li>
+<li>文件 <code class="inline-code">command_system/logo_command.py</code></li>
+<li>类 LogoCommand — L72</li>
+<li>函数 _current_logo — L47</li>
+<li>函数 _logo_options — L57</li>
+<li>文件 <code class="inline-code">command_system/mcp_command.py</code></li>
+<li>类 McpCommand — L82</li>
+<li>函数 _collect_mcp_servers — L37</li>
+<li>函数 _status_summary — L67</li>
+<li>文件 <code class="inline-code">command_system/memory_command.py</code></li>
+<li>类 MemoryCommand — L184</li>
+<li>函数 _display_path — L44</li>
+<li>函数 _resolve_project_memory_path — L60</li>
+<li>函数 build_memory_options — L78</li>
+<li>函数 _ensure_file — L165</li>
+<li>文件 <code class="inline-code">command_system/model_command.py</code></li>
+<li>类 ModelCommand — L129</li>
+<li>函数 _canonical — L67</li>
+<li>函数 _label — L75</li>
+<li>函数 _list_models — L83</li>
+<li>函数 _options — L93</li>
+<li>函数 _effort_suffix — L100</li>
+<li>函数 _show_current — L111</li>
+<li>函数 _apply — L119</li>
+<li>文件 <code class="inline-code">command_system/moved_to_plugin.py</code></li>
+<li>类 MovedToPluginCommand — L38</li>
+<li>函数 _moved_to_plugin_text — L23</li>
+<li>函数 create_moved_to_plugin_command — L71</li>
+<li>文件 <code class="inline-code">command_system/output_style_command.py</code></li>
+<li>类 OutputStyleCommand — L33</li>
+<li>文件 <code class="inline-code">command_system/permissions_command.py</code></li>
+<li>类 PermissionsCommand — L79</li>
+<li>函数 _option_for — L48</li>
+<li>文件 <code class="inline-code">command_system/registry.py</code></li>
+<li>类 CommandRegistry — L16</li>
+<li>函数 get_command_registry — L166</li>
+<li>函数 register_command — L171</li>
+<li>函数 get_command — L176</li>
+<li>函数 has_command — L181</li>
+<li>函数 list_commands — L186</li>
+<li>函数 find_commands — L194</li>
+<li>文件 <code class="inline-code">command_system/release_notes_command.py</code></li>
+<li>函数 release_notes_call — L20</li>
+<li>文件 <code class="inline-code">command_system/rename_command.py</code></li>
+<li>类 RenameCommand — L114</li>
+<li>函数 _conversation_text — L55</li>
+<li>函数 _generate_session_name — L81</li>
+<li>文件 <code class="inline-code">command_system/resume_command.py</code></li>
+<li>类 ResumeCommand — L57</li>
+<li>函数 _list_resumable — L32</li>
+<li>文件 <code class="inline-code">command_system/safe_commands.py</code></li>
+<li>函数 is_bridge_safe_command — L35</li>
+<li>函数 filter_commands_for_remote_mode — L58</li>
+<li>文件 <code class="inline-code">command_system/security_review.py</code></li>
+<li>函数 _security_review_private_prompt — L219</li>
+<li>文件 <code class="inline-code">command_system/shell_prompt.py</code></li>
+<li>函数 execute_shell_commands_in_prompt — L39</li>
+<li>函数 make_bash_shell_executor — L74</li>
+<li>文件 <code class="inline-code">command_system/skills_integration.py</code></li>
+<li>函数 skill_to_prompt_command — L28</li>
+<li>函数 register_skill_as_command — L76</li>
+<li>函数 load_and_register_skills — L91</li>
+<li>函数 get_skill_command — L155</li>
+<li>函数 load_skill_from_directory — L171</li>
+<li>函数 execute_skill_command — L189</li>
+<li>文件 <code class="inline-code">command_system/statusline.py</code></li>
+<li>类 StatuslineCommand — L29</li>
+<li>文件 <code class="inline-code">command_system/stickers_command.py</code></li>
+<li>函数 stickers_command_call — L14</li>
+<li>文件 <code class="inline-code">command_system/tasks_command.py</code></li>
+<li>类 TasksCommand — L40</li>
+<li>函数 _coerce — L26</li>
+<li>函数 _format_task — L33</li>
+<li>文件 <code class="inline-code">command_system/theme_command.py</code></li>
+<li>类 ThemeCommand — L87</li>
+<li>函数 _current_theme — L63</li>
+<li>函数 _theme_options — L75</li>
+<li>文件 <code class="inline-code">command_system/types.py</code></li>
+<li>类 CommandType — L19</li>
+<li>类 CommandAvailability — L31</li>
+<li>类 CompactionResult — L38</li>
+<li>类 LocalCommandResult — L48</li>
+<li>类 CommandContext — L57</li>
+<li>类 CommandBase — L97</li>
+<li>类 PromptCommand — L128</li>
+<li>类 SkillPromptCommand — L163</li>
+<li>类 LocalCommand — L230</li>
+<li>类 UIOption — L263</li>
+<li>类 InteractiveUnavailableError — L276</li>
+<li>类 UIHost — L283</li>
+<li>类 NullUIHost — L331</li>
+<li>类 InteractiveOutcome — L365</li>
+<li>类 InteractiveCommand — L388</li>
+<li>函数 get_command_name — L415</li>
+<li>函数 is_command_enabled — L420</li>
+<li>函数 meets_availability_requirement — L425</li>
+<li>文件 <code class="inline-code">command_system/vim_command.py</code></li>
+<li>函数 initial_vim_mode — L18</li>
+<li>函数 vim_command_call — L29</li>
+<li>文件 <code class="inline-code">command_system/vision_command.py</code></li>
+<li>函数 _configured_providers — L30</li>
+<li>函数 _text — L43</li>
+<li>函数 vision_command_call — L47</li>
+<li>文件 <code class="inline-code">command_system/workflows_command.py</code></li>
+<li>类 WorkflowsCommand — L65</li>
+<li>函数 render_workflows_report — L31</li>
+<li>文件 <code class="inline-code">command_system/workflows_integration.py</code></li>
+<li>函数 _directive — L30</li>
+<li>函数 _workflow_to_command — L45</li>
+<li>函数 _deep_research_command — L65</li>
+<li>函数 bundled_workflow_commands — L84</li>
+<li>函数 _discover_dir — L107</li>
+<li>函数 load_workflow_commands — L121</li>
+<li>函数 load_and_register_workflows — L144</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>command_system/__init__.py → import src（外部）</li>
+<li>command_system/__init__.py → import command_system（外部）</li>
+<li>command_system/aggregator.py → import __future__（外部）</li>
+<li>command_system/aggregator.py → import logging（外部）</li>
+<li>command_system/aggregator.py → import functools（外部）</li>
+<li>command_system/aggregator.py → import pathlib（外部）</li>
+<li>command_system/aggregator.py → import command_system（外部）</li>
+<li>command_system/argument_substitution.py → import __future__（外部）</li>
+<li>command_system/argument_substitution.py → import re（外部）</li>
+<li>command_system/argument_substitution.py → import shlex（外部）</li>
+<li>command_system/argument_substitution.py → import typing（外部）</li>
+<li>command_system/buddy_command.py → import __future__（外部）</li>
+<li>command_system/buddy_command.py → import time（外部）</li>
+<li>command_system/buddy_command.py → import typing（外部）</li>
+<li>command_system/buddy_command.py → import src（外部）</li>
+<li>command_system/builtins.py → import __future__（外部）</li>
+<li>command_system/builtins.py → import asyncio（外部）</li>
+<li>command_system/builtins.py → import sys（外部）</li>
+<li>command_system/builtins.py → import pathlib（外部）</li>
+<li>command_system/builtins.py → import typing（外部）</li>
+<li>command_system/builtins.py → import context_system（内部）</li>
+<li>command_system/builtins.py → import cost_tracker（内部）</li>
+<li>command_system/builtins.py → import history（内部）</li>
+<li>command_system/builtins.py → import providers（内部）</li>
+<li>command_system/builtins.py → import command_system（外部）</li>
+<li>command_system/builtins.py → import utils（内部）</li>
+<li>command_system/copy_command.py → import __future__（外部）</li>
+<li>command_system/copy_command.py → import re（外部）</li>
+<li>command_system/copy_command.py → import subprocess（外部）</li>
+<li>command_system/copy_command.py → import sys（外部）</li>
+<li>command_system/copy_command.py → import tempfile（外部）</li>
+<li>command_system/copy_command.py → import dataclasses（外部）</li>
+<li>command_system/copy_command.py → import pathlib（外部）</li>
+<li>command_system/copy_command.py → import typing（外部）</li>
+<li>command_system/copy_command.py → import command_system（外部）</li>
+<li>command_system/diff_command.py → import __future__（外部）</li>
+<li>command_system/diff_command.py → import dataclasses（外部）</li>
+<li>command_system/diff_command.py → import command_system（外部）</li>
+<li>command_system/doctor_command.py → import __future__（外部）</li>
+<li>command_system/doctor_command.py → import platform（外部）</li>
+<li>command_system/doctor_command.py → import sys（外部）</li>
+<li>command_system/doctor_command.py → import dataclasses（外部）</li>
+<li>command_system/doctor_command.py → import command_system（外部）</li>
+<li>command_system/eco_command.py → import __future__（外部）</li>
+<li>command_system/eco_command.py → import command_system（外部）</li>
+<li>command_system/effort_command.py → import __future__（外部）</li>
+<li>command_system/effort_command.py → import dataclasses（外部）</li>
+<li>command_system/effort_command.py → import src（外部）</li>
+<li>command_system/effort_command.py → import command_system（外部）</li>
+<li>command_system/engine.py → import __future__（外部）</li>
+<li>command_system/engine.py → import dataclasses（外部）</li>
+<li>command_system/engine.py → import pathlib（外部）</li>
+<li>command_system/engine.py → import typing（外部）</li>
+<li>command_system/engine.py → import command_system（外部）</li>
+<li>command_system/export_command.py → import __future__（外部）</li>
+<li>command_system/export_command.py → import re（外部）</li>
+<li>command_system/export_command.py → import collections（外部）</li>
+<li>command_system/export_command.py → import dataclasses（外部）</li>
+<li>command_system/export_command.py → import datetime（外部）</li>
+<li>command_system/export_command.py → import typing（外部）</li>
+<li>command_system/export_command.py → import src（外部）</li>
+<li>command_system/export_command.py → import command_system（外部）</li>
+<li>command_system/fusion_command.py → import __future__（外部）</li>
+<li>command_system/fusion_command.py → import command_system（外部）</li>
+<li>command_system/input_processing.py → import __future__（外部）</li>
+<li>command_system/input_processing.py → import base64（外部）</li>
+<li>command_system/input_processing.py → import os（外部）</li>
+<li>command_system/input_processing.py → import re（外部）</li>
+<li>command_system/input_processing.py → import dataclasses（外部）</li>
+<li>command_system/input_processing.py → import pathlib（外部）</li>
+<li>command_system/input_processing.py → import typing（外部）</li>
+<li>command_system/input_processing.py → import command_system（外部）</li>
+<li>command_system/logo_command.py → import __future__（外部）</li>
+<li>command_system/logo_command.py → import dataclasses（外部）</li>
+<li>command_system/logo_command.py → import command_system（外部）</li>
+<li>command_system/mcp_command.py → import __future__（外部）</li>
+<li>command_system/mcp_command.py → import dataclasses（外部）</li>
+<li>command_system/mcp_command.py → import typing（外部）</li>
+<li>command_system/mcp_command.py → import command_system（外部）</li>
+<li>command_system/memory_command.py → import __future__（外部）</li>
+<li>command_system/memory_command.py → import os（外部）</li>
+<li>command_system/memory_command.py → import dataclasses（外部）</li>
+<li>command_system/memory_command.py → import pathlib（外部）</li>
+<li>command_system/memory_command.py → import command_system（外部）</li>
+<li>command_system/model_command.py → import __future__（外部）</li>
+<li>command_system/model_command.py → import dataclasses（外部）</li>
+<li>command_system/model_command.py → import command_system（外部）</li>
+<li>command_system/moved_to_plugin.py → import __future__（外部）</li>
+<li>command_system/moved_to_plugin.py → import inspect（外部）</li>
+<li>command_system/moved_to_plugin.py → import os（外部）</li>
+<li>command_system/moved_to_plugin.py → import dataclasses（外部）</li>
+<li>command_system/moved_to_plugin.py → import typing（外部）</li>
+<li>command_system/moved_to_plugin.py → import command_system（外部）</li>
+<li>command_system/output_style_command.py → import __future__（外部）</li>
+<li>command_system/output_style_command.py → import dataclasses（外部）</li>
+<li>command_system/output_style_command.py → import command_system（外部）</li>
+<li>command_system/permissions_command.py → import __future__（外部）</li>
+<li>command_system/permissions_command.py → import dataclasses（外部）</li>
+<li>command_system/permissions_command.py → import typing（外部）</li>
+<li>command_system/permissions_command.py → import command_system（外部）</li>
+<li>command_system/registry.py → import __future__（外部）</li>
+<li>command_system/registry.py → import dataclasses（外部）</li>
+<li>command_system/registry.py → import typing（外部）</li>
+<li>command_system/registry.py → import command_system（外部）</li>
+<li>command_system/release_notes_command.py → import __future__（外部）</li>
+<li>command_system/release_notes_command.py → import command_system（外部）</li>
+<li>command_system/rename_command.py → import __future__（外部）</li>
+<li>command_system/rename_command.py → import json（外部）</li>
+<li>command_system/rename_command.py → import re（外部）</li>
+<li>command_system/rename_command.py → import dataclasses（外部）</li>
+<li>command_system/rename_command.py → import typing（外部）</li>
+<li>command_system/rename_command.py → import command_system（外部）</li>
+<li>command_system/resume_command.py → import __future__（外部）</li>
+<li>command_system/resume_command.py → import dataclasses（外部）</li>
+<li>command_system/resume_command.py → import command_system（外部）</li>
+<li>command_system/safe_commands.py → import __future__（外部）</li>
+<li>command_system/safe_commands.py → import command_system（外部）</li>
+<li>command_system/security_review.py → import __future__（外部）</li>
+<li>command_system/security_review.py → import typing（外部）</li>
+<li>command_system/security_review.py → import src（外部）</li>
+<li>command_system/security_review.py → import command_system（外部）</li>
+<li>command_system/shell_prompt.py → import __future__（外部）</li>
+<li>command_system/shell_prompt.py → import logging（外部）</li>
+<li>command_system/shell_prompt.py → import typing（外部）</li>
+<li>command_system/shell_prompt.py → import src（外部）</li>
+<li>command_system/skills_integration.py → import __future__（外部）</li>
+<li>command_system/skills_integration.py → import pathlib（外部）</li>
+<li>command_system/skills_integration.py → import typing（外部）</li>
+<li>command_system/skills_integration.py → import skills（内部）</li>
+<li>command_system/skills_integration.py → import command_system（外部）</li>
+<li>command_system/statusline.py → import __future__（外部）</li>
+<li>command_system/statusline.py → import dataclasses（外部）</li>
+<li>command_system/statusline.py → import typing（外部）</li>
+<li>command_system/statusline.py → import src（外部）</li>
+<li>command_system/statusline.py → import command_system（外部）</li>
+<li>command_system/stickers_command.py → import __future__（外部）</li>
+<li>command_system/stickers_command.py → import command_system（外部）</li>
+<li>command_system/tasks_command.py → import __future__（外部）</li>
+<li>command_system/tasks_command.py → import dataclasses（外部）</li>
+<li>command_system/tasks_command.py → import typing（外部）</li>
+<li>command_system/tasks_command.py → import command_system（外部）</li>
+<li>command_system/theme_command.py → import __future__（外部）</li>
+<li>command_system/theme_command.py → import dataclasses（外部）</li>
+<li>command_system/theme_command.py → import src（外部）</li>
+<li>command_system/theme_command.py → import command_system（外部）</li>
+<li>command_system/types.py → import __future__（外部）</li>
+<li>command_system/types.py → import asyncio（外部）</li>
+<li>command_system/types.py → import dataclasses（外部）</li>
+<li>command_system/types.py → import enum（外部）</li>
+<li>command_system/types.py → import pathlib（外部）</li>
+<li>command_system/types.py → import typing（外部）</li>
+<li>command_system/vim_command.py → import __future__（外部）</li>
+<li>command_system/vim_command.py → import command_system（外部）</li>
+<li>command_system/vision_command.py → import __future__（外部）</li>
+<li>command_system/vision_command.py → import command_system（外部）</li>
+<li>command_system/workflows_command.py → import __future__（外部）</li>
+<li>command_system/workflows_command.py → import dataclasses（外部）</li>
+<li>command_system/workflows_command.py → import typing（外部）</li>
+<li>command_system/workflows_command.py → import src（外部）</li>
+<li>command_system/workflows_command.py → import command_system（外部）</li>
+<li>command_system/workflows_integration.py → import __future__（外部）</li>
+<li>command_system/workflows_integration.py → import logging（外部）</li>
+<li>command_system/workflows_integration.py → import pathlib（外部）</li>
+<li>command_system/workflows_integration.py → import typing（外部）</li>
+<li>command_system/workflows_integration.py → import src（外部）</li>
+<li>command_system/workflows_integration.py → import command_system（外部）</li>
+</ol>
+<h2 id="5-r7-r5-ccr-14-映射-启发式初版">5. R7/R5/CCR-14 映射（启发式初版）</h2>
+<ol>
+<li>R7-02 Interfaces — 候选（启发式），状态 UNVERIFIED</li>
+<li>R5-01 Surface Layer — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-文件级映射细分">6. 文件级映射细分</h2>
+<ol>
+<li><code class="inline-code">__init__.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">aggregator.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">argument_substitution.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">buddy_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">builtins.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">copy_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">diff_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">doctor_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">eco_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">effort_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">engine.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">export_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">fusion_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">input_processing.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">logo_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">mcp_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">memory_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">model_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">moved_to_plugin.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">output_style_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">permissions_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">registry.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">release_notes_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">rename_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">resume_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">safe_commands.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">security_review.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">shell_prompt.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">skills_integration.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">statusline.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">stickers_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">tasks_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">theme_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">types.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">vim_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">vision_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">workflows_command.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+<li><code class="inline-code">workflows_integration.py</code> → R7-02, R5-01（UNVERIFIED）</li>
+</ol>
+<h2 id="7-未确认项与待核实项">7. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ reference 侧对应文件/symbol 映射待核实</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 reference source</li>
+<li>☐ 本模块 R7/R5/CCR 归属的 UNVERIFIED 状态待升级或降级</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-command-system-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

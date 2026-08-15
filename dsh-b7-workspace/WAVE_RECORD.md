@@ -186,4 +186,27 @@
 - unchanged semantics：CLI 名与入口不变；无运行时代码改动
 - rollback：回退本提交即可
 
-## W9 — Freeze Gate / Baseline Lock ⏳
+## W9 — Freeze Gate / Baseline Lock ✅（2026-08-15）
+
+- `scripts/check_architecture_freeze.py`：真实门禁检查器，10 个 Gate（A–J）绑定
+  仓库真检查（subject 一致 / 单循环 / turn-prep owner / 权限安全默认 / 执行边界 /
+  任务单写 / extension gate / persistence 契约 / legacy / quarantine 真值）。
+- 全部 CURRENT 资产（19 个 machine/canonical + parity 全部）rebind 到冻结 SHA
+  `a01b089`（`scripts/rebind_subject.py`）；FREEZE_SHA 占位符替换。
+- `docs/progress/2026/2026-08-15-b7-architecture-freeze.md`：Freeze 记录（Gate A–J
+  全 PASS，W0–W9 提交链，未闭合项真实披露：真机隔离 PENDING_REAL_DEVICE、
+  Python 3.10/3.14 + Ubuntu/Windows smoke 为声明）。
+- docs/status/current.md → **ARCHITECTURE_FREEZE**；CURRENT_PLAN.md W0–W9 全部 DONE。
+- 测试：tests/test_b7_freeze_gate.py 3 项；gate 运行 FREEZE PASS。
+
+### changed owner / unchanged semantics / rollback
+- changed owner：全部 CURRENT 真值绑定冻结 SHA；Freeze 记录建立
+- unchanged semantics：无运行时代码改动（纯收口）
+- rollback：回退 rebind 提交即可恢复 16da0cf 绑定
+
+---
+## B7 总收口（2026-08-15）
+
+- **W0–W9 全部完成**，直接提交推送 main（无分支/PR，按用户指令）。
+- 全量测试：最终运行确认（预计 100+ 新增测试，仅剩 7 项已知环境失败）。
+- 结论：`ARCHITECTURE_FREEZE`（记录 docs/progress/2026/2026-08-15-b7-architecture-freeze.md）。

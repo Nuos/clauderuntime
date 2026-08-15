@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>plugins 源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-r7-r5-ccr-14-映射-启发式初版" data-nav>5. R7/R5/CCR-14 映射（启发式初版）</a></li>
+<li><a href="#6-文件级映射细分" data-nav>6. 文件级映射细分</a></li>
+<li><a href="#7-未确认项与待核实项" data-nav>7. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>plugins 源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">32</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260815_0013</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="plugins-源码盘点">plugins 源码盘点</h1>
+<blockquote>
+<p>编号: 32</p>
+<p>时间戳: 20260815_0013</p>
+<p>基线: def709361a86</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>类型: package（目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: plugins</li>
+<li>类型: package（目录模块）</li>
+<li>Python 文件数: 11</li>
+<li>总行数: 1188</li>
+<li>依赖的 src 内部模块: 无</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">plugins/__init__.py</code> — 129 行（类 0，函数 0）</li>
+<li><code class="inline-code">plugins/builtin_plugins.py</code> — 98 行（类 0，函数 7）</li>
+<li><code class="inline-code">plugins/dependency.py</code> — 180 行（类 3，函数 8）</li>
+<li><code class="inline-code">plugins/init_builtin.py</code> — 12 行（类 0，函数 1）</li>
+<li><code class="inline-code">plugins/karpathy_guidelines.py</code> — 56 行（类 0，函数 1）</li>
+<li><code class="inline-code">plugins/loader.py</code> — 196 行（类 1，函数 9）</li>
+<li><code class="inline-code">plugins/lsp_integration.py</code> — 129 行（类 4，函数 8）</li>
+<li><code class="inline-code">plugins/marketplace.py</code> — 156 行（类 2，函数 7）</li>
+<li><code class="inline-code">plugins/mcp_integration.py</code> — 94 行（类 2，函数 6）</li>
+<li><code class="inline-code">plugins/types.py</code> — 46 行（类 4，函数 0）</li>
+<li><code class="inline-code">plugins/validator.py</code> — 92 行（类 1，函数 2）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">plugins/__init__.py</code></li>
+<li>文件 <code class="inline-code">plugins/builtin_plugins.py</code></li>
+<li>函数 register_builtin_plugin — L14</li>
+<li>函数 is_builtin_plugin_id — L18</li>
+<li>函数 get_builtin_plugin_definition — L22</li>
+<li>函数 get_builtin_plugins — L28</li>
+<li>函数 get_builtin_plugin_skill_commands — L63</li>
+<li>函数 _enabled_override — L78</li>
+<li>函数 clear_builtin_plugins — L97</li>
+<li>文件 <code class="inline-code">plugins/dependency.py</code></li>
+<li>类 DependencyNode — L9</li>
+<li>类 DependencyConflict — L16</li>
+<li>类 DependencyResolutionResult — L24</li>
+<li>函数 resolve_dependencies — L32</li>
+<li>函数 topological_sort — L61</li>
+<li>函数 _find_cycle — L90</li>
+<li>函数 version_satisfies — L121</li>
+<li>函数 _parse_version — L143</li>
+<li>函数 _compare_versions — L157</li>
+<li>函数 _caret_match — L167</li>
+<li>函数 _tilde_match — L175</li>
+<li>文件 <code class="inline-code">plugins/init_builtin.py</code></li>
+<li>函数 init_builtin_plugins — L11</li>
+<li>文件 <code class="inline-code">plugins/karpathy_guidelines.py</code></li>
+<li>函数 register_karpathy_guidelines_plugin — L20</li>
+<li>文件 <code class="inline-code">plugins/loader.py</code></li>
+<li>类 PluginDiscoveryResult — L20</li>
+<li>函数 discover_plugins — L28</li>
+<li>函数 load_plugin_from_directory — L52</li>
+<li>函数 register_plugin — L112</li>
+<li>函数 unregister_plugin — L146</li>
+<li>函数 get_loaded_plugins — L153</li>
+<li>函数 get_loaded_plugin — L157</li>
+<li>函数 get_enabled_plugins — L161</li>
+<li>函数 load_plugins_from_directories — L165</li>
+<li>函数 clear_loaded_plugins — L195</li>
+<li>文件 <code class="inline-code">plugins/lsp_integration.py</code></li>
+<li>类 DiagnosticSeverity — L13</li>
+<li>类 LspDiagnostic — L21</li>
+<li>类 LspServerConfig — L32</li>
+<li>类 LspPluginWrapper — L42</li>
+<li>函数 wrap_lsp_server_as_plugin — L52</li>
+<li>函数 get_lsp_plugin — L79</li>
+<li>函数 get_all_lsp_plugins — L83</li>
+<li>函数 add_diagnostics — L87</li>
+<li>函数 get_diagnostics — L97</li>
+<li>函数 clear_diagnostics — L115</li>
+<li>函数 remove_lsp_plugin — L121</li>
+<li>函数 clear_lsp_plugins — L128</li>
+<li>文件 <code class="inline-code">plugins/marketplace.py</code></li>
+<li>类 MarketplaceEntry — L18</li>
+<li>类 MarketplaceIndex — L29</li>
+<li>函数 load_marketplace_index — L37</li>
+<li>函数 get_marketplace_index — L69</li>
+<li>函数 search_marketplace — L73</li>
+<li>函数 list_marketplace — L94</li>
+<li>函数 install_plugin — L111</li>
+<li>函数 uninstall_plugin — L142</li>
+<li>函数 clear_marketplace_index — L154</li>
+<li>文件 <code class="inline-code">plugins/mcp_integration.py</code></li>
+<li>类 McpPluginTool — L13</li>
+<li>类 McpPluginWrapper — L21</li>
+<li>函数 wrap_mcp_server_as_plugin — L31</li>
+<li>函数 get_mcp_plugin — L71</li>
+<li>函数 get_all_mcp_plugins — L75</li>
+<li>函数 get_mcp_plugin_tools — L79</li>
+<li>函数 remove_mcp_plugin — L86</li>
+<li>函数 clear_mcp_plugins — L93</li>
+<li>文件 <code class="inline-code">plugins/types.py</code></li>
+<li>类 PluginManifest — L8</li>
+<li>类 LoadedPlugin — L15</li>
+<li>类 BuiltinPluginDefinition — L32</li>
+<li>类 PluginError — L43</li>
+<li>文件 <code class="inline-code">plugins/validator.py</code></li>
+<li>类 ManifestValidationError — L14</li>
+<li>函数 validate_manifest — L19</li>
+<li>函数 is_valid_manifest — L91</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>plugins/__init__.py → import plugins（外部）</li>
+<li>plugins/builtin_plugins.py → import __future__（外部）</li>
+<li>plugins/builtin_plugins.py → import typing（外部）</li>
+<li>plugins/builtin_plugins.py → import src（外部）</li>
+<li>plugins/builtin_plugins.py → import plugins（外部）</li>
+<li>plugins/dependency.py → import __future__（外部）</li>
+<li>plugins/dependency.py → import re（外部）</li>
+<li>plugins/dependency.py → import dataclasses（外部）</li>
+<li>plugins/dependency.py → import typing（外部）</li>
+<li>plugins/init_builtin.py → import __future__（外部）</li>
+<li>plugins/init_builtin.py → import plugins（外部）</li>
+<li>plugins/karpathy_guidelines.py → import __future__（外部）</li>
+<li>plugins/karpathy_guidelines.py → import src（外部）</li>
+<li>plugins/karpathy_guidelines.py → import plugins（外部）</li>
+<li>plugins/loader.py → import __future__（外部）</li>
+<li>plugins/loader.py → import json（外部）</li>
+<li>plugins/loader.py → import logging（外部）</li>
+<li>plugins/loader.py → import dataclasses（外部）</li>
+<li>plugins/loader.py → import pathlib（外部）</li>
+<li>plugins/loader.py → import typing（外部）</li>
+<li>plugins/loader.py → import plugins（外部）</li>
+<li>plugins/lsp_integration.py → import __future__（外部）</li>
+<li>plugins/lsp_integration.py → import logging（外部）</li>
+<li>plugins/lsp_integration.py → import dataclasses（外部）</li>
+<li>plugins/lsp_integration.py → import enum（外部）</li>
+<li>plugins/lsp_integration.py → import typing（外部）</li>
+<li>plugins/lsp_integration.py → import plugins（外部）</li>
+<li>plugins/marketplace.py → import __future__（外部）</li>
+<li>plugins/marketplace.py → import json（外部）</li>
+<li>plugins/marketplace.py → import logging（外部）</li>
+<li>plugins/marketplace.py → import shutil（外部）</li>
+<li>plugins/marketplace.py → import dataclasses（外部）</li>
+<li>plugins/marketplace.py → import pathlib（外部）</li>
+<li>plugins/marketplace.py → import typing（外部）</li>
+<li>plugins/marketplace.py → import plugins（外部）</li>
+<li>plugins/mcp_integration.py → import __future__（外部）</li>
+<li>plugins/mcp_integration.py → import logging（外部）</li>
+<li>plugins/mcp_integration.py → import dataclasses（外部）</li>
+<li>plugins/mcp_integration.py → import typing（外部）</li>
+<li>plugins/mcp_integration.py → import plugins（外部）</li>
+<li>plugins/types.py → import __future__（外部）</li>
+<li>plugins/types.py → import dataclasses（外部）</li>
+<li>plugins/types.py → import typing（外部）</li>
+<li>plugins/validator.py → import __future__（外部）</li>
+<li>plugins/validator.py → import re（外部）</li>
+<li>plugins/validator.py → import dataclasses（外部）</li>
+<li>plugins/validator.py → import typing（外部）</li>
+</ol>
+<h2 id="5-r7-r5-ccr-14-映射-启发式初版">5. R7/R5/CCR-14 映射（启发式初版）</h2>
+<ol>
+<li>CCR-05 Tool Pool / Capability Assembly — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-文件级映射细分">6. 文件级映射细分</h2>
+<ol>
+<li><code class="inline-code">__init__.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">builtin_plugins.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">dependency.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">init_builtin.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">karpathy_guidelines.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">loader.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">lsp_integration.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">marketplace.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">mcp_integration.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">types.py</code> → CCR-05（UNVERIFIED）</li>
+<li><code class="inline-code">validator.py</code> → CCR-05（UNVERIFIED）</li>
+</ol>
+<h2 id="7-未确认项与待核实项">7. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ reference 侧对应文件/symbol 映射待核实</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 reference source</li>
+<li>☐ 本模块 R7/R5/CCR 归属的 UNVERIFIED 状态待升级或降级</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-plugins-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>auth 源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-r7-r5-ccr-14-映射-启发式初版" data-nav>5. R7/R5/CCR-14 映射（启发式初版）</a></li>
+<li><a href="#6-文件级映射细分" data-nav>6. 文件级映射细分</a></li>
+<li><a href="#7-未确认项与待核实项" data-nav>7. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>auth 源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">03</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260815_0013</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="auth-源码盘点">auth 源码盘点</h1>
+<blockquote>
+<p>编号: 03</p>
+<p>时间戳: 20260815_0013</p>
+<p>基线: def709361a86</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>类型: package（目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: auth</li>
+<li>类型: package（目录模块）</li>
+<li>Python 文件数: 8</li>
+<li>总行数: 1422</li>
+<li>依赖的 src 内部模块: 无</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">auth/__init__.py</code> — 26 行（类 0，函数 0）</li>
+<li><code class="inline-code">auth/anthropic_subscription.py</code> — 226 行（类 1，函数 10）</li>
+<li><code class="inline-code">auth/auth.py</code> — 145 行（类 1，函数 4）</li>
+<li><code class="inline-code">auth/aws.py</code> — 67 行（类 2，函数 0）</li>
+<li><code class="inline-code">auth/claude_ai.py</code> — 275 行（类 1，函数 8）</li>
+<li><code class="inline-code">auth/gemini.py</code> — 35 行（类 1，函数 0）</li>
+<li><code class="inline-code">auth/oauth.py</code> — 178 行（类 2，函数 0）</li>
+<li><code class="inline-code">auth/openai_subscription.py</code> — 470 行（类 1，函数 21）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">auth/__init__.py</code></li>
+<li>文件 <code class="inline-code">auth/anthropic_subscription.py</code></li>
+<li>类 SubscriptionCredentials — L68</li>
+<li>函数 credentials_path — L62</li>
+<li>函数 load_credentials — L79</li>
+<li>函数 save_credentials — L93</li>
+<li>函数 remove_credentials — L112</li>
+<li>函数 _post_json — L120</li>
+<li>函数 begin_login — L145</li>
+<li>函数 complete_login — L163</li>
+<li>函数 _credentials_from_response — L182</li>
+<li>函数 get_valid_credentials — L196</li>
+<li>函数 subscription_headers — L221</li>
+<li>文件 <code class="inline-code">auth/auth.py</code></li>
+<li>类 ApiKeyInfo — L46</li>
+<li>函数 load_api_key — L54</li>
+<li>函数 validate_api_key — L101</li>
+<li>函数 get_api_key_source — L112</li>
+<li>函数 _load_from_keychain — L129</li>
+<li>文件 <code class="inline-code">auth/aws.py</code></li>
+<li>类 AwsCredentials — L13</li>
+<li>类 AwsAuth — L22</li>
+<li>文件 <code class="inline-code">auth/claude_ai.py</code></li>
+<li>类 OAuthAccountInfo — L71</li>
+<li>函数 get_claude_ai_oauth_tokens — L84</li>
+<li>函数 get_oauth_account_info — L120</li>
+<li>函数 is_claude_ai_subscriber — L140</li>
+<li>函数 has_profile_scope — L167</li>
+<li>函数 check_and_refresh_oauth_token_if_needed — L185</li>
+<li>函数 handle_oauth_401_error — L214</li>
+<li>函数 _is_near_or_past_expiry — L245</li>
+<li>函数 _subscriber_override — L252</li>
+<li>文件 <code class="inline-code">auth/gemini.py</code></li>
+<li>类 GeminiAuth — L10</li>
+<li>文件 <code class="inline-code">auth/oauth.py</code></li>
+<li>类 OAuthTokens — L30</li>
+<li>类 OAuthFlow — L44</li>
+<li>文件 <code class="inline-code">auth/openai_subscription.py</code></li>
+<li>类 SubscriptionCredentials — L56</li>
+<li>函数 credentials_path — L50</li>
+<li>函数 load_credentials — L68</li>
+<li>函数 save_credentials — L83</li>
+<li>函数 remove_credentials — L102</li>
+<li>函数 _post_form — L113</li>
+<li>函数 _post_json — L132</li>
+<li>函数 parse_jwt_claims — L156</li>
+<li>函数 _account_id_from_claims — L168</li>
+<li>函数 extract_account_id — L185</li>
+<li>函数 begin_login — L198</li>
+<li>函数 _error_page — L227</li>
+<li>函数 wait_for_callback — L237</li>
+<li>函数 complete_login — L302</li>
+<li>函数 begin_device_login — L318</li>
+<li>函数 poll_device_login — L332</li>
+<li>函数 codex_cli_auth_path — L368</li>
+<li>函数 has_codex_cli_credentials — L372</li>
+<li>函数 import_codex_cli_credentials — L385</li>
+<li>函数 _credentials_from_response — L423</li>
+<li>函数 get_valid_credentials — L439</li>
+<li>函数 force_refresh — L457</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>auth/__init__.py → import __future__（外部）</li>
+<li>auth/__init__.py → import auth（外部）</li>
+<li>auth/anthropic_subscription.py → import __future__（外部）</li>
+<li>auth/anthropic_subscription.py → import base64（外部）</li>
+<li>auth/anthropic_subscription.py → import hashlib（外部）</li>
+<li>auth/anthropic_subscription.py → import json（外部）</li>
+<li>auth/anthropic_subscription.py → import os（外部）</li>
+<li>auth/anthropic_subscription.py → import secrets（外部）</li>
+<li>auth/anthropic_subscription.py → import threading（外部）</li>
+<li>auth/anthropic_subscription.py → import time（外部）</li>
+<li>auth/anthropic_subscription.py → import urllib（外部）</li>
+<li>auth/anthropic_subscription.py → import dataclasses（外部）</li>
+<li>auth/anthropic_subscription.py → import pathlib（外部）</li>
+<li>auth/anthropic_subscription.py → import typing（外部）</li>
+<li>auth/auth.py → import __future__（外部）</li>
+<li>auth/auth.py → import logging（外部）</li>
+<li>auth/auth.py → import os（外部）</li>
+<li>auth/auth.py → import re（外部）</li>
+<li>auth/auth.py → import dataclasses（外部）</li>
+<li>auth/auth.py → import typing（外部）</li>
+<li>auth/aws.py → import __future__（外部）</li>
+<li>auth/aws.py → import logging（外部）</li>
+<li>auth/aws.py → import os（外部）</li>
+<li>auth/aws.py → import dataclasses（外部）</li>
+<li>auth/claude_ai.py → import __future__（外部）</li>
+<li>auth/claude_ai.py → import logging（外部）</li>
+<li>auth/claude_ai.py → import os（外部）</li>
+<li>auth/claude_ai.py → import time（外部）</li>
+<li>auth/claude_ai.py → import dataclasses（外部）</li>
+<li>auth/claude_ai.py → import src（外部）</li>
+<li>auth/gemini.py → import __future__（外部）</li>
+<li>auth/gemini.py → import os（外部）</li>
+<li>auth/gemini.py → import dataclasses（外部）</li>
+<li>auth/oauth.py → import __future__（外部）</li>
+<li>auth/oauth.py → import base64（外部）</li>
+<li>auth/oauth.py → import hashlib（外部）</li>
+<li>auth/oauth.py → import http（外部）</li>
+<li>auth/oauth.py → import json（外部）</li>
+<li>auth/oauth.py → import logging（外部）</li>
+<li>auth/oauth.py → import os（外部）</li>
+<li>auth/oauth.py → import secrets（外部）</li>
+<li>auth/oauth.py → import threading（外部）</li>
+<li>auth/oauth.py → import time（外部）</li>
+<li>auth/oauth.py → import urllib（外部）</li>
+<li>auth/oauth.py → import dataclasses（外部）</li>
+<li>auth/oauth.py → import typing（外部）</li>
+<li>auth/openai_subscription.py → import __future__（外部）</li>
+<li>auth/openai_subscription.py → import base64（外部）</li>
+<li>auth/openai_subscription.py → import hashlib（外部）</li>
+<li>auth/openai_subscription.py → import http（外部）</li>
+<li>auth/openai_subscription.py → import json（外部）</li>
+<li>auth/openai_subscription.py → import os（外部）</li>
+<li>auth/openai_subscription.py → import secrets（外部）</li>
+<li>auth/openai_subscription.py → import threading（外部）</li>
+<li>auth/openai_subscription.py → import time（外部）</li>
+<li>auth/openai_subscription.py → import urllib（外部）</li>
+<li>auth/openai_subscription.py → import dataclasses（外部）</li>
+<li>auth/openai_subscription.py → import pathlib（外部）</li>
+<li>auth/openai_subscription.py → import typing（外部）</li>
+</ol>
+<h2 id="5-r7-r5-ccr-14-映射-启发式初版">5. R7/R5/CCR-14 映射（启发式初版）</h2>
+<ol>
+<li>R7-04 Permission System — 候选（启发式），状态 UNVERIFIED</li>
+<li>R5-03 Safety / Action Layer — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-02 Authorization Pipeline — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-13 Trust Lifecycle — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-文件级映射细分">6. 文件级映射细分</h2>
+<ol>
+<li><code class="inline-code">__init__.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">anthropic_subscription.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">auth.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">aws.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">claude_ai.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">gemini.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">oauth.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">openai_subscription.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+</ol>
+<h2 id="7-未确认项与待核实项">7. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ reference 侧对应文件/symbol 映射待核实</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 reference source</li>
+<li>☐ 本模块 R7/R5/CCR 归属的 UNVERIFIED 状态待升级或降级</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-auth-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

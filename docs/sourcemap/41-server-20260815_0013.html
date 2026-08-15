@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>server 源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-r7-r5-ccr-14-映射-启发式初版" data-nav>5. R7/R5/CCR-14 映射（启发式初版）</a></li>
+<li><a href="#6-文件级映射细分" data-nav>6. 文件级映射细分</a></li>
+<li><a href="#7-未确认项与待核实项" data-nav>7. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>server 源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">41</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260815_0013</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="server-源码盘点">server 源码盘点</h1>
+<blockquote>
+<p>编号: 41</p>
+<p>时间戳: 20260815_0013</p>
+<p>基线: def709361a86</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>类型: package（目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: server</li>
+<li>类型: package（目录模块）</li>
+<li>Python 文件数: 22</li>
+<li>总行数: 12070</li>
+<li>依赖的 src 内部模块: 无</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">server/__init__.py</code> — 22 行（类 0，函数 0）</li>
+<li><code class="inline-code">server/agent_server.py</code> — 6488 行（类 3，函数 35）</li>
+<li><code class="inline-code">server/background_scheduler.py</code> — 76 行（类 1，函数 0）</li>
+<li><code class="inline-code">server/desktop_audio.py</code> — 226 行（类 1，函数 8）</li>
+<li><code class="inline-code">server/desktop_commands.py</code> — 138 行（类 0，函数 2）</li>
+<li><code class="inline-code">server/desktop_gateway.py</code> — 108 行（类 0，函数 4）</li>
+<li><code class="inline-code">server/desktop_gateway_methods.py</code> — 892 行（类 2，函数 7）</li>
+<li><code class="inline-code">server/desktop_gateway_translate.py</code> — 502 行（类 0，函数 19）</li>
+<li><code class="inline-code">server/desktop_projects.py</code> — 207 行（类 0，函数 8）</li>
+<li><code class="inline-code">server/desktop_serve.py</code> — 605 行（类 1，函数 9）</li>
+<li><code class="inline-code">server/desktop_sessions.py</code> — 204 行（类 0，函数 10）</li>
+<li><code class="inline-code">server/desktop_slash.py</code> — 161 行（类 0，函数 3）</li>
+<li><code class="inline-code">server/direct_connect_manager.py</code> — 351 行（类 2，函数 1）</li>
+<li><code class="inline-code">server/direct_connect_session.py</code> — 121 行（类 2，函数 1）</li>
+<li><code class="inline-code">server/lockfile.py</code> — 143 行（类 2，函数 0）</li>
+<li><code class="inline-code">server/mcp_runtime.py</code> — 448 行（类 1，函数 1）</li>
+<li><code class="inline-code">server/server.py</code> — 493 行（类 3，函数 2）</li>
+<li><code class="inline-code">server/session_index.py</code> — 219 行（类 0，函数 8）</li>
+<li><code class="inline-code">server/session_manager.py</code> — 203 行（类 1，函数 0）</li>
+<li><code class="inline-code">server/task_notifications.py</code> — 202 行（类 0，函数 10）</li>
+<li><code class="inline-code">server/types.py</code> — 138 行（类 5，函数 1）</li>
+<li><code class="inline-code">server/url_scheme.py</code> — 123 行（类 1，函数 4）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">server/__init__.py</code></li>
+<li>文件 <code class="inline-code">server/agent_server.py</code></li>
+<li>类 AgentServerConfig — L104</li>
+<li>类 _Pending — L152</li>
+<li>类 _AgentSession — L158</li>
+<li>函数 make_spawn_agent — L5105</li>
+<li>函数 _mcp_disabled_path — L5167</li>
+<li>函数 _load_disabled_mcp — L5171</li>
+<li>函数 _save_disabled_mcp — L5180</li>
+<li>函数 _make_mcp_notification_handler — L5189</li>
+<li>函数 _make_mcp_disconnect_handler — L5228</li>
+<li>函数 _make_elicitation_handler — L5263</li>
+<li>函数 _build_runtime — L5376</li>
+<li>函数 _with_ultracode_reminder — L5866</li>
+<li>函数 _filter_registry — L5896</li>
+<li>函数 _non_interactive_ask_user — L5919</li>
+<li>函数 _display_tool_result — L5935</li>
+<li>函数 _sdk_envelope — L6041</li>
+<li>函数 _cost_snapshot — L6066</li>
+<li>函数 _result_message — L6114</li>
+<li>函数 _fmt_rule — L6158</li>
+<li>函数 _sessions_dir — L6166</li>
+<li>函数 _first_prompt_preview — L6173</li>
+<li>函数 _count_prompt_turns — L6191</li>
+<li>函数 _list_saved_sessions — L6211</li>
+<li>函数 _system_message — L6238</li>
+<li>函数 _session_option_label_safe — L6248</li>
+<li>函数 _permission_request_warning — L6264</li>
+<li>函数 _serialize_permission_update — L6287</li>
+<li>函数 _deserialize_permission_update — L6296</li>
+<li>函数 _extract_prompt_text — L6305</li>
+<li>函数 _parse_image_refs — L6330</li>
+<li>函数 _content_text — L6341</li>
+<li>函数 _extract_prompt_content — L6354</li>
+<li>函数 _tool_schemas — L6370</li>
+<li>函数 _json_safe — L6403</li>
+<li>函数 _dispatch_app_state — L6418</li>
+<li>函数 _current_logo_color — L6438</li>
+<li>函数 _current_mode — L6452</li>
+<li>函数 _set_mode — L6459</li>
+<li>文件 <code class="inline-code">server/background_scheduler.py</code></li>
+<li>类 SessionBackgroundScheduler — L21</li>
+<li>文件 <code class="inline-code">server/desktop_audio.py</code></li>
+<li>类 TranscriptionResult — L32</li>
+<li>函数 _decode_data_url — L39</li>
+<li>函数 _ext_for — L72</li>
+<li>函数 _stt_config — L93</li>
+<li>函数 _voice_config — L102</li>
+<li>函数 _configured_stt_provider — L111</li>
+<li>函数 _stt_model_for — L117</li>
+<li>函数 _resolve_stt — L126</li>
+<li>函数 transcribe_data_url — L167</li>
+<li>文件 <code class="inline-code">server/desktop_commands.py</code></li>
+<li>函数 build_catalog — L70</li>
+<li>函数 complete — L122</li>
+<li>文件 <code class="inline-code">server/desktop_gateway.py</code></li>
+<li>函数 _send_json — L33</li>
+<li>函数 send_event — L40</li>
+<li>函数 handle_gateway_socket — L54</li>
+<li>函数 _dispatch — L77</li>
+<li>文件 <code class="inline-code">server/desktop_gateway_methods.py</code></li>
+<li>类 DesktopSession — L106</li>
+<li>类 GatewayConnection — L533</li>
+<li>函数 approval_mode_for — L67</li>
+<li>函数 permission_mode_for — L74</li>
+<li>函数 _init_session_info — L81</li>
+<li>函数 configured_providers_only — L455</li>
+<li>函数 _catalog_from_config — L475</li>
+<li>函数 _clean — L518</li>
+<li>函数 _suggestion_scope — L525</li>
+<li>文件 <code class="inline-code">server/desktop_gateway_translate.py</code></li>
+<li>函数 usage_payload — L23</li>
+<li>函数 _iter_blocks — L39</li>
+<li>函数 _text_of — L46</li>
+<li>函数 as_text — L53</li>
+<li>函数 _tool_output_text — L77</li>
+<li>函数 render_tool_name — L118</li>
+<li>函数 tool_context — L127</li>
+<li>函数 render_tool_args — L151</li>
+<li>函数 clean_tool_error — L175</li>
+<li>函数 _format_file_size — L191</li>
+<li>函数 _plural — L202</li>
+<li>函数 summarize_tool_result — L206</li>
+<li>函数 inline_diff_from_display — L236</li>
+<li>函数 render_tool_result — L271</li>
+<li>函数 translate_stream_event — L327</li>
+<li>函数 translate_sdk_envelope — L342</li>
+<li>函数 translate_result — L412</li>
+<li>函数 approval_request_payload — L429</li>
+<li>函数 translate_frame — L459</li>
+<li>文件 <code class="inline-code">server/desktop_projects.py</code></li>
+<li>函数 _segments — L37</li>
+<li>函数 _is_windows_path — L42</li>
+<li>函数 _fold — L51</li>
+<li>函数 _path_under — L57</li>
+<li>函数 _basename — L67</li>
+<li>函数 _recency — L72</li>
+<li>函数 _iso_to_epoch — L86</li>
+<li>函数 build_project_tree — L95</li>
+<li>文件 <code class="inline-code">server/desktop_serve.py</code></li>
+<li>类 DesktopServeState — L40</li>
+<li>函数 _token_ok — L98</li>
+<li>函数 _rest_token — L104</li>
+<li>函数 ws_token — L114</li>
+<li>函数 build_app — L122</li>
+<li>函数 unwrap_config_envelope — L525</li>
+<li>函数 strip_config_envelope — L537</li>
+<li>函数 _save_config_merged — L544</li>
+<li>函数 redact_secrets — L574</li>
+<li>函数 _js_string — L598</li>
+<li>文件 <code class="inline-code">server/desktop_sessions.py</code></li>
+<li>函数 _safe_id — L27</li>
+<li>函数 _read_session_file — L33</li>
+<li>函数 _row_from_file — L41</li>
+<li>函数 list_session_rows — L61</li>
+<li>函数 _display_kind — L97</li>
+<li>函数 load_session_messages — L104</li>
+<li>函数 _write_session_file — L136</li>
+<li>函数 update_session_meta — L147</li>
+<li>函数 delete_session — L168</li>
+<li>函数 search_sessions — L183</li>
+<li>文件 <code class="inline-code">server/desktop_slash.py</code></li>
+<li>函数 _out — L24</li>
+<li>函数 _num — L28</li>
+<li>函数 dispatch_slash — L35</li>
+<li>文件 <code class="inline-code">server/direct_connect_manager.py</code></li>
+<li>类 DirectConnectCallbacks — L41</li>
+<li>类 DirectConnectSessionManager — L76</li>
+<li>函数 _is_stdout_message — L55</li>
+<li>文件 <code class="inline-code">server/direct_connect_session.py</code></li>
+<li>类 DirectConnectError — L20</li>
+<li>类 DirectConnectConfig — L25</li>
+<li>函数 create_direct_connect_session — L40</li>
+<li>文件 <code class="inline-code">server/lockfile.py</code></li>
+<li>类 LockfileBusyError — L27</li>
+<li>类 ServerLockfile — L31</li>
+<li>文件 <code class="inline-code">server/mcp_runtime.py</code></li>
+<li>类 McpRuntime — L57</li>
+<li>函数 _render_content — L39</li>
+<li>文件 <code class="inline-code">server/server.py</code></li>
+<li>类 AgentHandle — L56</li>
+<li>类 _ParsedRequest — L75</li>
+<li>类 DirectConnectServer — L161</li>
+<li>函数 _read_http_request — L82</li>
+<li>函数 _build_http_response — L141</li>
+<li>文件 <code class="inline-code">server/session_index.py</code></li>
+<li>函数 _flock — L37</li>
+<li>函数 _entry_to_dict — L67</li>
+<li>函数 _dict_to_entry — L71</li>
+<li>函数 load_index — L91</li>
+<li>函数 save_index — L129</li>
+<li>函数 add_entry — L167</li>
+<li>函数 remove_entry — L175</li>
+<li>函数 update_last_active — L184</li>
+<li>文件 <code class="inline-code">server/session_manager.py</code></li>
+<li>类 SessionManager — L42</li>
+<li>文件 <code class="inline-code">server/task_notifications.py</code></li>
+<li>函数 _field — L47</li>
+<li>函数 parse_task_id — L52</li>
+<li>函数 _elapsed_seconds — L58</li>
+<li>函数 _stat_bits — L66</li>
+<li>函数 _task_label — L88</li>
+<li>函数 format_completion_banner — L99</li>
+<li>函数 format_completion_banner_xml — L124</li>
+<li>函数 render_banner — L137</li>
+<li>函数 _is_running_envelope — L172</li>
+<li>函数 build_notification_turn — L176</li>
+<li>文件 <code class="inline-code">server/types.py</code></li>
+<li>类 SessionState — L17</li>
+<li>类 ServerConfig — L32</li>
+<li>类 SessionInfo — L51</li>
+<li>类 SessionIndexEntry — L74</li>
+<li>类 ConnectResponse — L93</li>
+<li>函数 validate_connect_response — L104</li>
+<li>文件 <code class="inline-code">server/url_scheme.py</code></li>
+<li>类 CCAddress — L26</li>
+<li>函数 parse_cc_url — L38</li>
+<li>函数 _split_query — L52</li>
+<li>函数 _parse_cc_tcp — L63</li>
+<li>函数 _parse_cc_unix — L95</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>server/__init__.py → import __future__（外部）</li>
+<li>server/__init__.py → import json（外部）</li>
+<li>server/__init__.py → import pathlib（外部）</li>
+<li>server/agent_server.py → import __future__（外部）</li>
+<li>server/agent_server.py → import asyncio（外部）</li>
+<li>server/agent_server.py → import json（外部）</li>
+<li>server/agent_server.py → import logging（外部）</li>
+<li>server/agent_server.py → import queue（外部）</li>
+<li>server/agent_server.py → import re（外部）</li>
+<li>server/agent_server.py → import threading（外部）</li>
+<li>server/agent_server.py → import time（外部）</li>
+<li>server/agent_server.py → import uuid（外部）</li>
+<li>server/agent_server.py → import collections（外部）</li>
+<li>server/agent_server.py → import dataclasses（外部）</li>
+<li>server/agent_server.py → import pathlib（外部）</li>
+<li>server/agent_server.py → import typing（外部）</li>
+<li>server/agent_server.py → import src（外部）</li>
+<li>server/background_scheduler.py → import __future__（外部）</li>
+<li>server/background_scheduler.py → import logging（外部）</li>
+<li>server/background_scheduler.py → import threading（外部）</li>
+<li>server/background_scheduler.py → import dataclasses（外部）</li>
+<li>server/background_scheduler.py → import typing（外部）</li>
+<li>server/desktop_audio.py → import __future__（外部）</li>
+<li>server/desktop_audio.py → import base64（外部）</li>
+<li>server/desktop_audio.py → import binascii（外部）</li>
+<li>server/desktop_audio.py → import logging（外部）</li>
+<li>server/desktop_audio.py → import dataclasses（外部）</li>
+<li>server/desktop_audio.py → import typing（外部）</li>
+<li>server/desktop_audio.py → import httpx（外部）</li>
+<li>server/desktop_commands.py → import __future__（外部）</li>
+<li>server/desktop_commands.py → import typing（外部）</li>
+<li>server/desktop_gateway.py → import __future__（外部）</li>
+<li>server/desktop_gateway.py → import asyncio（外部）</li>
+<li>server/desktop_gateway.py → import logging（外部）</li>
+<li>server/desktop_gateway.py → import typing（外部）</li>
+<li>server/desktop_gateway.py → import starlette（外部）</li>
+<li>server/desktop_gateway.py → import src（外部）</li>
+<li>server/desktop_gateway_methods.py → import __future__（外部）</li>
+<li>server/desktop_gateway_methods.py → import asyncio（外部）</li>
+<li>server/desktop_gateway_methods.py → import logging（外部）</li>
+<li>server/desktop_gateway_methods.py → import uuid（外部）</li>
+<li>server/desktop_gateway_methods.py → import typing（外部）</li>
+<li>server/desktop_gateway_methods.py → import starlette（外部）</li>
+<li>server/desktop_gateway_methods.py → import src（外部）</li>
+<li>server/desktop_gateway_translate.py → import __future__（外部）</li>
+<li>server/desktop_gateway_translate.py → import re（外部）</li>
+<li>server/desktop_gateway_translate.py → import typing（外部）</li>
+<li>server/desktop_projects.py → import __future__（外部）</li>
+<li>server/desktop_projects.py → import os（外部）</li>
+<li>server/desktop_projects.py → import typing（外部）</li>
+<li>server/desktop_serve.py → import __future__（外部）</li>
+<li>server/desktop_serve.py → import hmac（外部）</li>
+<li>server/desktop_serve.py → import logging（外部）</li>
+<li>server/desktop_serve.py → import dataclasses（外部）</li>
+<li>server/desktop_serve.py → import pathlib（外部）</li>
+<li>server/desktop_serve.py → import typing（外部）</li>
+<li>server/desktop_serve.py → import starlette（外部）</li>
+<li>server/desktop_sessions.py → import __future__（外部）</li>
+<li>server/desktop_sessions.py → import json（外部）</li>
+<li>server/desktop_sessions.py → import logging（外部）</li>
+<li>server/desktop_sessions.py → import pathlib（外部）</li>
+<li>server/desktop_sessions.py → import typing（外部）</li>
+<li>server/desktop_slash.py → import __future__（外部）</li>
+<li>server/desktop_slash.py → import typing（外部）</li>
+<li>server/direct_connect_manager.py → import __future__（外部）</li>
+<li>server/direct_connect_manager.py → import asyncio（外部）</li>
+<li>server/direct_connect_manager.py → import json（外部）</li>
+<li>server/direct_connect_manager.py → import logging（外部）</li>
+<li>server/direct_connect_manager.py → import uuid（外部）</li>
+<li>server/direct_connect_manager.py → import collections（外部）</li>
+<li>server/direct_connect_manager.py → import dataclasses（外部）</li>
+<li>server/direct_connect_manager.py → import websockets（外部）</li>
+<li>server/direct_connect_manager.py → import src（外部）</li>
+<li>server/direct_connect_manager.py → import server（外部）</li>
+<li>server/direct_connect_session.py → import __future__（外部）</li>
+<li>server/direct_connect_session.py → import dataclasses（外部）</li>
+<li>server/direct_connect_session.py → import typing（外部）</li>
+<li>server/direct_connect_session.py → import httpx（外部）</li>
+<li>server/direct_connect_session.py → import server（外部）</li>
+<li>server/lockfile.py → import __future__（外部）</li>
+<li>server/lockfile.py → import logging（外部）</li>
+<li>server/lockfile.py → import os（外部）</li>
+<li>server/lockfile.py → import pathlib（外部）</li>
+<li>server/mcp_runtime.py → import __future__（外部）</li>
+<li>server/mcp_runtime.py → import asyncio（外部）</li>
+<li>server/mcp_runtime.py → import logging（外部）</li>
+<li>server/mcp_runtime.py → import threading（外部）</li>
+<li>server/mcp_runtime.py → import typing（外部）</li>
+<li>server/server.py → import __future__（外部）</li>
+<li>server/server.py → import asyncio（外部）</li>
+<li>server/server.py → import json（外部）</li>
+<li>server/server.py → import logging（外部）</li>
+<li>server/server.py → import secrets（外部）</li>
+<li>server/server.py → import collections（外部）</li>
+<li>server/server.py → import dataclasses（外部）</li>
+<li>server/server.py → import urllib（外部）</li>
+<li>server/server.py → import websockets（外部）</li>
+<li>server/server.py → import server（外部）</li>
+<li>server/session_index.py → import __future__（外部）</li>
+<li>server/session_index.py → import asyncio（外部）</li>
+<li>server/session_index.py → import json（外部）</li>
+<li>server/session_index.py → import logging（外部）</li>
+<li>server/session_index.py → import os（外部）</li>
+<li>server/session_index.py → import tempfile（外部）</li>
+<li>server/session_index.py → import contextlib（外部）</li>
+<li>server/session_index.py → import dataclasses（外部）</li>
+<li>server/session_index.py → import pathlib（外部）</li>
+<li>server/session_index.py → import typing（外部）</li>
+<li>server/session_index.py → import src（外部）</li>
+<li>server/session_index.py → import server（外部）</li>
+<li>server/session_manager.py → import __future__（外部）</li>
+<li>server/session_manager.py → import asyncio（外部）</li>
+<li>server/session_manager.py → import logging（外部）</li>
+<li>server/session_manager.py → import time（外部）</li>
+<li>server/session_manager.py → import uuid（外部）</li>
+<li>server/session_manager.py → import dataclasses（外部）</li>
+<li>server/session_manager.py → import pathlib（外部）</li>
+<li>server/session_manager.py → import server（外部）</li>
+<li>server/task_notifications.py → import __future__（外部）</li>
+<li>server/task_notifications.py → import re（外部）</li>
+<li>server/task_notifications.py → import typing（外部）</li>
+<li>server/task_notifications.py → import src（外部）</li>
+<li>server/types.py → import __future__（外部）</li>
+<li>server/types.py → import asyncio（外部）</li>
+<li>server/types.py → import dataclasses（外部）</li>
+<li>server/types.py → import enum（外部）</li>
+<li>server/types.py → import typing（外部）</li>
+<li>server/url_scheme.py → import __future__（外部）</li>
+<li>server/url_scheme.py → import dataclasses（外部）</li>
+<li>server/url_scheme.py → import typing（外部）</li>
+<li>server/url_scheme.py → import urllib（外部）</li>
+</ol>
+<h2 id="5-r7-r5-ccr-14-映射-启发式初版">5. R7/R5/CCR-14 映射（启发式初版）</h2>
+<ol>
+<li>R7-02 Interfaces — 候选（启发式），状态 UNVERIFIED</li>
+<li>R5-01 Surface Layer — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-14 Runtime Config / Feature Gate Control Plane — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-文件级映射细分">6. 文件级映射细分</h2>
+<ol>
+<li><code class="inline-code">__init__.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">agent_server.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">background_scheduler.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">desktop_audio.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">desktop_commands.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">desktop_gateway.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">desktop_gateway_methods.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">desktop_gateway_translate.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">desktop_projects.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">desktop_serve.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">desktop_sessions.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">desktop_slash.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">direct_connect_manager.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">direct_connect_session.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">lockfile.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">mcp_runtime.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">server.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">session_index.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">session_manager.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">task_notifications.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">types.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+<li><code class="inline-code">url_scheme.py</code> → R7-02, R5-01, CCR-14（UNVERIFIED）</li>
+</ol>
+<h2 id="7-未确认项与待核实项">7. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ reference 侧对应文件/symbol 映射待核实</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 reference source</li>
+<li>☐ 本模块 R7/R5/CCR 归属的 UNVERIFIED 状态待升级或降级</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-server-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

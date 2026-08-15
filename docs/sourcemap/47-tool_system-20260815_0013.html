@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tool_system 源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-r7-r5-ccr-14-映射-启发式初版" data-nav>5. R7/R5/CCR-14 映射（启发式初版）</a></li>
+<li><a href="#6-文件级映射细分" data-nav>6. 文件级映射细分</a></li>
+<li><a href="#7-未确认项与待核实项" data-nav>7. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>tool_system 源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">47</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260815_0013</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="tool-system-源码盘点">tool_system 源码盘点</h1>
+<blockquote>
+<p>编号: 47</p>
+<p>时间戳: 20260815_0013</p>
+<p>基线: def709361a86</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>类型: package（目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: tool_system</li>
+<li>类型: package（目录模块）</li>
+<li>Python 文件数: 63</li>
+<li>总行数: 15886</li>
+<li>依赖的 src 内部模块: utils</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">tool_system/__init__.py</code> — 59 行（类 0，函数 0）</li>
+<li><code class="inline-code">tool_system/build_tool.py</code> — 220 行（类 4，函数 4）</li>
+<li><code class="inline-code">tool_system/context.py</code> — 513 行（类 5，函数 2）</li>
+<li><code class="inline-code">tool_system/defaults.py</code> — 82 行（类 0，函数 2）</li>
+<li><code class="inline-code">tool_system/diff_utils.py</code> — 96 行（类 0，函数 3）</li>
+<li><code class="inline-code">tool_system/errors.py</code> — 18 行（类 4，函数 0）</li>
+<li><code class="inline-code">tool_system/loader.py</code> — 71 行（类 0，函数 1）</li>
+<li><code class="inline-code">tool_system/protocol.py</code> — 30 行（类 2，函数 0）</li>
+<li><code class="inline-code">tool_system/registry.py</code> — 399 行（类 1，函数 7）</li>
+<li><code class="inline-code">tool_system/renderers.py</code> — 255 行（类 2，函数 4）</li>
+<li><code class="inline-code">tool_system/schema_validation.py</code> — 360 行（类 1，函数 14）</li>
+<li><code class="inline-code">tool_system/task_manager.py</code> — 63 行（类 2，函数 0）</li>
+<li><code class="inline-code">tool_system/tool_search.py</code> — 374 行（类 1，函数 13）</li>
+<li><code class="inline-code">tool_system/tools/__init__.py</code> — 150 行（类 0，函数 0）</li>
+<li><code class="inline-code">tool_system/tools/advisor.py</code> — 131 行（类 0，函数 1）</li>
+<li><code class="inline-code">tool_system/tools/agent.py</code> — 1019 行（类 0，函数 7）</li>
+<li><code class="inline-code">tool_system/tools/ask_user_question.py</code> — 204 行（类 0，函数 3）</li>
+<li><code class="inline-code">tool_system/tools/bash/__init__.py</code> — 5 行（类 0，函数 0）</li>
+<li><code class="inline-code">tool_system/tools/bash/background.py</code> — 398 行（类 0，函数 4）</li>
+<li><code class="inline-code">tool_system/tools/bash/bash_tool.py</code> — 1141 行（类 1，函数 20）</li>
+<li><code class="inline-code">tool_system/tools/bash/command_semantics.py</code> — 90 行（类 1，函数 7）</li>
+<li><code class="inline-code">tool_system/tools/bash/destructive_warnings.py</code> — 58 行（类 0，函数 1）</li>
+<li><code class="inline-code">tool_system/tools/bash/image_output.py</code> — 111 行（类 0，函数 3）</li>
+<li><code class="inline-code">tool_system/tools/bash/prompt.py</code> — 112 行（类 0，函数 3）</li>
+<li><code class="inline-code">tool_system/tools/bash/read_only_validation.py</code> — 56 行（类 0，函数 1）</li>
+<li><code class="inline-code">tool_system/tools/bash/search_classification.py</code> — 160 行（类 1，函数 3）</li>
+<li><code class="inline-code">tool_system/tools/bash/sleep_detection.py</code> — 32 行（类 0，函数 1）</li>
+<li><code class="inline-code">tool_system/tools/bash/utils.py</code> — 57 行（类 0，函数 4）</li>
+<li><code class="inline-code">tool_system/tools/brief.py</code> — 53 行（类 0，函数 1）</li>
+<li><code class="inline-code">tool_system/tools/config.py</code> — 110 行（类 0，函数 5）</li>
+<li><code class="inline-code">tool_system/tools/cron.py</code> — 178 行（类 0，函数 3）</li>
+<li><code class="inline-code">tool_system/tools/edit.py</code> — 412 行（类 0，函数 14）</li>
+<li><code class="inline-code">tool_system/tools/glob.py</code> — 198 行（类 0，函数 6）</li>
+<li><code class="inline-code">tool_system/tools/grep.py</code> — 702 行（类 1，函数 17）</li>
+<li><code class="inline-code">tool_system/tools/lsp.py</code> — 48 行（类 1，函数 1）</li>
+<li><code class="inline-code">tool_system/tools/mcp.py</code> — 224 行（类 1，函数 4）</li>
+<li><code class="inline-code">tool_system/tools/mcp_resources.py</code> — 215 行（类 1，函数 4）</li>
+<li><code class="inline-code">tool_system/tools/memory.py</code> — 286 行（类 0，函数 8）</li>
+<li><code class="inline-code">tool_system/tools/misc.py</code> — 80 行（类 0，函数 3）</li>
+<li><code class="inline-code">tool_system/tools/monitor.py</code> — 302 行（类 0，函数 4）</li>
+<li><code class="inline-code">tool_system/tools/notebook_edit.py</code> — 308 行（类 0，函数 7）</li>
+<li><code class="inline-code">tool_system/tools/plan_mode.py</code> — 459 行（类 0，函数 8）</li>
+<li><code class="inline-code">tool_system/tools/read.py</code> — 927 行（类 0，函数 15）</li>
+<li><code class="inline-code">tool_system/tools/schedule_wakeup.py</code> — 121 行（类 0，函数 1）</li>
+<li><code class="inline-code">tool_system/tools/send_message.py</code> — 610 行（类 0，函数 11）</li>
+<li><code class="inline-code">tool_system/tools/send_user_message.py</code> — 83 行（类 0，函数 1）</li>
+<li><code class="inline-code">tool_system/tools/skill.py</code> — 539 行（类 0，函数 11）</li>
+<li><code class="inline-code">tool_system/tools/sleep.py</code> — 39 行（类 0，函数 1）</li>
+<li><code class="inline-code">tool_system/tools/structured_output.py</code> — 30 行（类 0，函数 1）</li>
+<li><code class="inline-code">tool_system/tools/task_stop.py</code> — 125 行（类 0，函数 1）</li>
+<li><code class="inline-code">tool_system/tools/tasks_v2.py</code> — 938 行（类 0，函数 19）</li>
+<li><code class="inline-code">tool_system/tools/team.py</code> — 95 行（类 0，函数 2）</li>
+<li><code class="inline-code">tool_system/tools/todo_write.py</code> — 79 行（类 0，函数 1）</li>
+<li><code class="inline-code">tool_system/tools/tool_search.py</code> — 125 行（类 0，函数 2）</li>
+<li><code class="inline-code">tool_system/tools/vision_analyze.py</code> — 388 行（类 0，函数 9）</li>
+<li><code class="inline-code">tool_system/tools/web_fetch.py</code> — 657 行（类 1，函数 21）</li>
+<li><code class="inline-code">tool_system/tools/web_search.py</code> — 393 行（类 0，函数 13）</li>
+<li><code class="inline-code">tool_system/tools/workflow.py</code> — 203 行（类 0，函数 4）</li>
+<li><code class="inline-code">tool_system/tools/worktree.py</code> — 86 行（类 0，函数 2）</li>
+<li><code class="inline-code">tool_system/tools/write.py</code> — 333 行（类 0，函数 8）</li>
+<li><code class="inline-code">tool_system/utils/__init__.py</code> — 0 行（类 0，函数 0）</li>
+<li><code class="inline-code">tool_system/utils/path_utils.py</code> — 29 行（类 0，函数 2）</li>
+<li><code class="inline-code">tool_system/utils/ripgrep.py</code> — 247 行（类 3，函数 6）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">tool_system/__init__.py</code></li>
+<li>文件 <code class="inline-code">tool_system/build_tool.py</code></li>
+<li>类 ValidationResult — L16</li>
+<li>类 SearchOrReadResult — L31</li>
+<li>类 McpInfo — L38</li>
+<li>类 Tool — L44</li>
+<li>函数 _default_map_result_to_api — L105</li>
+<li>函数 build_tool — L121</li>
+<li>函数 tool_matches_name — L212</li>
+<li>函数 find_tool_by_name — L216</li>
+<li>文件 <code class="inline-code">tool_system/context.py</code></li>
+<li>类 ToolUseOptions — L30</li>
+<li>类 QueryChainTracking — L51</li>
+<li>类 FileReadingLimits — L57</li>
+<li>类 GlobLimits — L63</li>
+<li>类 ToolContext — L68</li>
+<li>函数 _resolve_path — L17</li>
+<li>函数 _is_within — L21</li>
+<li>文件 <code class="inline-code">tool_system/defaults.py</code></li>
+<li>函数 _apply_initial_loading_policy — L45</li>
+<li>函数 build_default_registry — L54</li>
+<li>文件 <code class="inline-code">tool_system/diff_utils.py</code></li>
+<li>函数 convert_leading_tabs_to_spaces — L17</li>
+<li>函数 unified_diff_hunks — L30</li>
+<li>函数 record_patch_line_totals — L69</li>
+<li>文件 <code class="inline-code">tool_system/errors.py</code></li>
+<li>类 ToolError — L4</li>
+<li>类 ToolInputError — L8</li>
+<li>类 ToolPermissionError — L12</li>
+<li>类 ToolExecutionError — L16</li>
+<li>文件 <code class="inline-code">tool_system/loader.py</code></li>
+<li>函数 load_tools_from_dir — L13</li>
+<li>文件 <code class="inline-code">tool_system/protocol.py</code></li>
+<li>类 ToolCall — L11</li>
+<li>类 ToolResult — L18</li>
+<li>文件 <code class="inline-code">tool_system/registry.py</code></li>
+<li>类 ToolRegistry — L110</li>
+<li>函数 _apply_and_persist_updates — L22</li>
+<li>函数 _invoke_tool_call — L293</li>
+<li>函数 get_all_base_tools — L325</li>
+<li>函数 filter_tools_by_deny_rules — L329</li>
+<li>函数 get_tools — L339</li>
+<li>函数 assemble_tool_pool — L348</li>
+<li>函数 get_merged_tools — L391</li>
+<li>文件 <code class="inline-code">tool_system/renderers.py</code></li>
+<li>类 ToolEvent — L21</li>
+<li>类 AgentLoopResult — L39</li>
+<li>函数 _safe_call_handler — L57</li>
+<li>函数 _emit_text_chunks — L73</li>
+<li>函数 summarize_tool_use — L97</li>
+<li>函数 summarize_tool_result — L174</li>
+<li>文件 <code class="inline-code">tool_system/schema_validation.py</code></li>
+<li>类 ValidationIssue — L12</li>
+<li>函数 _type_name — L28</li>
+<li>函数 _js_type_name — L46</li>
+<li>函数 _child_key_path — L68</li>
+<li>函数 _child_index_path — L72</li>
+<li>函数 _render_issues — L76</li>
+<li>函数 validate_json_schema — L83</li>
+<li>函数 semantic_coerce — L116</li>
+<li>函数 format_tool_validation_error — L177</li>
+<li>函数 validate_tool_input — L211</li>
+<li>函数 _validate — L234</li>
+<li>函数 _type_issue — L290</li>
+<li>函数 _validate_object — L301</li>
+<li>函数 _is_valid — L338</li>
+<li>函数 build_schema_not_sent_hint — L344</li>
+<li>文件 <code class="inline-code">tool_system/task_manager.py</code></li>
+<li>类 ManagedTask — L11</li>
+<li>类 TaskManager — L19</li>
+<li>文件 <code class="inline-code">tool_system/tool_search.py</code></li>
+<li>类 ToolSearchMode — L49</li>
+<li>函数 _parse_auto_percentage — L67</li>
+<li>函数 _is_auto_tool_search_mode — L78</li>
+<li>函数 get_auto_tool_search_percentage — L84</li>
+<li>函数 get_tool_search_mode — L95</li>
+<li>函数 _get_context_window_for_model — L135</li>
+<li>函数 model_supports_tool_reference — L144</li>
+<li>函数 is_deferred_tool — L162</li>
+<li>函数 is_tool_search_tool_available — L184</li>
+<li>函数 is_tool_search_enabled_optimistic — L192</li>
+<li>函数 is_tool_search_enabled — L203</li>
+<li>函数 _check_auto_threshold — L232</li>
+<li>函数 extract_discovered_tool_names — L265</li>
+<li>函数 filter_tools_for_request — L341</li>
+<li>文件 <code class="inline-code">tool_system/tools/__init__.py</code></li>
+<li>文件 <code class="inline-code">tool_system/tools/advisor.py</code></li>
+<li>函数 _advisor_call — L29</li>
+<li>文件 <code class="inline-code">tool_system/tools/agent.py</code></li>
+<li>函数 _emit_terminal_agent_progress — L57</li>
+<li>函数 make_agent_tool — L148</li>
+<li>函数 _resolve_parent_system_prompt — L878</li>
+<li>函数 _resolve_fork_worktree_cwd — L928</li>
+<li>函数 _sync_collect_agent_messages — L948</li>
+<li>函数 _format_subagent_tool_use — L953</li>
+<li>函数 _collect_agent_messages — L987</li>
+<li>文件 <code class="inline-code">tool_system/tools/ask_user_question.py</code></li>
+<li>函数 _ask_user_question_classifier_input — L42</li>
+<li>函数 _ask_user_question_call — L58</li>
+<li>函数 _ask_user_question_map_result — L111</li>
+<li>文件 <code class="inline-code">tool_system/tools/bash/__init__.py</code></li>
+<li>文件 <code class="inline-code">tool_system/tools/bash/background.py</code></li>
+<li>函数 _bg_output_dir — L40</li>
+<li>函数 spawn_background_bash — L51</li>
+<li>函数 read_background_output — L280</li>
+<li>函数 stop_background_bash — L371</li>
+<li>文件 <code class="inline-code">tool_system/tools/bash/bash_tool.py</code></li>
+<li>类 _BashRunResult — L31</li>
+<li>函数 _get_abort_signal — L39</li>
+<li>函数 _run_bash_with_abort — L57</li>
+<li>函数 _bare_command — L179</li>
+<li>函数 _try_extract_cd — L219</li>
+<li>函数 _bash_check_permissions — L248</li>
+<li>函数 _exact_allow_rule — L460</li>
+<li>函数 _bash_validate_input — L483</li>
+<li>函数 _is_bypass_permissions — L500</li>
+<li>函数 bash_command_safety_guard — L531</li>
+<li>函数 _bash_call — L592</li>
+<li>函数 _assemble_bash_body — L900</li>
+<li>函数 _eco_tee_dir — L913</li>
+<li>函数 _maybe_apply_eco — L926</li>
+<li>函数 _bash_map_result_to_api — L976</li>
+<li>函数 _bash_prompt_fn — L1046</li>
+<li>函数 _bash_search_or_read — L1050</li>
+<li>函数 _bash_classifier_input — L1060</li>
+<li>函数 _bash_activity — L1064</li>
+<li>函数 _bash_user_facing_name — L1074</li>
+<li>函数 _bash_tool_use_summary — L1080</li>
+<li>文件 <code class="inline-code">tool_system/tools/bash/command_semantics.py</code></li>
+<li>类 CommandInterpretation — L17</li>
+<li>函数 _default_semantic — L25</li>
+<li>函数 _grep_semantic — L32</li>
+<li>函数 _find_semantic — L39</li>
+<li>函数 _diff_semantic — L46</li>
+<li>函数 _test_semantic — L53</li>
+<li>函数 _heuristically_extract_base_command — L70</li>
+<li>函数 interpret_command_result — L82</li>
+<li>文件 <code class="inline-code">tool_system/tools/bash/destructive_warnings.py</code></li>
+<li>函数 get_destructive_command_warning — L53</li>
+<li>文件 <code class="inline-code">tool_system/tools/bash/image_output.py</code></li>
+<li>函数 is_image_output — L29</li>
+<li>函数 parse_data_uri — L39</li>
+<li>函数 build_image_tool_result — L52</li>
+<li>文件 <code class="inline-code">tool_system/tools/bash/prompt.py</code></li>
+<li>函数 get_default_timeout_ms — L11</li>
+<li>函数 get_max_timeout_ms — L21</li>
+<li>函数 get_bash_prompt — L31</li>
+<li>文件 <code class="inline-code">tool_system/tools/bash/read_only_validation.py</code></li>
+<li>函数 is_command_read_only — L35</li>
+<li>文件 <code class="inline-code">tool_system/tools/bash/search_classification.py</code></li>
+<li>类 SearchOrReadResult — L41</li>
+<li>函数 _split_with_operators — L47</li>
+<li>函数 is_search_or_read_command — L52</li>
+<li>函数 is_silent_command — L118</li>
+<li>文件 <code class="inline-code">tool_system/tools/bash/sleep_detection.py</code></li>
+<li>函数 detect_blocked_sleep_pattern — L16</li>
+<li>文件 <code class="inline-code">tool_system/tools/bash/utils.py</code></li>
+<li>函数 get_max_output_length — L12</li>
+<li>函数 truncate_output — L23</li>
+<li>函数 strip_empty_lines — L36</li>
+<li>函数 strip_leading_blank_lines — L54</li>
+<li>文件 <code class="inline-code">tool_system/tools/brief.py</code></li>
+<li>函数 _brief_call — L11</li>
+<li>文件 <code class="inline-code">tool_system/tools/config.py</code></li>
+<li>函数 _get_setting — L11</li>
+<li>函数 _set_setting — L21</li>
+<li>函数 _config_classifier_input — L36</li>
+<li>函数 _config_call — L45</li>
+<li>函数 _config_check_permissions — L78</li>
+<li>文件 <code class="inline-code">tool_system/tools/cron.py</code></li>
+<li>函数 _cron_create_call — L41</li>
+<li>函数 _cron_list_call — L113</li>
+<li>函数 _cron_delete_call — L148</li>
+<li>文件 <code class="inline-code">tool_system/tools/edit.py</code></li>
+<li>函数 _normalize_quotes — L35</li>
+<li>函数 _is_opening_context — L44</li>
+<li>函数 _apply_curly_double_quotes — L51</li>
+<li>函数 _apply_curly_single_quotes — L62</li>
+<li>函数 _find_actual_string — L80</li>
+<li>函数 _preserve_quote_style — L91</li>
+<li>函数 _desanitize_match_string — L130</li>
+<li>函数 _apply_edit — L143</li>
+<li>函数 _strip_trailing_whitespace — L162</li>
+<li>函数 _find_similar_file — L172</li>
+<li>函数 _check_permissions — L190</li>
+<li>函数 _map_result_to_api — L204</li>
+<li>函数 _edit_call — L218</li>
+<li>函数 _edit_classifier_input — L361</li>
+<li>文件 <code class="inline-code">tool_system/tools/glob.py</code></li>
+<li>函数 _glob_via_ripgrep — L28</li>
+<li>函数 _glob_fallback — L38</li>
+<li>函数 _sort_by_mtime — L45</li>
+<li>函数 _map_result_to_api — L58</li>
+<li>函数 _glob_call — L74</li>
+<li>函数 _glob_check_permissions — L143</li>
+<li>文件 <code class="inline-code">tool_system/tools/grep.py</code></li>
+<li>类 _Pagination — L262</li>
+<li>函数 _semantic_bool — L33</li>
+<li>函数 _semantic_int — L41</li>
+<li>函数 _split_glob_patterns — L56</li>
+<li>函数 _iter_files — L69</li>
+<li>函数 _matches_glob — L76</li>
+<li>函数 _matches_type — L80</li>
+<li>函数 _truncate_line — L85</li>
+<li>函数 _grep_fallback_python — L91</li>
+<li>函数 _grep_via_ripgrep — L199</li>
+<li>函数 _paginate — L268</li>
+<li>函数 _format_limit_info — L283</li>
+<li>函数 _plural — L292</li>
+<li>函数 _map_result_to_api — L296</li>
+<li>函数 _grep_call — L333</li>
+<li>函数 _build_result_from_ripgrep — L428</li>
+<li>函数 _build_result_from_fallback — L517</li>
+<li>函数 _grep_check_permissions — L600</li>
+<li>文件 <code class="inline-code">tool_system/tools/lsp.py</code></li>
+<li>类 LSPClient — L11</li>
+<li>函数 _lsp_call — L15</li>
+<li>文件 <code class="inline-code">tool_system/tools/mcp.py</code></li>
+<li>类 MCPClient — L28</li>
+<li>函数 _validate_mcp_input — L66</li>
+<li>函数 validate_mcp_tool_input_schema — L88</li>
+<li>函数 _mcp_map_result_to_api — L121</li>
+<li>函数 _mcp_call — L169</li>
+<li>文件 <code class="inline-code">tool_system/tools/mcp_resources.py</code></li>
+<li>类 _McpResourceClient — L12</li>
+<li>函数 _list_resources_map_result_to_api — L64</li>
+<li>函数 _read_resource_map_result_to_api — L87</li>
+<li>函数 _list_mcp_resources_call — L103</li>
+<li>函数 _read_mcp_resource_call — L166</li>
+<li>文件 <code class="inline-code">tool_system/tools/memory.py</code></li>
+<li>函数 _store — L39</li>
+<li>函数 _missing_old_text_error — L45</li>
+<li>函数 _apply_write_gate — L68</li>
+<li>函数 _summarize_single — L92</li>
+<li>函数 _summarize_batch — L101</li>
+<li>函数 _memory_call — L106</li>
+<li>函数 _memory_enabled — L174</li>
+<li>函数 _tool_use_summary — L183</li>
+<li>文件 <code class="inline-code">tool_system/tools/misc.py</code></li>
+<li>函数 _clipboard_read_call — L12</li>
+<li>函数 _clipboard_write_call — L30</li>
+<li>函数 _status_call — L55</li>
+<li>文件 <code class="inline-code">tool_system/tools/monitor.py</code></li>
+<li>函数 _monitor_notification_xml — L50</li>
+<li>函数 _kill_monitor_task — L81</li>
+<li>函数 _stream_output — L93</li>
+<li>函数 _monitor_call — L207</li>
+<li>文件 <code class="inline-code">tool_system/tools/notebook_edit.py</code></li>
+<li>函数 _parse_cell_id — L33</li>
+<li>函数 _generate_cell_id — L38</li>
+<li>函数 _find_cell_index — L42</li>
+<li>函数 _make_cell — L52</li>
+<li>函数 _check_permissions — L71</li>
+<li>函数 _map_result_to_api — L82</li>
+<li>函数 _notebook_edit_call — L110</li>
+<li>文件 <code class="inline-code">tool_system/tools/plan_mode.py</code></li>
+<li>函数 _set_permission_mode — L55</li>
+<li>函数 _enter_plan_mode_check_permissions — L192</li>
+<li>函数 _enter_plan_mode_call — L204</li>
+<li>函数 _enter_plan_mode_map_result — L225</li>
+<li>函数 _exit_plan_mode_validate — L292</li>
+<li>函数 _exit_plan_mode_check_permissions — L302</li>
+<li>函数 _exit_plan_mode_call — L311</li>
+<li>函数 _exit_plan_mode_map_result — L364</li>
+<li>文件 <code class="inline-code">tool_system/tools/read.py</code></li>
+<li>函数 _backfill_read_edit_path — L20</li>
+<li>函数 _is_blocked_device_path — L71</li>
+<li>函数 _has_blocked_binary_extension — L133</li>
+<li>函数 _get_max_size_bytes — L150</li>
+<li>函数 _get_max_output_tokens — L166</li>
+<li>函数 _rough_token_estimate — L179</li>
+<li>函数 _find_similar_file — L188</li>
+<li>函数 _render_prompt — L210</li>
+<li>函数 _parse_pdf_pages — L234</li>
+<li>函数 _get_dedup_fingerprint — L271</li>
+<li>函数 _is_partial_read — L276</li>
+<li>函数 _text_only_vision_stub — L287</li>
+<li>函数 _read_call — L371</li>
+<li>函数 _read_map_result_to_api — L749</li>
+<li>函数 _read_check_permissions — L849</li>
+<li>文件 <code class="inline-code">tool_system/tools/schedule_wakeup.py</code></li>
+<li>函数 _schedule_wakeup_call — L40</li>
+<li>文件 <code class="inline-code">tool_system/tools/send_message.py</code></li>
+<li>函数 _ok — L123</li>
+<li>函数 _err — L129</li>
+<li>函数 _resolve_in_process — L135</li>
+<li>函数 _route_in_process — L156</li>
+<li>函数 _route_team_mailbox — L222</li>
+<li>函数 _broadcast — L271</li>
+<li>函数 _approve_flag — L310</li>
+<li>函数 _structured_message_to_envelope — L331</li>
+<li>函数 _send_message_call — L403</li>
+<li>函数 _send_message_classifier_input — L536</li>
+<li>函数 _send_message_check_permissions — L552</li>
+<li>文件 <code class="inline-code">tool_system/tools/send_user_message.py</code></li>
+<li>函数 _send_user_message_call — L14</li>
+<li>文件 <code class="inline-code">tool_system/tools/skill.py</code></li>
+<li>函数 _validate_skill_input — L46</li>
+<li>函数 _skill_check_permissions — L116</li>
+<li>函数 _skill_map_result_to_api — L186</li>
+<li>函数 _skill_call — L228</li>
+<li>函数 run_markdown_skill — L242</li>
+<li>函数 _run_markdown_skill — L249</li>
+<li>函数 _permission_context_with_skill_bash_rules — L325</li>
+<li>函数 _make_shell_executor — L351</li>
+<li>函数 _build_context_modifier — L445</li>
+<li>函数 _run_legacy_python_skill — L468</li>
+<li>函数 _get_skills_dir — L493</li>
+<li>文件 <code class="inline-code">tool_system/tools/sleep.py</code></li>
+<li>函数 _sleep_call — L12</li>
+<li>文件 <code class="inline-code">tool_system/tools/structured_output.py</code></li>
+<li>函数 _structured_output_call — L10</li>
+<li>文件 <code class="inline-code">tool_system/tools/task_stop.py</code></li>
+<li>函数 _task_stop_call — L35</li>
+<li>文件 <code class="inline-code">tool_system/tools/tasks_v2.py</code></li>
+<li>函数 _new_task_id — L16</li>
+<li>函数 _task_create_classifier_input — L28</li>
+<li>函数 _task_get_classifier_input — L32</li>
+<li>函数 _task_update_classifier_input — L36</li>
+<li>函数 _task_output_classifier_input — L51</li>
+<li>函数 _format_task_created — L60</li>
+<li>函数 _format_task_detail — L65</li>
+<li>函数 _format_task_list — L83</li>
+<li>函数 _format_task_updated — L100</li>
+<li>函数 _cascade_delete — L118</li>
+<li>函数 _task_create_call — L134</li>
+<li>函数 _task_get_call — L232</li>
+<li>函数 _task_list_call — L295</li>
+<li>函数 _task_update_call — L366</li>
+<li>函数 _bg_output_size — L555</li>
+<li>函数 _guard_repeated_polls — L577</li>
+<li>函数 _task_output_call — L692</li>
+<li>函数 _poll_runtime_until_terminal — L765</li>
+<li>函数 _runtime_task_to_output — L819</li>
+<li>文件 <code class="inline-code">tool_system/tools/team.py</code></li>
+<li>函数 _team_create_call — L13</li>
+<li>函数 _team_delete_call — L71</li>
+<li>文件 <code class="inline-code">tool_system/tools/todo_write.py</code></li>
+<li>函数 _todo_write_call — L12</li>
+<li>文件 <code class="inline-code">tool_system/tools/tool_search.py</code></li>
+<li>函数 _map_result_to_api — L12</li>
+<li>函数 make_tool_search_tool — L33</li>
+<li>文件 <code class="inline-code">tool_system/tools/vision_analyze.py</code></li>
+<li>函数 _err — L63</li>
+<li>函数 _load_image — L67</li>
+<li>函数 _vision_call — L160</li>
+<li>函数 _ask_vision_model — L212</li>
+<li>函数 _cached_provider — L258</li>
+<li>函数 _timeout_for — L284</li>
+<li>函数 _usage_to_dict — L300</li>
+<li>函数 _record_usage — L311</li>
+<li>函数 _vision_enabled — L329</li>
+<li>文件 <code class="inline-code">tool_system/tools/web_fetch.py</code></li>
+<li>类 _NoRedirectHandler — L188</li>
+<li>函数 _strip_noise_blocks — L49</li>
+<li>函数 _convert — L97</li>
+<li>函数 _is_private_host — L121</li>
+<li>函数 _validate_url — L137</li>
+<li>函数 _strip_www — L170</li>
+<li>函数 _is_permitted_redirect — L174</li>
+<li>函数 _accept_header — L207</li>
+<li>函数 _request_headers — L218</li>
+<li>函数 _charset_from_content_type — L227</li>
+<li>函数 _read_response_body — L232</li>
+<li>函数 _is_cloudflare_challenge — L256</li>
+<li>函数 _fetch_with_redirect_handling — L264</li>
+<li>函数 _cache_get — L306</li>
+<li>函数 _cache_set — L317</li>
+<li>函数 _is_preapproved — L405</li>
+<li>函数 _domain_rule_content — L418</li>
+<li>函数 _domain_suggestions — L428</li>
+<li>函数 _check_permissions — L450</li>
+<li>函数 _map_result_to_api — L527</li>
+<li>函数 _web_fetch_call — L539</li>
+<li>函数 _web_fetch_classifier_input — L609</li>
+<li>文件 <code class="inline-code">tool_system/tools/web_search.py</code></li>
+<li>函数 _safe_hostname — L23</li>
+<li>函数 _host_matches_domain — L33</li>
+<li>函数 _apply_domain_filters — L44</li>
+<li>函数 _first_match — L81</li>
+<li>函数 _normalize_hit — L89</li>
+<li>函数 _tavily_api_key — L118</li>
+<li>函数 is_web_search_configured — L128</li>
+<li>函数 _tavily_search — L133</li>
+<li>函数 _get_web_search_prompt — L186</li>
+<li>函数 _map_result_to_api — L224</li>
+<li>函数 _validate_input — L266</li>
+<li>函数 _format_output — L287</li>
+<li>函数 _web_search_call — L325</li>
+<li>文件 <code class="inline-code">tool_system/tools/workflow.py</code></li>
+<li>函数 resolve_named_workflow — L55</li>
+<li>函数 _resolve_source — L70</li>
+<li>函数 _default_runner_factory — L90</li>
+<li>函数 make_workflow_tool — L131</li>
+<li>文件 <code class="inline-code">tool_system/tools/worktree.py</code></li>
+<li>函数 _enter_worktree_call — L15</li>
+<li>函数 _exit_worktree_call — L60</li>
+<li>文件 <code class="inline-code">tool_system/tools/write.py</code></li>
+<li>函数 _expand_path — L41</li>
+<li>函数 _backfill_observable_input — L50</li>
+<li>函数 _validate_input — L63</li>
+<li>函数 _is_auto_memory_write — L123</li>
+<li>函数 _check_permissions — L153</li>
+<li>函数 _map_result_to_api — L177</li>
+<li>函数 _write_call — L214</li>
+<li>函数 _write_classifier_input — L289</li>
+<li>文件 <code class="inline-code">tool_system/utils/__init__.py</code></li>
+<li>文件 <code class="inline-code">tool_system/utils/path_utils.py</code></li>
+<li>函数 to_relative_path — L9</li>
+<li>函数 suggest_path_under_cwd — L20</li>
+<li>文件 <code class="inline-code">tool_system/utils/ripgrep.py</code></li>
+<li>类 RipgrepTimeoutError — L30</li>
+<li>类 RipgrepAbortedError — L36</li>
+<li>类 RipgrepUnavailableError — L50</li>
+<li>函数 find_ripgrep — L60</li>
+<li>函数 _get_timeout — L68</li>
+<li>函数 _is_eagain_error — L81</li>
+<li>函数 _get_install_hint — L85</li>
+<li>函数 _run_rg_with_abort — L93</li>
+<li>函数 ripgrep — L191</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>tool_system/__init__.py → import __future__（外部）</li>
+<li>tool_system/__init__.py → import src（外部）</li>
+<li>tool_system/__init__.py → import tool_system（外部）</li>
+<li>tool_system/build_tool.py → import __future__（外部）</li>
+<li>tool_system/build_tool.py → import json（外部）</li>
+<li>tool_system/build_tool.py → import dataclasses（外部）</li>
+<li>tool_system/build_tool.py → import typing（外部）</li>
+<li>tool_system/build_tool.py → import tool_system（外部）</li>
+<li>tool_system/build_tool.py → import src（外部）</li>
+<li>tool_system/context.py → import __future__（外部）</li>
+<li>tool_system/context.py → import threading（外部）</li>
+<li>tool_system/context.py → import dataclasses（外部）</li>
+<li>tool_system/context.py → import pathlib（外部）</li>
+<li>tool_system/context.py → import typing（外部）</li>
+<li>tool_system/context.py → import tool_system（外部）</li>
+<li>tool_system/context.py → import src（外部）</li>
+<li>tool_system/defaults.py → import __future__（外部）</li>
+<li>tool_system/defaults.py → import dataclasses（外部）</li>
+<li>tool_system/defaults.py → import typing（外部）</li>
+<li>tool_system/defaults.py → import tool_system（外部）</li>
+<li>tool_system/diff_utils.py → import __future__（外部）</li>
+<li>tool_system/diff_utils.py → import re（外部）</li>
+<li>tool_system/diff_utils.py → import dataclasses（外部）</li>
+<li>tool_system/diff_utils.py → import typing（外部）</li>
+<li>tool_system/errors.py → import __future__（外部）</li>
+<li>tool_system/loader.py → import __future__（外部）</li>
+<li>tool_system/loader.py → import importlib（外部）</li>
+<li>tool_system/loader.py → import sys（外部）</li>
+<li>tool_system/loader.py → import pathlib（外部）</li>
+<li>tool_system/loader.py → import typing（外部）</li>
+<li>tool_system/loader.py → import tool_system（外部）</li>
+<li>tool_system/protocol.py → import __future__（外部）</li>
+<li>tool_system/protocol.py → import dataclasses（外部）</li>
+<li>tool_system/protocol.py → import typing（外部）</li>
+<li>tool_system/registry.py → import __future__（外部）</li>
+<li>tool_system/registry.py → import inspect（外部）</li>
+<li>tool_system/registry.py → import logging（外部）</li>
+<li>tool_system/registry.py → import typing（外部）</li>
+<li>tool_system/registry.py → import tool_system（外部）</li>
+<li>tool_system/registry.py → import src（外部）</li>
+<li>tool_system/renderers.py → import __future__（外部）</li>
+<li>tool_system/renderers.py → import dataclasses（外部）</li>
+<li>tool_system/renderers.py → import typing（外部）</li>
+<li>tool_system/schema_validation.py → import __future__（外部）</li>
+<li>tool_system/schema_validation.py → import math（外部）</li>
+<li>tool_system/schema_validation.py → import re（外部）</li>
+<li>tool_system/schema_validation.py → import dataclasses（外部）</li>
+<li>tool_system/schema_validation.py → import typing（外部）</li>
+<li>tool_system/schema_validation.py → import tool_system（外部）</li>
+<li>tool_system/task_manager.py → import __future__（外部）</li>
+<li>tool_system/task_manager.py → import threading（外部）</li>
+<li>tool_system/task_manager.py → import time（外部）</li>
+<li>tool_system/task_manager.py → import uuid（外部）</li>
+<li>tool_system/task_manager.py → import dataclasses（外部）</li>
+<li>tool_system/task_manager.py → import typing（外部）</li>
+<li>tool_system/tool_search.py → import __future__（外部）</li>
+<li>tool_system/tool_search.py → import logging（外部）</li>
+<li>tool_system/tool_search.py → import os（外部）</li>
+<li>tool_system/tool_search.py → import enum（外部）</li>
+<li>tool_system/tool_search.py → import typing（外部）</li>
+<li>tool_system/tool_search.py → import tool_system（外部）</li>
+<li>tool_system/tools/__init__.py → import __future__（外部）</li>
+<li>tool_system/tools/__init__.py → import tool_system（外部）</li>
+<li>tool_system/tools/advisor.py → import __future__（外部）</li>
+<li>tool_system/tools/advisor.py → import typing（外部）</li>
+<li>tool_system/tools/advisor.py → import tool_system（外部）</li>
+<li>tool_system/tools/agent.py → import __future__（外部）</li>
+<li>tool_system/tools/agent.py → import asyncio（外部）</li>
+<li>tool_system/tools/agent.py → import logging（外部）</li>
+<li>tool_system/tools/agent.py → import os（外部）</li>
+<li>tool_system/tools/agent.py → import sys（外部）</li>
+<li>tool_system/tools/agent.py → import time（外部）</li>
+<li>tool_system/tools/agent.py → import typing（外部）</li>
+<li>tool_system/tools/agent.py → import uuid（外部）</li>
+<li>tool_system/tools/agent.py → import tool_system（外部）</li>
+<li>tool_system/tools/agent.py → import src（外部）</li>
+<li>tool_system/tools/ask_user_question.py → import __future__（外部）</li>
+<li>tool_system/tools/ask_user_question.py → import json（外部）</li>
+<li>tool_system/tools/ask_user_question.py → import typing（外部）</li>
+<li>tool_system/tools/ask_user_question.py → import tool_system（外部）</li>
+<li>tool_system/tools/bash/__init__.py → import tool_system（外部）</li>
+<li>tool_system/tools/bash/background.py → import __future__（外部）</li>
+<li>tool_system/tools/bash/background.py → import os（外部）</li>
+<li>tool_system/tools/bash/background.py → import subprocess（外部）</li>
+<li>tool_system/tools/bash/background.py → import tempfile（外部）</li>
+<li>tool_system/tools/bash/background.py → import threading（外部）</li>
+<li>tool_system/tools/bash/background.py → import time（外部）</li>
+<li>tool_system/tools/bash/background.py → import pathlib（外部）</li>
+<li>tool_system/tools/bash/background.py → import typing（外部）</li>
+<li>tool_system/tools/bash/background.py → import tool_system（外部）</li>
+<li>tool_system/tools/bash/background.py → import src（外部）</li>
+<li>tool_system/tools/bash/bash_tool.py → import __future__（外部）</li>
+<li>tool_system/tools/bash/bash_tool.py → import json（外部）</li>
+<li>tool_system/tools/bash/bash_tool.py → import os（外部）</li>
+<li>tool_system/tools/bash/bash_tool.py → import re（外部）</li>
+<li>tool_system/tools/bash/bash_tool.py → import shlex（外部）</li>
+<li>tool_system/tools/bash/bash_tool.py → import subprocess（外部）</li>
+<li>tool_system/tools/bash/bash_tool.py → import time（外部）</li>
+<li>tool_system/tools/bash/bash_tool.py → import dataclasses（外部）</li>
+<li>tool_system/tools/bash/bash_tool.py → import pathlib（外部）</li>
+<li>tool_system/tools/bash/bash_tool.py → import typing（外部）</li>
+<li>tool_system/tools/bash/bash_tool.py → import src（外部）</li>
+<li>tool_system/tools/bash/bash_tool.py → import tool_system（外部）</li>
+<li>tool_system/tools/bash/command_semantics.py → import __future__（外部）</li>
+<li>tool_system/tools/bash/command_semantics.py → import re（外部）</li>
+<li>tool_system/tools/bash/command_semantics.py → import dataclasses（外部）</li>
+<li>tool_system/tools/bash/command_semantics.py → import typing（外部）</li>
+<li>tool_system/tools/bash/destructive_warnings.py → import __future__（外部）</li>
+<li>tool_system/tools/bash/destructive_warnings.py → import re（外部）</li>
+<li>tool_system/tools/bash/image_output.py → import __future__（外部）</li>
+<li>tool_system/tools/bash/image_output.py → import base64（外部）</li>
+<li>tool_system/tools/bash/image_output.py → import re（外部）</li>
+<li>tool_system/tools/bash/image_output.py → import typing（外部）</li>
+<li>tool_system/tools/bash/prompt.py → import __future__（外部）</li>
+<li>tool_system/tools/bash/prompt.py → import os（外部）</li>
+<li>tool_system/tools/bash/read_only_validation.py → import __future__（外部）</li>
+<li>tool_system/tools/bash/read_only_validation.py → import re（外部）</li>
+<li>tool_system/tools/bash/read_only_validation.py → import shlex（外部）</li>
+<li>tool_system/tools/bash/search_classification.py → import __future__（外部）</li>
+<li>tool_system/tools/bash/search_classification.py → import re（外部）</li>
+<li>tool_system/tools/bash/search_classification.py → import dataclasses（外部）</li>
+<li>tool_system/tools/bash/sleep_detection.py → import __future__（外部）</li>
+<li>tool_system/tools/bash/sleep_detection.py → import re（外部）</li>
+<li>tool_system/tools/bash/utils.py → import __future__（外部）</li>
+<li>tool_system/tools/bash/utils.py → import os（外部）</li>
+<li>tool_system/tools/brief.py → import __future__（外部）</li>
+<li>tool_system/tools/brief.py → import typing（外部）</li>
+<li>tool_system/tools/brief.py → import tool_system（外部）</li>
+<li>tool_system/tools/config.py → import __future__（外部）</li>
+<li>tool_system/tools/config.py → import typing（外部）</li>
+<li>tool_system/tools/config.py → import tool_system（外部）</li>
+<li>tool_system/tools/cron.py → import __future__（外部）</li>
+<li>tool_system/tools/cron.py → import uuid（外部）</li>
+<li>tool_system/tools/cron.py → import typing（外部）</li>
+<li>tool_system/tools/cron.py → import tool_system（外部）</li>
+<li>tool_system/tools/edit.py → import __future__（外部）</li>
+<li>tool_system/tools/edit.py → import difflib（外部）</li>
+<li>tool_system/tools/edit.py → import os（外部）</li>
+<li>tool_system/tools/edit.py → import unicodedata（外部）</li>
+<li>tool_system/tools/edit.py → import pathlib（外部）</li>
+<li>tool_system/tools/edit.py → import typing（外部）</li>
+<li>tool_system/tools/edit.py → import tool_system（外部）</li>
+<li>tool_system/tools/edit.py → import src（外部）</li>
+<li>tool_system/tools/glob.py → import __future__（外部）</li>
+<li>tool_system/tools/glob.py → import glob（外部）</li>
+<li>tool_system/tools/glob.py → import os（外部）</li>
+<li>tool_system/tools/glob.py → import pathlib（外部）</li>
+<li>tool_system/tools/glob.py → import typing（外部）</li>
+<li>tool_system/tools/glob.py → import tool_system（外部）</li>
+<li>tool_system/tools/glob.py → import utils（内部）</li>
+<li>tool_system/tools/grep.py → import __future__（外部）</li>
+<li>tool_system/tools/grep.py → import fnmatch（外部）</li>
+<li>tool_system/tools/grep.py → import os（外部）</li>
+<li>tool_system/tools/grep.py → import re（外部）</li>
+<li>tool_system/tools/grep.py → import dataclasses（外部）</li>
+<li>tool_system/tools/grep.py → import pathlib（外部）</li>
+<li>tool_system/tools/grep.py → import typing（外部）</li>
+<li>tool_system/tools/grep.py → import tool_system（外部）</li>
+<li>tool_system/tools/grep.py → import utils（内部）</li>
+<li>tool_system/tools/lsp.py → import __future__（外部）</li>
+<li>tool_system/tools/lsp.py → import typing（外部）</li>
+<li>tool_system/tools/lsp.py → import tool_system（外部）</li>
+<li>tool_system/tools/mcp.py → import __future__（外部）</li>
+<li>tool_system/tools/mcp.py → import json（外部）</li>
+<li>tool_system/tools/mcp.py → import logging（外部）</li>
+<li>tool_system/tools/mcp.py → import typing（外部）</li>
+<li>tool_system/tools/mcp.py → import tool_system（外部）</li>
+<li>tool_system/tools/mcp_resources.py → import __future__（外部）</li>
+<li>tool_system/tools/mcp_resources.py → import json（外部）</li>
+<li>tool_system/tools/mcp_resources.py → import typing（外部）</li>
+<li>tool_system/tools/mcp_resources.py → import tool_system（外部）</li>
+<li>tool_system/tools/memory.py → import __future__（外部）</li>
+<li>tool_system/tools/memory.py → import json（外部）</li>
+<li>tool_system/tools/memory.py → import typing（外部）</li>
+<li>tool_system/tools/memory.py → import tool_system（外部）</li>
+<li>tool_system/tools/misc.py → import __future__（外部）</li>
+<li>tool_system/tools/misc.py → import json（外部）</li>
+<li>tool_system/tools/misc.py → import typing（外部）</li>
+<li>tool_system/tools/misc.py → import tool_system（外部）</li>
+<li>tool_system/tools/monitor.py → import __future__（外部）</li>
+<li>tool_system/tools/monitor.py → import logging（外部）</li>
+<li>tool_system/tools/monitor.py → import threading（外部）</li>
+<li>tool_system/tools/monitor.py → import time（外部）</li>
+<li>tool_system/tools/monitor.py → import pathlib（外部）</li>
+<li>tool_system/tools/monitor.py → import typing（外部）</li>
+<li>tool_system/tools/monitor.py → import tool_system（外部）</li>
+<li>tool_system/tools/notebook_edit.py → import __future__（外部）</li>
+<li>tool_system/tools/notebook_edit.py → import json（外部）</li>
+<li>tool_system/tools/notebook_edit.py → import random（外部）</li>
+<li>tool_system/tools/notebook_edit.py → import re（外部）</li>
+<li>tool_system/tools/notebook_edit.py → import string（外部）</li>
+<li>tool_system/tools/notebook_edit.py → import pathlib（外部）</li>
+<li>tool_system/tools/notebook_edit.py → import typing（外部）</li>
+<li>tool_system/tools/notebook_edit.py → import tool_system（外部）</li>
+<li>tool_system/tools/notebook_edit.py → import src（外部）</li>
+<li>tool_system/tools/plan_mode.py → import __future__（外部）</li>
+<li>tool_system/tools/plan_mode.py → import typing（外部）</li>
+<li>tool_system/tools/plan_mode.py → import src（外部）</li>
+<li>tool_system/tools/plan_mode.py → import tool_system（外部）</li>
+<li>tool_system/tools/read.py → import __future__（外部）</li>
+<li>tool_system/tools/read.py → import base64（外部）</li>
+<li>tool_system/tools/read.py → import json（外部）</li>
+<li>tool_system/tools/read.py → import os（外部）</li>
+<li>tool_system/tools/read.py → import pathlib（外部）</li>
+<li>tool_system/tools/read.py → import typing（外部）</li>
+<li>tool_system/tools/read.py → import tool_system（外部）</li>
+<li>tool_system/tools/schedule_wakeup.py → import __future__（外部）</li>
+<li>tool_system/tools/schedule_wakeup.py → import math（外部）</li>
+<li>tool_system/tools/schedule_wakeup.py → import typing（外部）</li>
+<li>tool_system/tools/schedule_wakeup.py → import tool_system（外部）</li>
+<li>tool_system/tools/send_message.py → import __future__（外部）</li>
+<li>tool_system/tools/send_message.py → import logging（外部）</li>
+<li>tool_system/tools/send_message.py → import typing（外部）</li>
+<li>tool_system/tools/send_message.py → import src（外部）</li>
+<li>tool_system/tools/send_message.py → import tool_system（外部）</li>
+<li>tool_system/tools/send_user_message.py → import __future__（外部）</li>
+<li>tool_system/tools/send_user_message.py → import mimetypes（外部）</li>
+<li>tool_system/tools/send_user_message.py → import datetime（外部）</li>
+<li>tool_system/tools/send_user_message.py → import pathlib（外部）</li>
+<li>tool_system/tools/send_user_message.py → import typing（外部）</li>
+<li>tool_system/tools/send_user_message.py → import tool_system（外部）</li>
+<li>tool_system/tools/skill.py → import __future__（外部）</li>
+<li>tool_system/tools/skill.py → import importlib（外部）</li>
+<li>tool_system/tools/skill.py → import json（外部）</li>
+<li>tool_system/tools/skill.py → import os（外部）</li>
+<li>tool_system/tools/skill.py → import sys（外部）</li>
+<li>tool_system/tools/skill.py → import pathlib（外部）</li>
+<li>tool_system/tools/skill.py → import typing（外部）</li>
+<li>tool_system/tools/skill.py → import tool_system（外部）</li>
+<li>tool_system/tools/sleep.py → import __future__（外部）</li>
+<li>tool_system/tools/sleep.py → import time（外部）</li>
+<li>tool_system/tools/sleep.py → import typing（外部）</li>
+<li>tool_system/tools/sleep.py → import tool_system（外部）</li>
+<li>tool_system/tools/structured_output.py → import __future__（外部）</li>
+<li>tool_system/tools/structured_output.py → import typing（外部）</li>
+<li>tool_system/tools/structured_output.py → import tool_system（外部）</li>
+<li>tool_system/tools/task_stop.py → import __future__（外部）</li>
+<li>tool_system/tools/task_stop.py → import dataclasses（外部）</li>
+<li>tool_system/tools/task_stop.py → import typing（外部）</li>
+<li>tool_system/tools/task_stop.py → import tool_system（外部）</li>
+<li>tool_system/tools/task_stop.py → import src（外部）</li>
+<li>tool_system/tools/tasks_v2.py → import __future__（外部）</li>
+<li>tool_system/tools/tasks_v2.py → import uuid（外部）</li>
+<li>tool_system/tools/tasks_v2.py → import typing（外部）</li>
+<li>tool_system/tools/tasks_v2.py → import tool_system（外部）</li>
+<li>tool_system/tools/tasks_v2.py → import src（外部）</li>
+<li>tool_system/tools/team.py → import __future__（外部）</li>
+<li>tool_system/tools/team.py → import json（外部）</li>
+<li>tool_system/tools/team.py → import uuid（外部）</li>
+<li>tool_system/tools/team.py → import typing（外部）</li>
+<li>tool_system/tools/team.py → import tool_system（外部）</li>
+<li>tool_system/tools/todo_write.py → import __future__（外部）</li>
+<li>tool_system/tools/todo_write.py → import typing（外部）</li>
+<li>tool_system/tools/todo_write.py → import tool_system（外部）</li>
+<li>tool_system/tools/todo_write.py → import src（外部）</li>
+<li>tool_system/tools/tool_search.py → import __future__（外部）</li>
+<li>tool_system/tools/tool_search.py → import typing（外部）</li>
+<li>tool_system/tools/tool_search.py → import tool_system（外部）</li>
+<li>tool_system/tools/vision_analyze.py → import __future__（外部）</li>
+<li>tool_system/tools/vision_analyze.py → import base64（外部）</li>
+<li>tool_system/tools/vision_analyze.py → import threading（外部）</li>
+<li>tool_system/tools/vision_analyze.py → import pathlib（外部）</li>
+<li>tool_system/tools/vision_analyze.py → import typing（外部）</li>
+<li>tool_system/tools/vision_analyze.py → import tool_system（外部）</li>
+<li>tool_system/tools/web_fetch.py → import __future__（外部）</li>
+<li>tool_system/tools/web_fetch.py → import gzip（外部）</li>
+<li>tool_system/tools/web_fetch.py → import html（外部）</li>
+<li>tool_system/tools/web_fetch.py → import http（外部）</li>
+<li>tool_system/tools/web_fetch.py → import ipaddress（外部）</li>
+<li>tool_system/tools/web_fetch.py → import re（外部）</li>
+<li>tool_system/tools/web_fetch.py → import socket（外部）</li>
+<li>tool_system/tools/web_fetch.py → import time（外部）</li>
+<li>tool_system/tools/web_fetch.py → import urllib（外部）</li>
+<li>tool_system/tools/web_fetch.py → import zlib（外部）</li>
+<li>tool_system/tools/web_fetch.py → import typing（外部）</li>
+<li>tool_system/tools/web_fetch.py → import tool_system（外部）</li>
+<li>tool_system/tools/web_fetch.py → import src（外部）</li>
+<li>tool_system/tools/web_search.py → import __future__（外部）</li>
+<li>tool_system/tools/web_search.py → import json（外部）</li>
+<li>tool_system/tools/web_search.py → import time（外部）</li>
+<li>tool_system/tools/web_search.py → import urllib（外部）</li>
+<li>tool_system/tools/web_search.py → import datetime（外部）</li>
+<li>tool_system/tools/web_search.py → import typing（外部）</li>
+<li>tool_system/tools/web_search.py → import tool_system（外部）</li>
+<li>tool_system/tools/workflow.py → import __future__（外部）</li>
+<li>tool_system/tools/workflow.py → import asyncio（外部）</li>
+<li>tool_system/tools/workflow.py → import logging（外部）</li>
+<li>tool_system/tools/workflow.py → import uuid（外部）</li>
+<li>tool_system/tools/workflow.py → import pathlib（外部）</li>
+<li>tool_system/tools/workflow.py → import typing（外部）</li>
+<li>tool_system/tools/workflow.py → import src（外部）</li>
+<li>tool_system/tools/workflow.py → import tool_system（外部）</li>
+<li>tool_system/tools/worktree.py → import __future__（外部）</li>
+<li>tool_system/tools/worktree.py → import re（外部）</li>
+<li>tool_system/tools/worktree.py → import typing（外部）</li>
+<li>tool_system/tools/worktree.py → import tool_system（外部）</li>
+<li>tool_system/tools/write.py → import __future__（外部）</li>
+<li>tool_system/tools/write.py → import difflib（外部）</li>
+<li>tool_system/tools/write.py → import pathlib（外部）</li>
+<li>tool_system/tools/write.py → import typing（外部）</li>
+<li>tool_system/tools/write.py → import tool_system（外部）</li>
+<li>tool_system/tools/write.py → import src（外部）</li>
+<li>tool_system/utils/path_utils.py → import __future__（外部）</li>
+<li>tool_system/utils/path_utils.py → import os（外部）</li>
+<li>tool_system/utils/path_utils.py → import pathlib（外部）</li>
+<li>tool_system/utils/ripgrep.py → import __future__（外部）</li>
+<li>tool_system/utils/ripgrep.py → import os（外部）</li>
+<li>tool_system/utils/ripgrep.py → import platform（外部）</li>
+<li>tool_system/utils/ripgrep.py → import shutil（外部）</li>
+<li>tool_system/utils/ripgrep.py → import subprocess（外部）</li>
+<li>tool_system/utils/ripgrep.py → import sys（外部）</li>
+<li>tool_system/utils/ripgrep.py → import threading（外部）</li>
+<li>tool_system/utils/ripgrep.py → import time（外部）</li>
+<li>tool_system/utils/ripgrep.py → import typing（外部）</li>
+<li>tool_system/utils/ripgrep.py → import src（外部）</li>
+</ol>
+<h2 id="5-r7-r5-ccr-14-映射-启发式初版">5. R7/R5/CCR-14 映射（启发式初版）</h2>
+<ol>
+<li>R7-05 Tools — 候选（启发式），状态 UNVERIFIED</li>
+<li>R5-03 Safety / Action Layer — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-05 Tool Pool / Capability Assembly — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-06 Tool Orchestration — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-07 Streaming Tool Execution — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-09 Result Normalization / Result Budget — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-文件级映射细分">6. 文件级映射细分</h2>
+<ol>
+<li><code class="inline-code">__init__.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">advisor.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">agent.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">ask_user_question.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">background.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">bash_tool.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">brief.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">build_tool.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">command_semantics.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">config.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">context.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">cron.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">defaults.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">destructive_warnings.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">diff_utils.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">edit.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">errors.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">glob.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">grep.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">image_output.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">loader.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">lsp.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">mcp.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">mcp_resources.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">memory.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">misc.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">monitor.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">notebook_edit.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">path_utils.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">plan_mode.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">prompt.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">protocol.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">read.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">read_only_validation.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">registry.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">renderers.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">ripgrep.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">schedule_wakeup.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">schema_validation.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">search_classification.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">send_message.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">send_user_message.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">skill.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">sleep.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">sleep_detection.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">structured_output.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">task_manager.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">task_stop.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">tasks_v2.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">team.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">todo_write.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">tool_search.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">utils.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">vision_analyze.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">web_fetch.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">web_search.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">workflow.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">worktree.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+<li><code class="inline-code">write.py</code> → R7-05, R5-03, CCR-05, CCR-06, CCR-07, CCR-09（UNVERIFIED）</li>
+</ol>
+<h2 id="7-未确认项与待核实项">7. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ reference 侧对应文件/symbol 映射待核实</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 reference source</li>
+<li>☐ 本模块 R7/R5/CCR 归属的 UNVERIFIED 状态待升级或降级</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-tool-system-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

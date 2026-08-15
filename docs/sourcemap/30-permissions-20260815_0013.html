@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>permissions 源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-r7-r5-ccr-14-映射-启发式初版" data-nav>5. R7/R5/CCR-14 映射（启发式初版）</a></li>
+<li><a href="#6-文件级映射细分" data-nav>6. 文件级映射细分</a></li>
+<li><a href="#7-未确认项与待核实项" data-nav>7. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>permissions 源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">30</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260815_0013</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="permissions-源码盘点">permissions 源码盘点</h1>
+<blockquote>
+<p>编号: 30</p>
+<p>时间戳: 20260815_0013</p>
+<p>基线: def709361a86</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>类型: package（目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: permissions</li>
+<li>类型: package（目录模块）</li>
+<li>Python 文件数: 31</li>
+<li>总行数: 11804</li>
+<li>依赖的 src 内部模块: 无</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">permissions/__init__.py</code> — 211 行（类 0，函数 0）</li>
+<li><code class="inline-code">permissions/bash_mode_validation.py</code> — 482 行（类 0，函数 10）</li>
+<li><code class="inline-code">permissions/bash_parser/__init__.py</code> — 30 行（类 0，函数 0）</li>
+<li><code class="inline-code">permissions/bash_parser/ast_nodes.py</code> — 47 行（类 6，函数 0）</li>
+<li><code class="inline-code">permissions/bash_parser/commands.py</code> — 214 行（类 1，函数 6）</li>
+<li><code class="inline-code">permissions/bash_parser/parser.py</code> — 269 行（类 1，函数 6）</li>
+<li><code class="inline-code">permissions/bash_parser/shell_quote.py</code> — 30 行（类 0，函数 4）</li>
+<li><code class="inline-code">permissions/bash_security.py</code> — 244 行（类 1，函数 9）</li>
+<li><code class="inline-code">permissions/bash_suggestions.py</code> — 700 行（类 0，函数 13）</li>
+<li><code class="inline-code">permissions/check.py</code> — 1456 行（类 4，函数 23）</li>
+<li><code class="inline-code">permissions/cycle.py</code> — 83 行（类 0，函数 2）</li>
+<li><code class="inline-code">permissions/dangerous_safety.py</code> — 81 行（类 0，函数 4）</li>
+<li><code class="inline-code">permissions/filesystem.py</code> — 455 行（类 0，函数 18）</li>
+<li><code class="inline-code">permissions/handler.py</code> — 285 行（类 0，函数 3）</li>
+<li><code class="inline-code">permissions/levels.py</code> — 122 行（类 1，函数 3）</li>
+<li><code class="inline-code">permissions/loader.py</code> — 61 行（类 0，函数 2）</li>
+<li><code class="inline-code">permissions/modes.py</code> — 630 行（类 0，函数 17）</li>
+<li><code class="inline-code">permissions/plan_transitions.py</code> — 85 行（类 0，函数 2）</li>
+<li><code class="inline-code">permissions/pre_trust.py</code> — 80 行（类 1，函数 1）</li>
+<li><code class="inline-code">permissions/profiles.py</code> — 86 行（类 1，函数 2）</li>
+<li><code class="inline-code">permissions/read_only_commands.py</code> — 763 行（类 0，函数 20）</li>
+<li><code class="inline-code">permissions/read_only_tables.py</code> — 2599 行（类 3，函数 21）</li>
+<li><code class="inline-code">permissions/rule_parser.py</code> — 101 行（类 0，函数 8）</li>
+<li><code class="inline-code">permissions/rules.py</code> — 155 行（类 1，函数 10）</li>
+<li><code class="inline-code">permissions/sandbox_guard.py</code> — 162 行（类 0，函数 7）</li>
+<li><code class="inline-code">permissions/settings_paths.py</code> — 91 行（类 0，函数 5）</li>
+<li><code class="inline-code">permissions/setup.py</code> — 261 行（类 2，函数 7）</li>
+<li><code class="inline-code">permissions/trust_boundary.py</code> — 455 行（类 0，函数 14）</li>
+<li><code class="inline-code">permissions/types.py</code> — 421 行（类 27，函数 1）</li>
+<li><code class="inline-code">permissions/updates.py</code> — 767 行（类 0，函数 23）</li>
+<li><code class="inline-code">permissions/yolo_classifier.py</code> — 378 行（类 2，函数 13）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">permissions/__init__.py</code></li>
+<li>文件 <code class="inline-code">permissions/bash_mode_validation.py</code></li>
+<li>函数 is_dangerous_removal_path — L67</li>
+<li>函数 _extract_output_redirect_targets — L101</li>
+<li>函数 _output_redirects_within_roots — L185</li>
+<li>函数 _has_unquoted_dollar — L223</li>
+<li>函数 _filter_out_flags — L249</li>
+<li>函数 check_dangerous_removal_paths — L264</li>
+<li>函数 _has_shell_redirection — L300</li>
+<li>函数 check_accept_edits_bash — L325</li>
+<li>函数 rule_allow_path_gate — L394</li>
+<li>函数 _write_paths_within_roots — L449</li>
+<li>文件 <code class="inline-code">permissions/bash_parser/__init__.py</code></li>
+<li>文件 <code class="inline-code">permissions/bash_parser/ast_nodes.py</code></li>
+<li>类 Redirect — L8</li>
+<li>类 SimpleCommand — L15</li>
+<li>类 Pipeline — L27</li>
+<li>类 CommandList — L32</li>
+<li>类 CommandListEntry — L37</li>
+<li>类 Subshell — L43</li>
+<li>文件 <code class="inline-code">permissions/bash_parser/commands.py</code></li>
+<li>类 CommandSafety — L7</li>
+<li>函数 _classify_git — L146</li>
+<li>函数 _classify_npm_like — L161</li>
+<li>函数 classify_command — L176</li>
+<li>函数 get_command_safety — L204</li>
+<li>函数 is_read_only_command — L208</li>
+<li>函数 is_safe_command — L213</li>
+<li>文件 <code class="inline-code">permissions/bash_parser/parser.py</code></li>
+<li>类 ParseResult — L27</li>
+<li>函数 parse_command — L33</li>
+<li>函数 _join_continuations — L63</li>
+<li>函数 _tokenize — L73</li>
+<li>函数 _split_by_operators — L195</li>
+<li>函数 _parse_simple_command — L217</li>
+<li>函数 extract_all_commands — L265</li>
+<li>文件 <code class="inline-code">permissions/bash_parser/shell_quote.py</code></li>
+<li>函数 quote — L7</li>
+<li>函数 split_command — L15</li>
+<li>函数 is_glob_pattern — L22</li>
+<li>函数 expand_home — L26</li>
+<li>文件 <code class="inline-code">permissions/bash_security.py</code></li>
+<li>类 BashAnalysisResult — L78</li>
+<li>函数 is_dangerous_bash_permission — L40</li>
+<li>函数 analyze_bash_command — L86</li>
+<li>函数 _max_safety — L130</li>
+<li>函数 _extract_paths — L136</li>
+<li>函数 check_bash_command_safety — L170</li>
+<li>函数 is_sed_in_place — L222</li>
+<li>函数 classify_sed_pattern — L228</li>
+<li>函数 should_sandbox_command — L234</li>
+<li>函数 get_bash_command_description — L239</li>
+<li>文件 <code class="inline-code">permissions/bash_suggestions.py</code></li>
+<li>函数 contains_unquoted_chaining — L156</li>
+<li>函数 contains_executable_substitution — L210</li>
+<li>函数 split_chained_command — L265</li>
+<li>函数 _skip_safe_env_assignments — L384</li>
+<li>函数 get_simple_command_prefix — L401</li>
+<li>函数 get_safe_first_word_prefix — L416</li>
+<li>函数 _extract_prefix_before_heredoc — L453</li>
+<li>函数 _mentions_eval_like — L476</li>
+<li>函数 suggestion_for_prefix — L496</li>
+<li>函数 suggestion_for_exact_command — L513</li>
+<li>函数 _rule_value_for_subcommand — L530</li>
+<li>函数 suggestions_for_compound_command — L561</li>
+<li>函数 suggestions_for_bash_command — L590</li>
+<li>文件 <code class="inline-code">permissions/check.py</code></li>
+<li>类 CheckPermissionsTool — L46</li>
+<li>类 RequiresInteractionTool — L59</li>
+<li>类 DenialTracker — L64</li>
+<li>类 AutoModeDecision — L1296</li>
+<li>函数 get_denial_tracker — L87</li>
+<li>函数 reset_denial_tracker — L91</li>
+<li>函数 create_permission_request_message — L95</li>
+<li>函数 _get_updated_input_or_fallback — L102</li>
+<li>函数 _allowed_roots_for_check — L185</li>
+<li>函数 _path_in_working_roots — L210</li>
+<li>函数 has_permissions_to_use_tool — L231</li>
+<li>函数 has_permissions_to_use_tool_inner — L354</li>
+<li>函数 _coerce_to_ask_decision — L736</li>
+<li>函数 _with_default_suggestions — L762</li>
+<li>函数 _bash_content_rule_decision — L823</li>
+<li>函数 check_rule_based_permissions — L857</li>
+<li>函数 _strip_safe_wrappers — L965</li>
+<li>函数 _normalize_for_deny_ask — L979</li>
+<li>函数 _strip_env_assignments — L996</li>
+<li>函数 _strip_all_env_assignments — L1015</li>
+<li>函数 _match_bash_content_rules — L1023</li>
+<li>函数 _all_subcommands_allowed_by_content_rules — L1092</li>
+<li>函数 prepare_permission_matcher — L1212</li>
+<li>函数 auto_mode_classify — L1307</li>
+<li>函数 _record_classifier_outcome — L1375</li>
+<li>函数 _classifier_denial_fallback — L1401</li>
+<li>函数 _auto_mode_classify_static — L1413</li>
+<li>文件 <code class="inline-code">permissions/cycle.py</code></li>
+<li>函数 get_next_permission_mode — L17</li>
+<li>函数 cycle_permission_mode — L63</li>
+<li>文件 <code class="inline-code">permissions/dangerous_safety.py</code></li>
+<li>函数 _is_truthy_env — L19</li>
+<li>函数 is_sandbox_environment — L25</li>
+<li>函数 _is_running_as_root — L35</li>
+<li>函数 enforce_dangerous_skip_permissions_safety — L47</li>
+<li>文件 <code class="inline-code">permissions/filesystem.py</code></li>
+<li>函数 normalize_case_for_comparison — L86</li>
+<li>函数 _is_within — L90</li>
+<li>函数 _get_relative_parts — L103</li>
+<li>函数 resolve_path — L111</li>
+<li>函数 is_env_file — L121</li>
+<li>函数 is_lockfile — L130</li>
+<li>函数 is_in_generated_dir — L134</li>
+<li>函数 check_path_safety_for_auto_edit — L151</li>
+<li>函数 check_read_permission_for_path — L195</li>
+<li>函数 check_write_permission_for_path — L226</li>
+<li>函数 get_write_scope — L238</li>
+<li>函数 get_scratchpad_dir — L263</li>
+<li>函数 is_in_scratchpad — L274</li>
+<li>函数 _scratchpad_dir_path — L283</li>
+<li>函数 _readable_internal_dirs — L293</li>
+<li>函数 check_readable_internal_path — L360</li>
+<li>函数 _path_in_allowed_roots — L381</li>
+<li>函数 check_read_permission_for_tool — L403</li>
+<li>文件 <code class="inline-code">permissions/handler.py</code></li>
+<li>函数 _rejection_message — L79</li>
+<li>函数 _run_permission_request_hooks — L91</li>
+<li>函数 handle_permission_ask — L209</li>
+<li>文件 <code class="inline-code">permissions/levels.py</code></li>
+<li>类 PermissionLevel — L45</li>
+<li>函数 level_for_key — L97</li>
+<li>函数 level_for_mode — L106</li>
+<li>函数 mode_for_key — L119</li>
+<li>文件 <code class="inline-code">permissions/loader.py</code></li>
+<li>函数 settings_to_rules — L14</li>
+<li>函数 apply_rules_to_context — L33</li>
+<li>文件 <code class="inline-code">permissions/modes.py</code></li>
+<li>函数 _get_config — L29</li>
+<li>函数 permission_mode_title — L33</li>
+<li>函数 permission_mode_short_title — L37</li>
+<li>函数 permission_mode_symbol — L41</li>
+<li>函数 permission_mode_from_string — L45</li>
+<li>函数 is_default_mode — L51</li>
+<li>函数 to_external_permission_mode — L55</li>
+<li>函数 is_external_permission_mode — L68</li>
+<li>函数 initial_permission_mode_from_cli — L80</li>
+<li>函数 _read_settings_file_default_mode — L182</li>
+<li>函数 _read_config_default_mode — L204</li>
+<li>函数 read_settings_default_mode — L229</li>
+<li>函数 set_settings_default_mode — L336</li>
+<li>函数 is_elevated_without_sandbox — L376</li>
+<li>函数 resolve_interactive_permission_state — L390</li>
+<li>函数 has_allow_bypass_permissions_mode — L533</li>
+<li>函数 is_bypass_permissions_mode_disabled — L574</li>
+<li>文件 <code class="inline-code">permissions/plan_transitions.py</code></li>
+<li>函数 prepare_context_for_plan_mode — L38</li>
+<li>函数 transition_permission_mode — L52</li>
+<li>文件 <code class="inline-code">permissions/pre_trust.py</code></li>
+<li>类 PreTrustDecision — L22</li>
+<li>函数 check_pre_trust_gate — L42</li>
+<li>文件 <code class="inline-code">permissions/profiles.py</code></li>
+<li>类 PermissionProfile — L13</li>
+<li>函数 permission_profile_from_string — L55</li>
+<li>函数 resolve_permission_profile — L72</li>
+<li>文件 <code class="inline-code">permissions/read_only_commands.py</code></li>
+<li>函数 validate_flag_argument — L81</li>
+<li>函数 validate_flags — L98</li>
+<li>函数 contains_vulnerable_unc_path — L246</li>
+<li>函数 contains_unquoted_expansion — L263</li>
+<li>函数 _contains_unquoted_operator — L309</li>
+<li>函数 _tokenize_simple — L342</li>
+<li>函数 is_command_safe_via_flag_parsing — L355</li>
+<li>函数 is_command_read_only — L435</li>
+<li>函数 _strip_env_and_wrappers — L472</li>
+<li>函数 accesses_proc_environ — L505</li>
+<li>函数 find_name_eval_subscript_attack — L518</li>
+<li>函数 find_eval_like_builtin — L538</li>
+<li>函数 is_normalized_git_command — L570</li>
+<li>函数 is_normalized_cd_command — L586</li>
+<li>函数 is_current_directory_bare_git_repo — L599</li>
+<li>函数 _extract_path_candidates — L638</li>
+<li>函数 _paths_within_roots — L660</li>
+<li>函数 compound_structure_guards_ok — L698</li>
+<li>函数 sub_command_read_only_and_contained — L715</li>
+<li>函数 check_read_only_constraints — L729</li>
+<li>文件 <code class="inline-code">permissions/read_only_tables.py</code></li>
+<li>类 CommandConfig — L42</li>
+<li>类 _SedParseError — L67</li>
+<li>类 _GlobToken — L73</li>
+<li>函数 _try_parse_shell_command — L81</li>
+<li>函数 _validate_flags_against_allowlist — L178</li>
+<li>函数 is_print_command — L198</li>
+<li>函数 is_line_printing_command — L208</li>
+<li>函数 is_substitution_command — L272</li>
+<li>函数 has_file_args — L348</li>
+<li>函数 extract_sed_expressions — L410</li>
+<li>函数 contains_dangerous_operations — L482</li>
+<li>函数 sed_command_is_allowed_by_allowlist — L589</li>
+<li>函数 _ps_is_dangerous — L642</li>
+<li>函数 _date_is_dangerous — L650</li>
+<li>函数 _lsof_is_dangerous — L678</li>
+<li>函数 _tput_is_dangerous — L711</li>
+<li>函数 _git_reflog_is_dangerous — L743</li>
+<li>函数 _git_remote_show_is_dangerous — L760</li>
+<li>函数 _git_remote_is_dangerous — L769</li>
+<li>函数 _git_tag_is_dangerous — L775</li>
+<li>函数 _git_branch_is_dangerous — L827</li>
+<li>函数 _pyright_is_dangerous — L874</li>
+<li>函数 _sed_is_dangerous — L879</li>
+<li>函数 make_regex_for_safe_command — L2450</li>
+<li>文件 <code class="inline-code">permissions/rule_parser.py</code></li>
+<li>函数 normalize_legacy_tool_name — L13</li>
+<li>函数 get_legacy_tool_names — L17</li>
+<li>函数 escape_rule_content — L25</li>
+<li>函数 unescape_rule_content — L34</li>
+<li>函数 _find_first_unescaped_char — L43</li>
+<li>函数 _find_last_unescaped_char — L56</li>
+<li>函数 permission_rule_value_from_string — L69</li>
+<li>函数 permission_rule_value_to_string — L97</li>
+<li>文件 <code class="inline-code">permissions/rules.py</code></li>
+<li>类 ToolLike — L18</li>
+<li>函数 get_allow_rules — L26</li>
+<li>函数 get_deny_rules — L38</li>
+<li>函数 get_ask_rules — L50</li>
+<li>函数 _get_tool_name_for_permission_check — L62</li>
+<li>函数 _tool_matches_rule — L66</li>
+<li>函数 get_deny_rule_for_tool — L90</li>
+<li>函数 get_ask_rule_for_tool — L100</li>
+<li>函数 tool_always_allowed_rule — L110</li>
+<li>函数 get_rule_by_contents_for_tool — L120</li>
+<li>函数 filter_denied_agents — L143</li>
+<li>文件 <code class="inline-code">permissions/sandbox_guard.py</code></li>
+<li>函数 _current_platform — L72</li>
+<li>函数 _enforcement_available — L81</li>
+<li>函数 _sandbox — L99</li>
+<li>函数 is_sandbox_requested — L112</li>
+<li>函数 sandbox_hard_gate_error — L117</li>
+<li>函数 sandbox_unsandboxed_warning — L134</li>
+<li>函数 warn_if_unsandboxed_once — L152</li>
+<li>文件 <code class="inline-code">permissions/settings_paths.py</code></li>
+<li>函数 user_settings_path — L24</li>
+<li>函数 project_settings_path — L38</li>
+<li>函数 local_settings_path — L43</li>
+<li>函数 settings_path_for_destination — L48</li>
+<li>函数 default_setup_paths — L67</li>
+<li>文件 <code class="inline-code">permissions/setup.py</code></li>
+<li>类 DangerousRuleWarning — L38</li>
+<li>类 PermissionSetupResult — L46</li>
+<li>函数 _load_settings_file — L52</li>
+<li>函数 _extract_permissions — L70</li>
+<li>函数 _extract_working_dirs — L79</li>
+<li>函数 setup_permissions — L96</li>
+<li>函数 _detect_shadowed_rules — L209</li>
+<li>函数 persist_session_rule — L232</li>
+<li>函数 validate_permission_rules — L252</li>
+<li>文件 <code class="inline-code">permissions/trust_boundary.py</code></li>
+<li>函数 reset_trust_boundary_for_test_only — L216</li>
+<li>函数 _capture_shell_env_keys — L227</li>
+<li>函数 is_safe_env_key — L236</li>
+<li>函数 _apply — L253</li>
+<li>函数 _coerce_env_block — L261</li>
+<li>函数 _load_global_config_env — L284</li>
+<li>函数 _read_settings_env — L291</li>
+<li>函数 _user_settings_enabled — L302</li>
+<li>函数 _load_user_settings_env — L313</li>
+<li>函数 _load_project_scoped_env — L322</li>
+<li>函数 apply_safe_config_environment_variables — L347</li>
+<li>函数 apply_full_config_environment_variables — L380</li>
+<li>函数 establish_session_trust — L410</li>
+<li>函数 extract_mdm_env — L430</li>
+<li>文件 <code class="inline-code">permissions/types.py</code></li>
+<li>类 PermissionRuleValue — L75</li>
+<li>类 PermissionRule — L81</li>
+<li>类 PermissionUpdateAddRules — L97</li>
+<li>类 PermissionUpdateReplaceRules — L105</li>
+<li>类 PermissionUpdateRemoveRules — L113</li>
+<li>类 PermissionUpdateSetMode — L121</li>
+<li>类 PermissionUpdateAddDirectories — L128</li>
+<li>类 PermissionUpdateRemoveDirectories — L135</li>
+<li>类 AdditionalWorkingDirectory — L152</li>
+<li>类 RuleDecisionReason — L161</li>
+<li>类 ModeDecisionReason — L169</li>
+<li>类 SafetyCheckDecisionReason — L175</li>
+<li>类 HookDecisionReason — L182</li>
+<li>类 AsyncAgentDecisionReason — L189</li>
+<li>类 WorkingDirDecisionReason — L195</li>
+<li>类 OtherDecisionReason — L201</li>
+<li>类 SubcommandResultsDecisionReason — L207</li>
+<li>类 ClassifierDecisionReason — L213</li>
+<li>类 PermissionPromptToolDecisionReason — L226</li>
+<li>类 SandboxOverrideDecisionReason — L239</li>
+<li>类 PermissionAllowDecision — L266</li>
+<li>类 PermissionAskDecision — L274</li>
+<li>类 PermissionDenyDecision — L284</li>
+<li>类 PermissionPassthroughResult — L299</li>
+<li>类 PermissionAskRequest — L314</li>
+<li>类 PermissionAskReply — L330</li>
+<li>类 ToolPermissionContext — L353</li>
+<li>函数 _empty_rules_by_source — L348</li>
+<li>文件 <code class="inline-code">permissions/updates.py</code></li>
+<li>函数 supports_persistence — L49</li>
+<li>函数 extract_rules — L59</li>
+<li>函数 suggestions_label — L76</li>
+<li>函数 has_rules — L99</li>
+<li>函数 _ruleset_key — L104</li>
+<li>函数 _replace_ruleset — L112</li>
+<li>函数 apply_permission_update — L136</li>
+<li>函数 apply_permission_updates — L238</li>
+<li>函数 _read_json — L260</li>
+<li>函数 _write_json — L273</li>
+<li>函数 persist_permission_update — L284</li>
+<li>函数 persist_permission_updates — L370</li>
+<li>函数 create_read_rule_suggestion — L388</li>
+<li>函数 _tool_input_path — L455</li>
+<li>函数 _abs_path — L465</li>
+<li>函数 _resolve — L469</li>
+<li>函数 _path_within_roots — L476</li>
+<li>函数 _grant_directory — L497</li>
+<li>函数 default_session_suggestions — L526</li>
+<li>函数 _directory_label — L634</li>
+<li>函数 session_option_label — L640</li>
+<li>函数 deserialize_permission_update — L689</li>
+<li>函数 serialize_permission_update — L738</li>
+<li>文件 <code class="inline-code">permissions/yolo_classifier.py</code></li>
+<li>类 DenialState — L63</li>
+<li>类 ClassifierDecision — L84</li>
+<li>函数 is_transcript_classifier_enabled — L93</li>
+<li>函数 _iron_gate_open — L103</li>
+<li>函数 _project_tool_input — L112</li>
+<li>函数 _truncate — L123</li>
+<li>函数 serialize_transcript_for_classifier — L129</li>
+<li>函数 _blocks_user_text — L184</li>
+<li>函数 _block_type — L194</li>
+<li>函数 _block_field — L200</li>
+<li>函数 _lookup_tool — L206</li>
+<li>函数 _resolve_classifier_provider — L220</li>
+<li>函数 classify_action_llm — L260</li>
+<li>函数 _parse_classifier_output — L333</li>
+<li>函数 _iron_gate — L363</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>permissions/__init__.py → import permissions（外部）</li>
+<li>permissions/bash_mode_validation.py → import __future__（外部）</li>
+<li>permissions/bash_mode_validation.py → import os（外部）</li>
+<li>permissions/bash_mode_validation.py → import re（外部）</li>
+<li>permissions/bash_mode_validation.py → import typing（外部）</li>
+<li>permissions/bash_mode_validation.py → import permissions（外部）</li>
+<li>permissions/bash_parser/__init__.py → import __future__（外部）</li>
+<li>permissions/bash_parser/__init__.py → import permissions（外部）</li>
+<li>permissions/bash_parser/ast_nodes.py → import __future__（外部）</li>
+<li>permissions/bash_parser/ast_nodes.py → import dataclasses（外部）</li>
+<li>permissions/bash_parser/ast_nodes.py → import typing（外部）</li>
+<li>permissions/bash_parser/commands.py → import __future__（外部）</li>
+<li>permissions/bash_parser/commands.py → import enum（外部）</li>
+<li>permissions/bash_parser/commands.py → import typing（外部）</li>
+<li>permissions/bash_parser/parser.py → import __future__（外部）</li>
+<li>permissions/bash_parser/parser.py → import re（外部）</li>
+<li>permissions/bash_parser/parser.py → import shlex（外部）</li>
+<li>permissions/bash_parser/parser.py → import dataclasses（外部）</li>
+<li>permissions/bash_parser/parser.py → import typing（外部）</li>
+<li>permissions/bash_parser/parser.py → import permissions（外部）</li>
+<li>permissions/bash_parser/shell_quote.py → import __future__（外部）</li>
+<li>permissions/bash_parser/shell_quote.py → import re（外部）</li>
+<li>permissions/bash_parser/shell_quote.py → import shlex（外部）</li>
+<li>permissions/bash_security.py → import __future__（外部）</li>
+<li>permissions/bash_security.py → import os（外部）</li>
+<li>permissions/bash_security.py → import re（外部）</li>
+<li>permissions/bash_security.py → import dataclasses（外部）</li>
+<li>permissions/bash_security.py → import typing（外部）</li>
+<li>permissions/bash_security.py → import permissions（外部）</li>
+<li>permissions/bash_suggestions.py → import __future__（外部）</li>
+<li>permissions/bash_suggestions.py → import re（外部）</li>
+<li>permissions/bash_suggestions.py → import permissions（外部）</li>
+<li>permissions/check.py → import __future__（外部）</li>
+<li>permissions/check.py → import fnmatch（外部）</li>
+<li>permissions/check.py → import logging（外部）</li>
+<li>permissions/check.py → import os（外部）</li>
+<li>permissions/check.py → import re（外部）</li>
+<li>permissions/check.py → import dataclasses（外部）</li>
+<li>permissions/check.py → import typing（外部）</li>
+<li>permissions/check.py → import permissions（外部）</li>
+<li>permissions/cycle.py → import __future__（外部）</li>
+<li>permissions/cycle.py → import permissions（外部）</li>
+<li>permissions/dangerous_safety.py → import __future__（外部）</li>
+<li>permissions/dangerous_safety.py → import os（外部）</li>
+<li>permissions/dangerous_safety.py → import sys（外部）</li>
+<li>permissions/dangerous_safety.py → import typing（外部）</li>
+<li>permissions/filesystem.py → import __future__（外部）</li>
+<li>permissions/filesystem.py → import os（外部）</li>
+<li>permissions/filesystem.py → import pathlib（外部）</li>
+<li>permissions/filesystem.py → import typing（外部）</li>
+<li>permissions/filesystem.py → import permissions（外部）</li>
+<li>permissions/handler.py → import __future__（外部）</li>
+<li>permissions/handler.py → import logging（外部）</li>
+<li>permissions/handler.py → import typing（外部）</li>
+<li>permissions/handler.py → import permissions（外部）</li>
+<li>permissions/levels.py → import __future__（外部）</li>
+<li>permissions/levels.py → import dataclasses（外部）</li>
+<li>permissions/levels.py → import permissions（外部）</li>
+<li>permissions/loader.py → import __future__（外部）</li>
+<li>permissions/loader.py → import permissions（外部）</li>
+<li>permissions/modes.py → import __future__（外部）</li>
+<li>permissions/modes.py → import logging（外部）</li>
+<li>permissions/modes.py → import permissions（外部）</li>
+<li>permissions/plan_transitions.py → import __future__（外部）</li>
+<li>permissions/plan_transitions.py → import dataclasses（外部）</li>
+<li>permissions/plan_transitions.py → import src（外部）</li>
+<li>permissions/plan_transitions.py → import permissions（外部）</li>
+<li>permissions/pre_trust.py → import __future__（外部）</li>
+<li>permissions/pre_trust.py → import dataclasses（外部）</li>
+<li>permissions/pre_trust.py → import pathlib（外部）</li>
+<li>permissions/pre_trust.py → import typing（外部）</li>
+<li>permissions/profiles.py → import __future__（外部）</li>
+<li>permissions/profiles.py → import dataclasses（外部）</li>
+<li>permissions/profiles.py → import typing（外部）</li>
+<li>permissions/profiles.py → import permissions（外部）</li>
+<li>permissions/read_only_commands.py → import __future__（外部）</li>
+<li>permissions/read_only_commands.py → import os（外部）</li>
+<li>permissions/read_only_commands.py → import re（外部）</li>
+<li>permissions/read_only_commands.py → import shlex（外部）</li>
+<li>permissions/read_only_commands.py → import typing（外部）</li>
+<li>permissions/read_only_commands.py → import permissions（外部）</li>
+<li>permissions/read_only_tables.py → import __future__（外部）</li>
+<li>permissions/read_only_tables.py → import re（外部）</li>
+<li>permissions/read_only_tables.py → import dataclasses（外部）</li>
+<li>permissions/read_only_tables.py → import typing（外部）</li>
+<li>permissions/rule_parser.py → import __future__（外部）</li>
+<li>permissions/rule_parser.py → import permissions（外部）</li>
+<li>permissions/rules.py → import __future__（外部）</li>
+<li>permissions/rules.py → import typing（外部）</li>
+<li>permissions/rules.py → import permissions（外部）</li>
+<li>permissions/sandbox_guard.py → import __future__（外部）</li>
+<li>permissions/sandbox_guard.py → import logging（外部）</li>
+<li>permissions/sandbox_guard.py → import typing（外部）</li>
+<li>permissions/settings_paths.py → import __future__（外部）</li>
+<li>permissions/settings_paths.py → import os（外部）</li>
+<li>permissions/settings_paths.py → import permissions（外部）</li>
+<li>permissions/setup.py → import __future__（外部）</li>
+<li>permissions/setup.py → import json（外部）</li>
+<li>permissions/setup.py → import logging（外部）</li>
+<li>permissions/setup.py → import os（外部）</li>
+<li>permissions/setup.py → import dataclasses（外部）</li>
+<li>permissions/setup.py → import typing（外部）</li>
+<li>permissions/setup.py → import permissions（外部）</li>
+<li>permissions/trust_boundary.py → import __future__（外部）</li>
+<li>permissions/trust_boundary.py → import json（外部）</li>
+<li>permissions/trust_boundary.py → import os（外部）</li>
+<li>permissions/trust_boundary.py → import pathlib（外部）</li>
+<li>permissions/trust_boundary.py → import typing（外部）</li>
+<li>permissions/types.py → import __future__（外部）</li>
+<li>permissions/types.py → import dataclasses（外部）</li>
+<li>permissions/types.py → import typing（外部）</li>
+<li>permissions/updates.py → import __future__（外部）</li>
+<li>permissions/updates.py → import json（外部）</li>
+<li>permissions/updates.py → import logging（外部）</li>
+<li>permissions/updates.py → import os（外部）</li>
+<li>permissions/updates.py → import dataclasses（外部）</li>
+<li>permissions/updates.py → import pathlib（外部）</li>
+<li>permissions/updates.py → import typing（外部）</li>
+<li>permissions/updates.py → import permissions（外部）</li>
+<li>permissions/yolo_classifier.py → import __future__（外部）</li>
+<li>permissions/yolo_classifier.py → import json（外部）</li>
+<li>permissions/yolo_classifier.py → import logging（外部）</li>
+<li>permissions/yolo_classifier.py → import dataclasses（外部）</li>
+<li>permissions/yolo_classifier.py → import typing（外部）</li>
+</ol>
+<h2 id="5-r7-r5-ccr-14-映射-启发式初版">5. R7/R5/CCR-14 映射（启发式初版）</h2>
+<ol>
+<li>R7-04 Permission System — 候选（启发式），状态 UNVERIFIED</li>
+<li>R5-03 Safety / Action Layer — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-02 Authorization Pipeline — 候选（启发式），状态 UNVERIFIED</li>
+<li>CCR-13 Trust Lifecycle — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-文件级映射细分">6. 文件级映射细分</h2>
+<ol>
+<li><code class="inline-code">__init__.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">ast_nodes.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">bash_mode_validation.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">bash_security.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">bash_suggestions.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">check.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">commands.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">cycle.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">dangerous_safety.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">filesystem.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">handler.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">levels.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">loader.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">modes.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">parser.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">plan_transitions.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">pre_trust.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">profiles.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">read_only_commands.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">read_only_tables.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">rule_parser.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">rules.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">sandbox_guard.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">settings_paths.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">setup.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">shell_quote.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">trust_boundary.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">types.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">updates.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+<li><code class="inline-code">yolo_classifier.py</code> → R7-04, R5-03, CCR-02, CCR-13（UNVERIFIED）</li>
+</ol>
+<h2 id="7-未确认项与待核实项">7. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ reference 侧对应文件/symbol 映射待核实</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 reference source</li>
+<li>☐ 本模块 R7/R5/CCR 归属的 UNVERIFIED 状态待升级或降级</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-permissions-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>

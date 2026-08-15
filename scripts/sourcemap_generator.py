@@ -92,6 +92,7 @@ HEURISTIC_MAP: dict[str, tuple[list[str], list[str], list[str]]] = {
     "providers": ([], ["R5-05"], []),
     "query": (["R7-03"], ["R5-02"], ["CCR-03", "CCR-04", "CCR-08", "CCR-14"]),
     "reference_data": ([], [], ["CCR-14"]),
+    "runtime": (["R7-03", "R7-06"], ["R5-02", "R5-04"], ["CCR-06", "CCR-14"]),
     "remote": ([], ["R5-05"], ["CCR-12"]),
     "scheduled_tasks": ([], [], ["CCR-14"]),
     "schemas": ([], [], []),

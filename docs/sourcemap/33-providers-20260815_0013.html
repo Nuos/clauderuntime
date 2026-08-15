@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>providers 源码盘点</title>
+<style>
+:root { --sidebar-w: 280px; --accent: #1d9bf0; --bg: #fff; --fg: #0f1419;
+  --muted: #536471; --border: #e1e8ed; --code-bg: #0d1117; --code-fg: #e6edf3; --quote-bg: #f7f9fa; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  color: var(--fg); background: var(--bg); line-height: 1.7; }
+#sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+  background: #f7f9fa; border-right: 1px solid var(--border); overflow-y: auto; padding: 20px 16px;
+  transition: transform .25s ease; z-index: 100; }
+body.sidebar-collapsed #sidebar { transform: translateX(-100%); }
+#sidebar .side-header { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+#sidebar nav ul { list-style: none; }
+#sidebar nav li { margin: 2px 0; }
+#sidebar nav a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--fg);
+  text-decoration: none; font-size: 14px; border-left: 3px solid transparent; transition: background .15s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: #e8f0fe; color: var(--accent); }
+#sidebar nav a.active { border-left-color: var(--accent); font-weight: 600; }
+#content { margin-left: var(--sidebar-w); padding: 32px 48px 80px; max-width: 920px; transition: margin-left .25s ease; }
+body.sidebar-collapsed #content { margin-left: 0; }
+#toggle-btn { position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: left .25s ease; }
+#toggle-btn:hover { background: #e8f0fe; }
+article h1 { font-size: 30px; line-height: 1.3; margin: 8px 0 16px; }
+article h2 { font-size: 22px; margin: 40px 0 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+article h3 { font-size: 18px; margin: 28px 0 10px; }
+article p { margin: 12px 0; }
+article img { max-width: 100%; height: auto; border-radius: 10px; margin: 16px 0; border: 1px solid var(--border); display: block; }
+article hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+article blockquote { background: var(--quote-bg); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; color: var(--muted); }
+article ul, article ol { margin: 12px 0 12px 28px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.code-block { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 20px; margin: 16px 0; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+.code-block code { font-family: "SF Mono", Menlo, Consolas, "JetBrains Mono", monospace; }
+.inline-code { background: #eef1f4; color: #d63384; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+.code-block .lang-tag { display: block; color: #8b949e; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.meta-box { background: #f7f9fa; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 24px; font-size: 13.5px; }
+.meta-item { display: flex; margin: 3px 0; }
+.meta-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+.meta-value { font-weight: 500; }
+#to-top { position: fixed; right: 24px; bottom: 24px; z-index: 200; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 18px; color: var(--fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; }
+#to-top.show { display: block; }
+@media (max-width: 768px) { #content { padding: 24px 18px 60px; } #sidebar { width: 250px; } }
+</style>
+</head>
+<body>
+<button id="toggle-btn" title="切换导航栏" aria-label="切换导航栏">☰</button>
+<aside id="sidebar">
+  <div class="side-header">📑 目录</div>
+  <nav><ul>
+    <li><a href="#top" data-nav>⤴ 顶部</a></li>
+    <li><a href="#1-模块概况" data-nav>1. 模块概况</a></li>
+<li><a href="#2-文件清单" data-nav>2. 文件清单</a></li>
+<li><a href="#3-关键符号" data-nav>3. 关键符号</a></li>
+<li><a href="#4-依赖与调用边-import-级" data-nav>4. 依赖与调用边（import 级）</a></li>
+<li><a href="#5-r7-r5-ccr-14-映射-启发式初版" data-nav>5. R7/R5/CCR-14 映射（启发式初版）</a></li>
+<li><a href="#6-文件级映射细分" data-nav>6. 文件级映射细分</a></li>
+<li><a href="#7-未确认项与待核实项" data-nav>7. 未确认项与待核实项</a></li>
+    <li><a href="#end" data-nav>⤵ 文末</a></li>
+  </ul></nav>
+</aside>
+<main id="content">
+  <article id="top">
+    <h1>providers 源码盘点</h1>
+    <div class="meta-item"><span class="meta-label">编号</span><span class="meta-value">33</span></div><div class="meta-item"><span class="meta-label">时间戳</span><span class="meta-value">20260815_0013</span></div><div class="meta-item"><span class="meta-label">基线</span><span class="meta-value">def709361a86</span></div><div class="meta-item"><span class="meta-label">Reference</span><span class="meta-value">Claude Code 2.1.88 @ a8a678cb6244</span></div><div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">package（目录模块）</span></div><div class="meta-item"><span class="meta-label">盘点状态</span><span class="meta-value">INVENTORY_COMPLETE</span></div><div class="meta-item"><span class="meta-label">映射状态</span><span class="meta-value">UNVERIFIED（启发式初版，待逐项核实）</span></div>
+    <h1 id="providers-源码盘点">providers 源码盘点</h1>
+<blockquote>
+<p>编号: 33</p>
+<p>时间戳: 20260815_0013</p>
+<p>基线: def709361a86</p>
+<p>Reference: Claude Code 2.1.88 @ a8a678cb6244</p>
+<p>类型: package（目录模块）</p>
+<p>盘点状态: INVENTORY_COMPLETE</p>
+<p>映射状态: UNVERIFIED（启发式初版，待逐项核实）</p>
+</blockquote>
+<h2 id="1-模块概况">1. 模块概况</h2>
+<ol>
+<li>模块名: providers</li>
+<li>类型: package（目录模块）</li>
+<li>Python 文件数: 20</li>
+<li>总行数: 8711</li>
+<li>依赖的 src 内部模块: 无</li>
+<li>一句话职责: UNKNOWN（待人工核实）</li>
+</ol>
+<h2 id="2-文件清单">2. 文件清单</h2>
+<ol>
+<li><code class="inline-code">providers/__init__.py</code> — 516 行（类 1，函数 11）</li>
+<li><code class="inline-code">providers/_stream_abort.py</code> — 239 行（类 2，函数 1）</li>
+<li><code class="inline-code">providers/anthropic_provider.py</code> — 1079 行（类 1，函数 7）</li>
+<li><code class="inline-code">providers/base.py</code> — 251 行（类 3，函数 0）</li>
+<li><code class="inline-code">providers/catalog.py</code> — 175 行（类 0，函数 2）</li>
+<li><code class="inline-code">providers/deepseek_provider.py</code> — 181 行（类 1，函数 0）</li>
+<li><code class="inline-code">providers/fusion_models.py</code> — 638 行（类 3，函数 18）</li>
+<li><code class="inline-code">providers/fusion_provider.py</code> — 842 行（类 4，函数 8）</li>
+<li><code class="inline-code">providers/gemini_provider.py</code> — 485 行（类 2，函数 4）</li>
+<li><code class="inline-code">providers/glm_provider.py</code> — 19 行（类 0，函数 0）</li>
+<li><code class="inline-code">providers/minimax_provider.py</code> — 313 行（类 1，函数 1）</li>
+<li><code class="inline-code">providers/model_discovery.py</code> — 257 行（类 0，函数 11）</li>
+<li><code class="inline-code">providers/openai_compatible.py</code> — 1208 行（类 1，函数 10）</li>
+<li><code class="inline-code">providers/openai_compatible_specs.py</code> — 622 行（类 2，函数 3）</li>
+<li><code class="inline-code">providers/openai_provider.py</code> — 828 行（类 3，函数 1）</li>
+<li><code class="inline-code">providers/openai_responses.py</code> — 569 行（类 0，函数 14）</li>
+<li><code class="inline-code">providers/openrouter_provider.py</code> — 105 行（类 1，函数 0）</li>
+<li><code class="inline-code">providers/stream_retry.py</code> — 80 行（类 0，函数 1）</li>
+<li><code class="inline-code">providers/vision_config.py</code> — 192 行（类 1，函数 6）</li>
+<li><code class="inline-code">providers/zai_provider.py</code> — 112 行（类 1，函数 1）</li>
+</ol>
+<h2 id="3-关键符号">3. 关键符号</h2>
+<ol>
+<li>文件 <code class="inline-code">providers/__init__.py</code></li>
+<li>类 ProviderInfo — L11</li>
+<li>函数 _canonical_provider_name — L252</li>
+<li>函数 canonical_provider_name — L257</li>
+<li>函数 get_provider_info — L268</li>
+<li>函数 get_provider_class — L276</li>
+<li>函数 provider_env_vars — L330</li>
+<li>函数 is_anthropic_wire — L339</li>
+<li>函数 unwrap_provider — L366</li>
+<li>函数 provider_name_is_anthropic_wire — L407</li>
+<li>函数 provider_requires_api_key — L422</li>
+<li>函数 provider_has_credentials — L434</li>
+<li>函数 resolve_api_key — L460</li>
+<li>文件 <code class="inline-code">providers/_stream_abort.py</code></li>
+<li>类 StreamAbortGuard — L69</li>
+<li>类 _StreamAbortContext — L175</li>
+<li>函数 _close_response_safely — L49</li>
+<li>文件 <code class="inline-code">providers/anthropic_provider.py</code></li>
+<li>类 AnthropicProvider — L244</li>
+<li>函数 __getattr__ — L38</li>
+<li>函数 _strip_none_deep — L62</li>
+<li>函数 _extract_usage_dict — L78</li>
+<li>函数 _api_timeout_seconds — L152</li>
+<li>函数 _api_connect_timeout_seconds — L177</li>
+<li>函数 _client_timeout — L185</li>
+<li>函数 _default_max_tokens — L229</li>
+<li>文件 <code class="inline-code">providers/base.py</code></li>
+<li>类 ChatMessage — L15</li>
+<li>类 ChatResponse — L27</li>
+<li>类 BaseProvider — L54</li>
+<li>文件 <code class="inline-code">providers/catalog.py</code></li>
+<li>函数 exclusive_env_vars — L23</li>
+<li>函数 provider_catalog — L73</li>
+<li>文件 <code class="inline-code">providers/deepseek_provider.py</code></li>
+<li>类 DeepSeekProvider — L22</li>
+<li>文件 <code class="inline-code">providers/fusion_models.py</code></li>
+<li>类 FusionModelError — L98</li>
+<li>类 ModelRef — L108</li>
+<li>类 FusionModel — L123</li>
+<li>函数 parse_selector — L173</li>
+<li>函数 _coerce_int — L202</li>
+<li>函数 fusion_model_from_json — L217</li>
+<li>函数 _manager — L248</li>
+<li>函数 load_fusion_models — L260</li>
+<li>函数 save_fusion_models — L298</li>
+<li>函数 get_fusion_model — L303</li>
+<li>函数 is_fusion_model_name — L323</li>
+<li>函数 validate_fusion_model — L338</li>
+<li>函数 _vision_model_can_see — L429</li>
+<li>函数 _configured_providers — L457</li>
+<li>函数 _shadowed_provider — L471</li>
+<li>函数 suggest_fusion_name — L501</li>
+<li>函数 create_fusion_model — L512</li>
+<li>函数 _forget_persisted_selection — L541</li>
+<li>函数 delete_fusion_model — L578</li>
+<li>函数 set_fusion_model_enabled — L591</li>
+<li>函数 _unknown_message — L614</li>
+<li>文件 <code class="inline-code">providers/fusion_provider.py</code></li>
+<li>类 _Failure — L108</li>
+<li>类 _EmptyVisionResponse — L127</li>
+<li>类 _Budget — L136</li>
+<li>类 FusionProvider — L264</li>
+<li>函数 _signal_aborted — L164</li>
+<li>函数 _cache_get — L179</li>
+<li>函数 _cache_put — L192</li>
+<li>函数 clear_vision_cache — L200</li>
+<li>函数 _image_source — L214</li>
+<li>函数 _image_key — L230</li>
+<li>函数 _describe_size — L253</li>
+<li>函数 build_fusion_provider — L820</li>
+<li>文件 <code class="inline-code">providers/gemini_provider.py</code></li>
+<li>类 _GeminiImageUnsupported — L38</li>
+<li>类 GeminiProvider — L185</li>
+<li>函数 _ensure_sdk — L30</li>
+<li>函数 _gemini_image_part — L42</li>
+<li>函数 _text_from_anthropic_block — L84</li>
+<li>函数 _sanitize_schema_for_gemini — L140</li>
+<li>文件 <code class="inline-code">providers/glm_provider.py</code></li>
+<li>文件 <code class="inline-code">providers/minimax_provider.py</code></li>
+<li>类 MinimaxProvider — L27</li>
+<li>函数 _usage_token_count — L22</li>
+<li>文件 <code class="inline-code">providers/model_discovery.py</code></li>
+<li>函数 _cache_path — L52</li>
+<li>函数 _cache_key — L61</li>
+<li>函数 _read_cache — L66</li>
+<li>函数 _write_cache — L80</li>
+<li>函数 _http_get_json — L102</li>
+<li>函数 fetch_openai_compatible_models — L110</li>
+<li>函数 fetch_ollama_models — L132</li>
+<li>函数 _fetch_for_kind — L156</li>
+<li>函数 _merge — L166</li>
+<li>函数 _refresh — L193</li>
+<li>函数 discovered_models — L208</li>
+<li>文件 <code class="inline-code">providers/openai_compatible.py</code></li>
+<li>类 OpenAICompatibleProvider — L591</li>
+<li>函数 _apply_client_timeout — L23</li>
+<li>函数 _anthropic_image_block_to_openai — L49</li>
+<li>函数 _anthropic_document_block_to_openai — L83</li>
+<li>函数 _translate_anthropic_multimodal_block — L133</li>
+<li>函数 _convert_anthropic_messages_to_openai — L150</li>
+<li>函数 _convert_to_openai_tool_schema — L469</li>
+<li>函数 _close_truncated_json — L494</li>
+<li>函数 _is_valid_json — L539</li>
+<li>函数 _parse_tool_call_arguments — L547</li>
+<li>函数 _extract_reasoning — L572</li>
+<li>文件 <code class="inline-code">providers/openai_compatible_specs.py</code></li>
+<li>类 ProviderSpec — L44</li>
+<li>类 _SpecOpenAICompatibleProvider — L486</li>
+<li>函数 build_provider_class — L562</li>
+<li>函数 spec_provider_info — L594</li>
+<li>函数 spec_aliases — L607</li>
+<li>文件 <code class="inline-code">providers/openai_provider.py</code></li>
+<li>类 _HttpxStreamHolder — L110</li>
+<li>类 ResponsesHTTPError — L124</li>
+<li>类 OpenAIProvider — L148</li>
+<li>函数 _subscription_reasoning_effort — L79</li>
+<li>文件 <code class="inline-code">providers/openai_responses.py</code></li>
+<li>函数 strip_item_for_replay — L61</li>
+<li>函数 strip_responses_item_blocks — L66</li>
+<li>函数 supports_reasoning — L118</li>
+<li>函数 normalize_openai_effort — L146</li>
+<li>函数 supports_verbosity — L164</li>
+<li>函数 convert_tools_to_responses_format — L177</li>
+<li>函数 _system_text — L214</li>
+<li>函数 _image_block_to_input_image — L229</li>
+<li>函数 _document_block_to_input_file — L244</li>
+<li>函数 _user_block_to_part — L260</li>
+<li>函数 _flatten_tool_result_content — L282</li>
+<li>函数 convert_messages_to_responses_input — L315</li>
+<li>函数 build_usage_dict — L508</li>
+<li>函数 parse_sse_line — L558</li>
+<li>文件 <code class="inline-code">providers/openrouter_provider.py</code></li>
+<li>类 OpenRouterProvider — L20</li>
+<li>文件 <code class="inline-code">providers/stream_retry.py</code></li>
+<li>函数 is_transient_stream_drop — L39</li>
+<li>文件 <code class="inline-code">providers/vision_config.py</code></li>
+<li>类 VisionConfig — L54</li>
+<li>函数 _manager — L75</li>
+<li>函数 _coerce_int — L88</li>
+<li>函数 load_vision_config — L96</li>
+<li>函数 save_vision_config — L144</li>
+<li>函数 set_vision_enabled — L173</li>
+<li>函数 vision_is_configured — L185</li>
+<li>文件 <code class="inline-code">providers/zai_provider.py</code></li>
+<li>类 ZaiProvider — L49</li>
+<li>函数 _canonical_glm_model — L44</li>
+</ol>
+<h2 id="4-依赖与调用边-import-级">4. 依赖与调用边（import 级）</h2>
+<ol>
+<li>providers/__init__.py → import __future__（外部）</li>
+<li>providers/__init__.py → import typing（外部）</li>
+<li>providers/__init__.py → import providers（外部）</li>
+<li>providers/_stream_abort.py → import __future__（外部）</li>
+<li>providers/_stream_abort.py → import typing（外部）</li>
+<li>providers/_stream_abort.py → import src（外部）</li>
+<li>providers/anthropic_provider.py → import __future__（外部）</li>
+<li>providers/anthropic_provider.py → import copy（外部）</li>
+<li>providers/anthropic_provider.py → import logging（外部）</li>
+<li>providers/anthropic_provider.py → import os（外部）</li>
+<li>providers/anthropic_provider.py → import re（外部）</li>
+<li>providers/anthropic_provider.py → import sys（外部）</li>
+<li>providers/anthropic_provider.py → import typing（外部）</li>
+<li>providers/anthropic_provider.py → import urllib（外部）</li>
+<li>providers/anthropic_provider.py → import uuid（外部）</li>
+<li>providers/anthropic_provider.py → import providers（外部）</li>
+<li>providers/base.py → import __future__（外部）</li>
+<li>providers/base.py → import asyncio（外部）</li>
+<li>providers/base.py → import abc（外部）</li>
+<li>providers/base.py → import dataclasses（外部）</li>
+<li>providers/base.py → import typing（外部）</li>
+<li>providers/catalog.py → import __future__（外部）</li>
+<li>providers/catalog.py → import typing（外部）</li>
+<li>providers/deepseek_provider.py → import __future__（外部）</li>
+<li>providers/deepseek_provider.py → import typing（外部）</li>
+<li>providers/deepseek_provider.py → import providers（外部）</li>
+<li>providers/fusion_models.py → import __future__（外部）</li>
+<li>providers/fusion_models.py → import dataclasses（外部）</li>
+<li>providers/fusion_models.py → import typing（外部）</li>
+<li>providers/fusion_provider.py → import __future__（外部）</li>
+<li>providers/fusion_provider.py → import asyncio（外部）</li>
+<li>providers/fusion_provider.py → import hashlib（外部）</li>
+<li>providers/fusion_provider.py → import logging（外部）</li>
+<li>providers/fusion_provider.py → import threading（外部）</li>
+<li>providers/fusion_provider.py → import time（外部）</li>
+<li>providers/fusion_provider.py → import collections（外部）</li>
+<li>providers/fusion_provider.py → import typing（外部）</li>
+<li>providers/fusion_provider.py → import providers（外部）</li>
+<li>providers/gemini_provider.py → import __future__（外部）</li>
+<li>providers/gemini_provider.py → import json（外部）</li>
+<li>providers/gemini_provider.py → import logging（外部）</li>
+<li>providers/gemini_provider.py → import typing（外部）</li>
+<li>providers/gemini_provider.py → import providers（外部）</li>
+<li>providers/glm_provider.py → import __future__（外部）</li>
+<li>providers/glm_provider.py → import providers（外部）</li>
+<li>providers/minimax_provider.py → import __future__（外部）</li>
+<li>providers/minimax_provider.py → import typing（外部）</li>
+<li>providers/minimax_provider.py → import providers（外部）</li>
+<li>providers/model_discovery.py → import __future__（外部）</li>
+<li>providers/model_discovery.py → import hashlib（外部）</li>
+<li>providers/model_discovery.py → import json（外部）</li>
+<li>providers/model_discovery.py → import logging（外部）</li>
+<li>providers/model_discovery.py → import os（外部）</li>
+<li>providers/model_discovery.py → import tempfile（外部）</li>
+<li>providers/model_discovery.py → import threading（外部）</li>
+<li>providers/model_discovery.py → import time（外部）</li>
+<li>providers/model_discovery.py → import urllib（外部）</li>
+<li>providers/model_discovery.py → import pathlib（外部）</li>
+<li>providers/model_discovery.py → import typing（外部）</li>
+<li>providers/openai_compatible.py → import __future__（外部）</li>
+<li>providers/openai_compatible.py → import json（外部）</li>
+<li>providers/openai_compatible.py → import logging（外部）</li>
+<li>providers/openai_compatible.py → import abc（外部）</li>
+<li>providers/openai_compatible.py → import typing（外部）</li>
+<li>providers/openai_compatible.py → import providers（外部）</li>
+<li>providers/openai_compatible_specs.py → import __future__（外部）</li>
+<li>providers/openai_compatible_specs.py → import dataclasses（外部）</li>
+<li>providers/openai_compatible_specs.py → import typing（外部）</li>
+<li>providers/openai_compatible_specs.py → import providers（外部）</li>
+<li>providers/openai_provider.py → import __future__（外部）</li>
+<li>providers/openai_provider.py → import logging（外部）</li>
+<li>providers/openai_provider.py → import os（外部）</li>
+<li>providers/openai_provider.py → import queue（外部）</li>
+<li>providers/openai_provider.py → import threading（外部）</li>
+<li>providers/openai_provider.py → import typing（外部）</li>
+<li>providers/openai_provider.py → import urllib（外部）</li>
+<li>providers/openai_provider.py → import uuid（外部）</li>
+<li>providers/openai_provider.py → import src（外部）</li>
+<li>providers/openai_provider.py → import providers（外部）</li>
+<li>providers/openai_responses.py → import __future__（外部）</li>
+<li>providers/openai_responses.py → import json（外部）</li>
+<li>providers/openai_responses.py → import logging（外部）</li>
+<li>providers/openai_responses.py → import typing（外部）</li>
+<li>providers/openrouter_provider.py → import __future__（外部）</li>
+<li>providers/openrouter_provider.py → import typing（外部）</li>
+<li>providers/openrouter_provider.py → import providers（外部）</li>
+<li>providers/stream_retry.py → import __future__（外部）</li>
+<li>providers/vision_config.py → import __future__（外部）</li>
+<li>providers/vision_config.py → import dataclasses（外部）</li>
+<li>providers/vision_config.py → import typing（外部）</li>
+<li>providers/zai_provider.py → import __future__（外部）</li>
+<li>providers/zai_provider.py → import typing（外部）</li>
+<li>providers/zai_provider.py → import providers（外部）</li>
+</ol>
+<h2 id="5-r7-r5-ccr-14-映射-启发式初版">5. R7/R5/CCR-14 映射（启发式初版）</h2>
+<ol>
+<li>R5-05 Backend Layer — 候选（启发式），状态 UNVERIFIED</li>
+</ol>
+<h2 id="6-文件级映射细分">6. 文件级映射细分</h2>
+<ol>
+<li><code class="inline-code">__init__.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">_stream_abort.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">anthropic_provider.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">base.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">catalog.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">deepseek_provider.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">fusion_models.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">fusion_provider.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">gemini_provider.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">glm_provider.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">minimax_provider.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">model_discovery.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">openai_compatible.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">openai_compatible_specs.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">openai_provider.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">openai_responses.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">openrouter_provider.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">stream_retry.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">vision_config.py</code> → R5-05（UNVERIFIED）</li>
+<li><code class="inline-code">zai_provider.py</code> → R5-05（UNVERIFIED）</li>
+</ol>
+<h2 id="7-未确认项与待核实项">7. 未确认项与待核实项</h2>
+<ol>
+<li>☐ 模块一句话职责待人工核实</li>
+<li>☐ reference 侧对应文件/symbol 映射待核实</li>
+<li>☐ 关键 call-edge/state-edge 待逐条对照 reference source</li>
+<li>☐ 本模块 R7/R5/CCR 归属的 UNVERIFIED 状态待升级或降级</li>
+</ol>
+    <div id="end" style="height:1px;"></div>
+  </article>
+</main>
+<button id="to-top" title="返回顶部">↑</button>
+<script>
+(function () {
+  const body = document.body, btn = document.getElementById('toggle-btn'), toTop = document.getElementById('to-top');
+  const KEY = 'nav-providers-源码盘点';
+  if (localStorage.getItem(KEY) === 'collapsed') body.classList.add('sidebar-collapsed');
+  btn.addEventListener('click', function () {
+    body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(KEY, body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+  });
+  window.addEventListener('scroll', function () { toTop.classList.toggle('show', window.scrollY > 600); });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const navLinks = document.querySelectorAll('[data-nav]'), sections = [];
+  navLinks.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); if (el) sections.push({ id: el.id, el }); });
+  const spy = new IntersectionObserver(function (entries) {
+    entries.forEach(e => { if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('[data-nav][href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    } });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => spy.observe(s.el));
+  document.querySelectorAll('.code-block').forEach(function (pre) {
+    const code = pre.querySelector('code');
+    const lang = (code.className.match(/language-(\w+)/) || [])[1] || 'text';
+    const tag = document.createElement('span'); tag.className = 'lang-tag'; tag.textContent = lang;
+    pre.prepend(tag);
+  });
+})();
+</script>
+</body>
+</html>
