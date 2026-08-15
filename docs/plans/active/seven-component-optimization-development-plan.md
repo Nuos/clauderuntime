@@ -1,3 +1,7 @@
+> **HISTORICAL / SUPERSEDED**（2026-08-15）：本计划已被
+> [`CURRENT_PLAN.md`](./CURRENT_PLAN.md)（B7 最后一次架构收口）取代，仅作历史证据，
+> 不作为 active plan 事实源。
+
 # Nuos/clauderuntime 七组件优化开发方案
 
 > **目标项目**：`Nuos/clauderuntime` / ClawCodex  

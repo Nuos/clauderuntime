@@ -1,0 +1,8 @@
+schema: 1
+risks:
+  - {id: R1, area: permission, severity: P0, risk: safe_default_breaks_entrypoints}
+  - {id: R2, area: turn_preparation, severity: P0, risk: prompt_or_tool_visibility_drift}
+  - {id: R3, area: extension, severity: P0, risk: trust_gate_breaks_bundled_or_managed}
+  - {id: R4, area: task_state, severity: P0, risk: migration_loses_background_state}
+  - {id: R5, area: server, severity: P1, risk: concurrency_regression}
+  - {id: R6, area: ci, severity: P0, risk: quarantine_manifest_workflow_drift}

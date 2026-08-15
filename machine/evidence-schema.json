@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ClaudeRuntime Evidence Record",
+  "type": "object",
+  "required": [
+    "subject_commit",
+    "evidence_type",
+    "command_or_check",
+    "result",
+    "environment",
+    "timestamp"
+  ],
+  "properties": {
+    "subject_commit": {
+      "type": "string",
+      "minLength": 7
+    },
+    "evidence_type": {
+      "enum": [
+        "TESTED_LOCAL",
+        "TESTED_CI",
+        "VERIFIED_PLATFORM",
+        "REFERENCE_CONFIRMED",
+        "ACCEPTED_DIFF"
+      ]
+    },
+    "command_or_check": {
+      "type": "string"
+    },
+    "result": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "BLOCKED"
+      ]
+    },
+    "environment": {
+      "type": "object"
+    },
+    "timestamp": {
+      "type": "string"
+    },
+    "artifact_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

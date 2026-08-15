@@ -1,0 +1,9 @@
+URL: https://github.com/ChinaSiro/claude-code-sourcemap
+description: 针对claude-code 源码的备份 完整版 
+还原版本：2.1.88
+还原文件数：4756 个（含 1884 个 .ts/.tsx 源文件）
+还原方式：提取 cli.js.map 中的 sourcesContent 字段
+
+language:英文
+URL:https://arxiv.org/abs/2604.14228
+description:针对 claude-code 源码的研究论文

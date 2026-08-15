@@ -1,0 +1,16 @@
+schema: 1
+subject_commit: 16da0cfea98d69987739a319ff6ae42cfd432d2c
+owners:
+  turn_preparation: TurnPreparationService
+  query_state_machine: canonical_query
+  permission_decision: PermissionResolver
+  execution_isolation: ExecutionBoundary
+  tool_execution: ToolExecutionService
+  runtime_task_state: RuntimeTaskRegistry
+  extension_activation: ExtensionActivationGate
+  session_lifecycle: SessionLifecycle
+  model_capabilities: ModelCapabilityResolver
+  completion_decision: CompletionVerifier
+invariants:
+  production_owner_count_per_semantic: 1
+  legacy_writers_allowed: false

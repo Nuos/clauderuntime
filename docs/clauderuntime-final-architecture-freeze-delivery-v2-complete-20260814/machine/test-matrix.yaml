@@ -1,0 +1,12 @@
+schema: 1
+levels:
+  local_full: [macos_python312]
+  ci_release_gate: [macos_python312]
+  python_smoke: [python310, python312, python314]
+  os_smoke: [macos, ubuntu, windows]
+  platform_isolation: [macos_sandbox, linux_bwrap, windows_job_object]
+  integration_optional: [real_mcp_stdio, external_provider]
+evidence_labels: [TESTED_LOCAL, TESTED_CI, VERIFIED_PLATFORM]
+rules:
+  smoke_does_not_imply_full_suite: true
+  os_smoke_does_not_imply_isolation_verified: true

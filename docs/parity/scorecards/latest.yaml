@@ -1,7 +1,7 @@
 schema_version: 3
 scorecard_id: source-aligned-derived-scorecard
-generated_on: '2026-08-13'
-subject_commit: 7619ff2886160de3409acd1d4e87880d04da6e9e
+generated_on: '2026-08-15'
+subject_commit: 16da0cfea98d69987739a319ff6ae42cfd432d2c
 reference_commit: a8a678cb6244e6770e1e421767ff0987a1d95549
 evidence_generated_from: scripts/audit/generate_parity_evidence.py
 counts:

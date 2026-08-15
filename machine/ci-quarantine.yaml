@@ -1,0 +1,31 @@
+schema: 1
+subject_commit: 16da0cfea98d69987739a319ff6ae42cfd432d2c
+policy:
+  workflow_args_generated_from_manifest: true
+  manual_deselect_in_ci_yaml_forbidden: true
+items:
+  - id: Q-WATCHDOG-001
+    test: tests/test_stream_watchdog.py::TestStreamWatchdogFires::test_reset_pushes_deadline_forward
+    reason: timing_sensitive_threading_timer_on_loaded_ci
+    replacement_coverage: remaining_stream_watchdog_tests
+    severity: non_blocking_environmental
+  - id: Q-WATCHDOG-002
+    test: tests/test_stream_watchdog.py::TestPingAwareLiveness::test_byte_progress_prevents_fire
+    reason: timing_sensitive_threading_timer_on_loaded_ci
+    replacement_coverage: remaining_stream_watchdog_tests
+    severity: non_blocking_environmental
+  - id: Q-WATCHDOG-003
+    test: tests/test_ch04_api_round4.py::TestWatchdogWarning::test_half_time_warning_fires_once_and_reset_cancels
+    reason: exact_sleep_timer_assertion_ci_jitter
+    replacement_coverage: watchdog_warning_related_tests
+    severity: non_blocking_environmental
+  - id: Q-WATCHDOG-004
+    test: tests/test_ch04_api_round4.py::TestWatchdogWarning::test_reset_before_half_time_prevents_warning
+    reason: exact_sleep_timer_assertion_ci_jitter
+    replacement_coverage: watchdog_warning_related_tests
+    severity: non_blocking_environmental
+  - id: Q-OPENCODE-001
+    test: tests/test_opencode_compat_providers.py::test_xai_requests_go_to_chat_completions
+    reason: httpx_mock_behavior_diff_in_ci_environment
+    replacement_coverage: provider_compatibility_tests
+    severity: non_blocking_environmental

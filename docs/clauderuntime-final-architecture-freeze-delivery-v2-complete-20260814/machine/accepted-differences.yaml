@@ -1,0 +1,22 @@
+schema: 1
+candidates:
+  - id: PERM-WEBSEARCH-AUTOALLOW
+    area: permission
+    classification: FUNCTIONAL_ADAPTATION
+    status: registry_required
+  - id: PERM-ASKUSER-NO-DOUBLE-PROMPT
+    area: permission
+    classification: FUNCTIONAL_ADAPTATION
+    status: registry_required
+  - id: PERM-SENDUSERMESSAGE
+    area: permission
+    classification: FUNCTIONAL_ADAPTATION
+    status: registry_required
+  - id: PERM-STRUCTUREDOUTPUT
+    area: permission
+    classification: FUNCTIONAL_ADAPTATION
+    status: registry_required
+  - id: SKILL-PERMISSION-MODEL
+    area: skills
+    classification: FUNCTIONAL_ADAPTATION
+    status: registry_required

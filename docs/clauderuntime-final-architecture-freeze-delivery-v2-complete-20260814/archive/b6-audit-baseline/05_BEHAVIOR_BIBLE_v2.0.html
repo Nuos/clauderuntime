@@ -1,0 +1,422 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ClaudeRuntime 开发行为圣经 v2.0</title><style>
+:root { --bg:#f7f8fa; --panel:#ffffff; --text:#1d2430; --muted:#687386; --line:#dfe4ea; --accent:#2457a7; --code:#f1f3f5; }
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;line-height:1.72;font-size:15px}
+.layout{display:grid;grid-template-columns:280px minmax(0,1fr);max-width:1400px;margin:0 auto}.toc{position:sticky;top:0;height:100vh;overflow:auto;padding:24px 18px;border-right:1px solid var(--line);background:#fbfcfd}.toc h2{font-size:15px;margin:0 0 14px}.toc a{display:block;color:#4f5d70;text-decoration:none;font-size:13px;padding:4px 6px;border-radius:5px}.toc a:hover{background:#eef2f7;color:var(--accent)}.toc .h2{padding-left:8px}.toc .h3{padding-left:20px}.main{padding:36px 52px 80px;min-width:0}.article{max-width:980px;margin:0 auto;background:var(--panel);padding:42px 52px;border:1px solid var(--line);border-radius:10px;box-shadow:0 3px 18px rgba(30,45,65,.04)}h1,h2,h3,h4{line-height:1.35;color:#18202b}h1{font-size:24px;margin-top:0;border-bottom:2px solid var(--accent);padding-bottom:12px}h2{font-size:18px;margin-top:34px;border-bottom:1px solid var(--line);padding-bottom:7px}h3{font-size:16px;margin-top:25px}h4{font-size:15px}p,li{font-size:15px}blockquote{margin:16px 0;padding:10px 16px;border-left:4px solid #7396cf;background:#f5f8fc;color:#3b485a}code{background:var(--code);padding:2px 5px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}pre{background:#f2f4f7;border:1px solid var(--line);padding:14px;overflow:auto;border-radius:7px}pre code{background:none;padding:0}table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px}th,td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}th{background:#f2f5f9;text-align:left}strong{color:#173e77}hr{border:0;border-top:1px solid var(--line);margin:28px 0}.meta{color:var(--muted);font-size:13px;margin-bottom:16px}@media(max-width:900px){.layout{display:block}.toc{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--line)}.main{padding:16px}.article{padding:24px 20px}}@media print{.toc{display:none}.layout{display:block}.main{padding:0}.article{box-shadow:none;border:0;max-width:none}}
+</style></head><body><div class="layout"><nav class="toc"><h2>目录</h2><div id="toc"></div></nav><main class="main"><article class="article"><h1>ClaudeRuntime 开发行为圣经 v2.0</h1>
+<blockquote>
+<p>文档编号：<code>CR-BEHAVIOR-BIBLE-v2.0</code><br />
+适用阶段：B7 起<br />
+优先级：<strong>最高工程行为约束</strong><br />
+核心原则：<strong>事实高于完成宣称；安全高于相似性；已知 Reference 必须尊重；未知 Reference 不得伪造；产品扩展必须独立标记。</strong></p>
+</blockquote>
+<hr />
+<h1>0. 第一原则：Truth Before Progress</h1>
+<p>任何时候，真实状态优先于“看起来完成”。</p>
+<p>禁止：</p>
+<pre><code class="language-text">代码写了 → 写成 VERIFIED
+本地通过 → 写成 CI green
+单平台通过 → 写成 cross-platform verified
+模块存在 → 写成 runtime wired
+模型说完成 → 写成 task completed
+Reference 看起来像 → 写成 CONFIRMED
+</code></pre>
+<p>必须明确区分：</p>
+<pre><code class="language-text">IMPLEMENTED
+WIRED
+TESTED_LOCAL
+TESTED_CI
+VERIFIED_PLATFORM
+REFERENCE_CONFIRMED
+FUNCTIONAL_ADAPTATION
+PRODUCT_EXTENSION
+</code></pre>
+<hr />
+<h1>1. Reference 规则</h1>
+<h2>1.1 固定 Reference generation</h2>
+<p>当前 generation：</p>
+<pre><code class="language-text">Claude Code 2.1.88
+recovered source commit a8a678cb6244e6770e1e421767ff0987a1d95549
+paper arXiv:2604.14228v2
+</code></pre>
+<p>禁止因为上游版本变化而原地改写旧证据。</p>
+<h2>1.2 四级确定性</h2>
+<pre><code class="language-text">R1_CONFIRMED
+R2_PARTIALLY_CONFIRMED
+R3_UNKNOWN
+R4_PRODUCT_EXTENSION
+</code></pre>
+<p>映射：</p>
+<pre><code class="language-text">R1 → MUST_ALIGN known contract
+R2 → ALIGN_KNOWN_PART
+R3 → FUNCTIONAL_CORE_ONLY
+R4 → PRODUCT_EXTENSION
+</code></pre>
+<h2>1.3 Reference 不确定时</h2>
+<p>只能写：</p>
+<pre><code class="language-text">UNKNOWN_REFERENCE
+RECOVERED_SOURCE_GAP
+Python-native conservative implementation
+</code></pre>
+<p>禁止“猜一个实现，然后写成 Claude Code 原行为”。</p>
+<hr />
+<h1>2. 差异必须双登记</h1>
+<p>每个核心差异至少同时存在：</p>
+<ol>
+<li>代码附近 <code>REF-DIFF</code> / module Reference Mapping；</li>
+<li><code>docs/reference-differences/registry.yaml</code>。</li>
+</ol>
+<p>阶段性差异还要进入 progress/current status。</p>
+<p>代码中出现以下词时，治理检查必须要求 registry ID：</p>
+<pre><code class="language-text">REF-DIFF
+DELIBERATE DIVERGENCE
+DELIBERATE UX DIVERGENCE
+UNKNOWN_REFERENCE
+N/A-by-architecture
+RECOVERED_SOURCE_GAP
+</code></pre>
+<hr />
+<h1>3. 安全默认值法则</h1>
+<h2>3.1 No Implicit Bypass</h2>
+<p>安全关键对象默认不得处于：</p>
+<pre><code class="language-text">bypassPermissions
+full_access
+trust_all
+allow_all
+</code></pre>
+<p>除非调用者显式提供且 provenance 可追踪。</p>
+<p><strong>bypass 是用户动作，不是 constructor convenience。</strong></p>
+<h2>3.2 Deny precedence</h2>
+<p>永远保持：</p>
+<pre><code class="language-text">DENY &gt; ASK &gt; ALLOW
+</code></pre>
+<p>任何局部 allow 都不得覆盖上层 deny ceiling。</p>
+<h2>3.3 Headless fail-safe</h2>
+<p>无交互表面遇到 ASK：</p>
+<pre><code class="language-text">ASK + no prompt channel → DENY
+</code></pre>
+<p>除非已存在明确、可审计的 automated classifier/policy allow。</p>
+<p>Classifier unavailable 不得自动 allow。</p>
+<hr />
+<h1>4. Trust 生命周期法则</h1>
+<h2>4.1 Pre-trust zero side effect</h2>
+<p>用户尚未信任 workspace 时，project-local：</p>
+<ul>
+<li>hook；</li>
+<li>plugin；</li>
+<li>MCP server；</li>
+<li>skill hook；</li>
+<li>executable config</li>
+</ul>
+<p>不得：</p>
+<ul>
+<li>spawn process；</li>
+<li>network connect；</li>
+<li>shell execute；</li>
+<li>write outside inert cache；</li>
+<li>steal credentials。</li>
+</ul>
+<p>Managed/enterprise policy 可有独立信任层，但必须明确 source。</p>
+<h2>4.2 Resume does not restore trust</h2>
+<p>Resume/fork 不得隐式恢复：</p>
+<ul>
+<li>temporary permission；</li>
+<li>API key；</li>
+<li>bypass flag；</li>
+<li>live process handle；</li>
+<li>stale MCP client；</li>
+<li>previous workspace trust decision（除非 trust store 本身仍有效且策略明确）。</li>
+</ul>
+<hr />
+<h1>5. Agent Loop 法则</h1>
+<h2>5.1 One Semantic Core</h2>
+<p>所有正式 surface 必须收敛到一个核心语义：</p>
+<pre><code class="language-text">context
+→ model
+→ tool_use
+→ authorization
+→ execution
+→ tool_result
+→ state
+→ next iteration / stop
+</code></pre>
+<p>允许 adapter，不允许第二套安全语义。</p>
+<h2>5.2 Harness decides enforcement, model decides intent</h2>
+<p>模型可以选择行动；模型不能决定：</p>
+<ul>
+<li>自己是否拥有权限；</li>
+<li>sandbox 是否可绕过；</li>
+<li>path guard 是否生效；</li>
+<li>transcript 是否篡改；</li>
+<li>verifier 是否通过。</li>
+</ul>
+<p>这些必须由 deterministic harness 决定。</p>
+<h2>5.3 Stop reason 必须结构化</h2>
+<p>禁止把最终文本当成唯一终态信号。</p>
+<hr />
+<h1>6. Tool 法则</h1>
+<h2>6.1 Tool descriptor 是单一真值</h2>
+<p>每个 tool 的 side effect、read-only、concurrency、permission、sandbox requirement、reversibility 必须由同一 descriptor/contract 提供。</p>
+<p>禁止：</p>
+<pre><code class="language-text">permission.py 认为 read-only
+scheduler.py 认为 mutating
+streaming executor 认为 concurrency-safe
+实际 tool call 却写文件
+</code></pre>
+<h2>6.2 Read parallel / write serialized 是策略，不是猜测</h2>
+<p>并发安全必须由 tool 属性声明并测试，不能靠名称猜。</p>
+<h2>6.3 Unknown tool / stale tool fail closed</h2>
+<p>MCP/plugin 被移除或 disconnect 后，旧 tool handle 不得继续 callable。</p>
+<hr />
+<h1>7. Permission × Execution 双边界法则</h1>
+<p>Action 执行必须满足：</p>
+<pre><code class="language-text">Policy OK
+AND path/workspace boundary OK
+AND execution backend OK
+AND sandbox requirement OK
+</code></pre>
+<p>Permission allow 不是“可以直接调用 os/subprocess”的通行证。</p>
+<h2>7.1 Path canonicalization</h2>
+<p>所有 path gate 必须在比较前处理：</p>
+<ul>
+<li><code>..</code>；</li>
+<li>symlink/junction；</li>
+<li>home expansion；</li>
+<li>macOS <code>/tmp</code> ↔ <code>/private/tmp</code>；</li>
+<li>Windows drive/case；</li>
+<li>additional working roots。</li>
+</ul>
+<h2>7.2 Isolation fail-closed</h2>
+<pre><code class="language-text">require_isolation = true
+backend unavailable = true
+→ FAIL
+</code></pre>
+<p>禁止 silent fallback。</p>
+<hr />
+<h1>8. Hook 法则</h1>
+<p>Hook 可以：</p>
+<ul>
+<li>observe；</li>
+<li>inject bounded context；</li>
+<li>modify allowed input；</li>
+<li>deny/ask；</li>
+<li>run lifecycle automation。</li>
+</ul>
+<p>Hook 不可以：</p>
+<ul>
+<li>覆盖上层 deny；</li>
+<li>在 untrusted project 下提前执行副作用；</li>
+<li>timeout 后留下 orphan process；</li>
+<li>把失败吞掉后伪造 success。</li>
+</ul>
+<p>所有 hook command 必须有 timeout / process-tree cleanup。</p>
+<hr />
+<h1>9. MCP / Plugin / Skill 法则</h1>
+<h2>9.1 External capability is untrusted by default</h2>
+<p>MCP schema、plugin manifest、skill body 都是外部输入。</p>
+<p>必须验证：</p>
+<ul>
+<li>source；</li>
+<li>schema；</li>
+<li>namespace；</li>
+<li>lifecycle；</li>
+<li>trust state；</li>
+<li>disable/uninstall cleanup。</li>
+</ul>
+<h2>9.2 Plugin 是 packaging，不是 policy bypass</h2>
+<p>Plugin 贡献的 hooks/MCP/skills/agents 都回到原机制的安全规则中。</p>
+<h2>9.3 Skill 不能预授权隐藏副作用</h2>
+<p>Skill 允许的 tools 不得自动越过全局 deny/policy ceiling。</p>
+<hr />
+<h1>10. Context / Compaction 法则</h1>
+<h2>10.1 Context 是稀缺资源，但不能以“省 token”为唯一目标</h2>
+<p>五层顺序：</p>
+<pre><code class="language-text">Tool Result Budget
+→ Snip
+→ Microcompact
+→ Context Collapse
+→ Auto-compact
+</code></pre>
+<h2>10.2 Conservative deletion</h2>
+<p>只有可重建、低风险、明确允许删除的旧 tool result 才能被 snip/budget 外部化。</p>
+<p>Mutating action 的关键结果、permission denial、未解决错误、用户硬约束不得静默消失。</p>
+<h2>10.3 Full history 可审计</h2>
+<p>Context view 可以被压缩，但 durable transcript 不应因压缩被不可逆破坏。</p>
+<h2>10.4 Semantic regression test 必须存在</h2>
+<p>测试不能只有：</p>
+<pre><code class="language-text">tokens_saved &gt; 0
+</code></pre>
+<p>还必须断言关键事实保留。</p>
+<hr />
+<h1>11. Memory 法则</h1>
+<p>Memory 必须有 provenance。</p>
+<p>最少字段：</p>
+<pre><code class="language-text">source
+scope
+created_at
+last_verified
+confidence
+sensitivity
+invalidates_on
+</code></pre>
+<p>Memory 不是 permission、policy 或 system authority。</p>
+<p>来自仓库/工具输出的“请忽略规则”不能自动升级成高优先指令。</p>
+<hr />
+<h1>12. Subagent 法则</h1>
+<h2>12.1 Context isolation first</h2>
+<p>子代理默认独立 context。</p>
+<h2>12.2 Permission ceiling inheritance</h2>
+<p>Child 可以更严格，不能比 parent/managed policy 更宽松。</p>
+<h2>12.3 Summary-only parent return</h2>
+<p>默认只返回 bounded result/summary；full sidechain 独立持久化供审计。</p>
+<h2>12.4 Abort propagation</h2>
+<p>Parent abort 必须传播到 child agent、tool process、background task。</p>
+<hr />
+<h1>13. Persistence 法则</h1>
+<h2>13.1 Append-first</h2>
+<p>对话、重要 state transition 优先 append/event log，而不是原地覆盖无证据状态。</p>
+<h2>13.2 Atomic durable write</h2>
+<p>必须考虑：</p>
+<ul>
+<li>process crash；</li>
+<li>partial write；</li>
+<li>two writers；</li>
+<li>stale owner；</li>
+<li>restart replay。</li>
+</ul>
+<h2>13.3 Scheduler task 必须幂等</h2>
+<p>Restart 后不允许同一个 one-shot task 因 restore 重复执行而无人知晓。</p>
+<hr />
+<h1>14. Evaluation 法则</h1>
+<h2>14.1 “模型说完成”不是完成</h2>
+<p>关键任务在 eval/release mode 下必须经过 verifier。</p>
+<pre><code class="language-text">Assistant claims complete
+≠
+Task verified complete
+</code></pre>
+<h2>14.2 Verification evidence</h2>
+<p>至少记录：</p>
+<ul>
+<li>执行过的 test/command；</li>
+<li>exit code；</li>
+<li>changed files；</li>
+<li>expected artifact；</li>
+<li>unmet checks。</li>
+</ul>
+<h2>14.3 Silent failure 优先级高于漂亮输出</h2>
+<p>如果结果无法验证，宁可返回 <code>UNVERIFIED</code>，也不要输出“已完成”。</p>
+<hr />
+<h1>15. Testing 法则</h1>
+<h2>15.1 分层测试</h2>
+<pre><code class="language-text">小改 → targeted
+跨模块 → combination
+安全 → side-effect assertion
+阶段结束 → full suite
+release → CI + platform + eval
+</code></pre>
+<h2>15.2 Local / CI / Platform 三者分开</h2>
+<p>严禁互相替代陈述。</p>
+<h2>15.3 Quarantine 必须有生命周期</h2>
+<p>每个 deselect/skip quarantine 必须有：</p>
+<pre><code class="language-text">owner
+reason
+introduced_at
+expires_at
+unblock_condition
+</code></pre>
+<p>没有 registry 的 deselect 不允许进入 release gate。</p>
+<hr />
+<h1>16. Documentation 法则</h1>
+<h2>16.1 Canonical SSOT</h2>
+<p>CURRENT 文档只允许以下几个入口：</p>
+<pre><code class="language-text">PROJECT_BASELINE.md
+current.md
+BEHAVIOR_BIBLE.md
+CURRENT_PLAN.md
+reference-lock.yaml
+registry.yaml
+scorecards/latest.yaml
+</code></pre>
+<p>阶段交付包是历史证据，不是新的平行 SSOT。</p>
+<h2>16.2 HEAD 一致性</h2>
+<p>任何 current/evidence 文件都必须标 subject commit。</p>
+<p>如果不是当前 HEAD，必须明确：</p>
+<pre><code class="language-text">STALE_EVIDENCE
+</code></pre>
+<p>而不是继续叫 latest/current。</p>
+<h2>16.3 README 不保存重复真值</h2>
+<p>README 只做入口和简要定位，状态数字、测试数量、当前阶段从 canonical status 引用，不手写复制多份。</p>
+<hr />
+<h1>17. CI / Release 法则</h1>
+<p>Release gate 至少同时满足：</p>
+<pre><code class="language-text">truth consistent
+security green
+critical path green
+quarantine registered
+platform claims verified
+reference diffs current
+context semantic eval green
+resume trust reset green
+extension trust lifecycle green
+</code></pre>
+<p>CI green 但 platform ledger 未验证时，只能称 CI green，不能称 cross-platform release verified。</p>
+<hr />
+<h1>18. Project Identity 法则</h1>
+<p>Canonical repository 为：</p>
+<pre><code class="language-text">Nuos/clauderuntime
+</code></pre>
+<p>建议 canonical product name：</p>
+<pre><code class="language-text">ClaudeRuntime
+</code></pre>
+<p>旧 <code>ClawCodex</code> 可作为 distribution/CLI compatibility alias，但 pyproject、README、docs 必须明确关系，不能把 repository URL 指向另一个历史仓库而不解释。</p>
+<hr />
+<h1>19. PR 规则</h1>
+<p>每个核心 PR 必须回答：</p>
+<pre><code class="language-text">1. 改了哪个 7-component / 5-layer？
+2. 改了哪个 runtime contract？
+3. Reference certainty 是 R1/R2/R3/R4？
+4. 是否有 REF-DIFF？registry ID？
+5. 安全不变量是否变化？
+6. targeted/combination/full 哪些跑了？
+7. CI/platform evidence 是什么？
+8. 有无新 quarantine？
+9. 是否改变 public behavior / compatibility？
+10. rollback/recovery 怎么做？
+</code></pre>
+<p>缺一项不等于不能合并，但必须说明 N/A 原因。</p>
+<hr />
+<h1>20. 禁止用语</h1>
+<p>除非证据真正满足，禁止写：</p>
+<pre><code class="language-text">完全对齐
+100% parity
+Source-Aligned
+跨平台已验证
+全部测试通过
+没有任何差异
+安全等价
+与 Claude Code 完全一致
+</code></pre>
+<p>应改为精确表达，例如：</p>
+<pre><code class="language-text">functional path verified on macOS
+reference-known contract aligned; implementation adapted
+local suite green; CI result pending
+Linux code path implemented; real-device validation pending
+</code></pre>
+<hr />
+<h1>21. 最终行为准则</h1>
+<p>一句话版本：</p>
+<blockquote>
+<p><strong>先确认事实，再写状态；先守住安全，再谈兼容；先对齐已知契约，再自由实现未知细节；所有差异可追踪；所有完成可验证。</strong></p>
+</blockquote>
+<p>B7 之后，ClaudeRuntime 的工程质量不再只以“功能多少”衡量，而以：</p>
+<pre><code class="language-text">可靠执行
+安全边界
+证据一致
+上下文保真
+可恢复性
+可评估性
+可维护性
+</code></pre>
+<p>共同衡量。</p>
+</article></main></div><script>
+const toc=document.getElementById('toc'); let n=0; document.querySelectorAll('.article h1,.article h2,.article h3').forEach(h=>{ if(!h.id) h.id='sec-'+(++n); const a=document.createElement('a'); a.href='#'+h.id; a.textContent=h.textContent; a.className=h.tagName.toLowerCase(); toc.appendChild(a); });
+</script></body></html>

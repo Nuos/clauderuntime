@@ -1,0 +1,12 @@
+schema: 1
+reference_id: claude-code-2.1.88-recovered-g1
+source_kind: recovered_source_map_snapshot
+repository: ChinaSiro/claude-code-sourcemap
+commit: a8a678cb6244e6770e1e421767ff0987a1d95549
+product_version: 2.1.88
+paper:
+  arxiv: '2604.14228v2'
+policy:
+  official_open_source_claim_allowed: false
+  strict_1_to_1_parity_release_gate: false
+  hierarchical_reference_alignment: true

@@ -1,0 +1,12 @@
+INTENT ONLY — adapt to current code before applying.
+
+Before:
+    permission_context: ToolPermissionContext = field(
+        default_factory=lambda: ToolPermissionContext(mode="bypassPermissions")
+    )
+
+Preferred after:
+    permission_context: ToolPermissionContext
+
+Then inventory EVERY ToolContext(...) callsite and supply an explicit context.
+Do NOT mechanically replace missing values with bypassPermissions.

@@ -25,10 +25,13 @@ DOCS_TOP_LEVEL_ALLOWLIST = {
     "20260813_0843_clauderuntime_B5_source_aligned_final_closure_delivery",
     "20260813_1824_B4修复反馈建议_v2_交付包",
     "20260814_0817_clauderuntime_B6_hierarchical_alignment_delivery_v1.1",
+    "clauderuntime-final-architecture-freeze-delivery-v2-complete-20260814",
     "README.md",
     "architecture",
     "archive",
     "assets",
+    "baseline",
+    "governance",
     "guides",
     "history",
     "i18n",
@@ -519,6 +522,117 @@ def check_reference_differences(repo: Path) -> list[str]:
     return failures
 
 
+# B7 W0 — canonical truth graph (machine/ssot-map.yaml) and subject binding.
+CANONICAL_TRUTH_ASSETS = (
+    "docs/baseline/PROJECT_BASELINE.md",
+    "docs/status/current.md",
+    "docs/plans/active/CURRENT_PLAN.md",
+    "docs/governance/BEHAVIOR_BIBLE.md",
+    "docs/reference/reference-lock.yaml",
+    "docs/reference-differences/registry.yaml",
+    "docs/parity/scorecards/latest.yaml",
+)
+
+MACHINE_BASELINE = "machine/baseline.yaml"
+MACHINE_REFERENCE_LOCK = "machine/reference-lock.yaml"
+DOCS_REFERENCE_LOCK = "docs/reference/reference-lock.yaml"
+
+SUBJECT_COMMIT_RE = re.compile(r"^\s*subject_commit:\s*([0-9a-fA-F]{7,40})\s*$", flags=re.MULTILINE)
+
+
+def check_truth_ssot(repo: Path) -> list[str]:
+    """Validate the B7 canonical truth graph (W0).
+
+    Every CURRENT machine asset must declare the same ``subject_commit`` as the
+    machine baseline; the reference lock must be present with the recovered
+    source-map policy; CURRENT assets must not reference ``archive`` as a fact
+    source; every accepted difference in the registry must carry evidence
+    (acceptance reason + tests).
+    """
+    failures: list[str] = []
+
+    baseline_path = repo / MACHINE_BASELINE
+    if not baseline_path.exists():
+        return [f"missing machine baseline: {MACHINE_BASELINE}"]
+    baseline_text = baseline_path.read_text(encoding="utf-8", errors="replace")
+    entry_match = re.search(
+        r"^\s*subject_entry_commit:\s*([0-9a-fA-F]{7,40})\s*$",
+        baseline_text,
+        flags=re.MULTILINE,
+    )
+    if not entry_match:
+        return [f"machine baseline missing subject_entry_commit: {MACHINE_BASELINE}"]
+    expected_subject = entry_match.group(1)
+
+    # 1) Every canonical truth asset must exist and bind the same subject.
+    for relpath in CANONICAL_TRUTH_ASSETS:
+        path = repo / relpath
+        if not path.exists():
+            failures.append(f"missing canonical truth asset: {relpath}")
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        match = SUBJECT_COMMIT_RE.search(text)
+        if not match:
+            failures.append(f"canonical truth asset missing subject_commit: {relpath}")
+            continue
+        if match.group(1).lower() != expected_subject.lower():
+            failures.append(
+                f"canonical truth asset stale subject_commit "
+                f"{match.group(1)} != {expected_subject} in {relpath}"
+            )
+        if "archive/" in text:
+            failures.append(f"canonical truth asset references archive as fact source: {relpath}")
+
+    # 2) Machine assets must declare subject_commit too.
+    machine_dir = repo / "machine"
+    if machine_dir.is_dir():
+        for path in sorted(machine_dir.glob("*.yaml")):
+            relpath = path.relative_to(repo)
+            text = path.read_text(encoding="utf-8", errors="replace")
+            match = SUBJECT_COMMIT_RE.search(text)
+            if not match:
+                failures.append(f"machine asset missing subject_commit: {relpath}")
+            elif match.group(1).lower() != expected_subject.lower():
+                failures.append(
+                    f"machine asset stale subject_commit "
+                    f"{match.group(1)} != {expected_subject} in {relpath}"
+                )
+
+    # 3) Reference lock policy (repo canonical + machine copy).
+    for relpath in (DOCS_REFERENCE_LOCK, MACHINE_REFERENCE_LOCK):
+        path = repo / relpath
+        if not path.exists():
+            failures.append(f"missing reference lock: {relpath}")
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "source_kind: recovered_source_map_snapshot" not in text:
+            failures.append(f"reference lock source_kind must be recovered_source_map_snapshot: {relpath}")
+        if not re.search(r"^\s*commit:\s*[0-9a-fA-F]{7,40}\s*$", text, flags=re.MULTILINE):
+            failures.append(f"reference lock missing reference commit: {relpath}")
+        if "official_open_source_claim_allowed: false" not in text:
+            failures.append(
+                f"reference lock must set official_open_source_claim_allowed: false: {relpath}"
+            )
+
+    # 4) Accepted differences in the registry must carry evidence.
+    registry_path = repo / REFERENCE_DIFFERENCES_REGISTRY
+    if registry_path.exists():
+        text = registry_path.read_text(encoding="utf-8", errors="replace")
+        blocks = re.split(r"^\s+- id:", text, flags=re.MULTILINE)
+        for block in blocks[1:]:
+            item_id = block.splitlines()[0].strip().split()[0] if block.splitlines() else "?"
+            if re.search(r"^\s*accepted:\s*true\s*$", block, flags=re.MULTILINE):
+                if not re.search(r"^\s*acceptance_reason:", block, flags=re.MULTILINE):
+                    failures.append(
+                        f"accepted diff missing acceptance_reason in {REFERENCE_DIFFERENCES_REGISTRY} item {item_id}"
+                    )
+                if not re.search(r"^\s*tests:", block, flags=re.MULTILINE):
+                    failures.append(
+                        f"accepted diff missing tests evidence in {REFERENCE_DIFFERENCES_REGISTRY} item {item_id}"
+                    )
+    return failures
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -538,6 +652,7 @@ def main() -> int:
     failures = check_structure(files)
     failures.extend(check_parity_maps(repo))
     failures.extend(check_reference_differences(repo))
+    failures.extend(check_truth_ssot(repo))
     failures.extend(check_markdown_links(repo, files, read_allowlist(repo / args.allowlist)))
     failures.extend(check_archive_link_policy(files, repo))
     failures.extend(

@@ -1,0 +1,12 @@
+schema: 1
+modules:
+  query: {status: mature, action: extract_outer_owners_only}
+  permission: {status: mature_risky_default, action: P0}
+  turn_preparation: {status: dual_owner, action: P0}
+  extensions: {status: mature_mechanisms_missing_unified_activation_gate, action: P0}
+  tasks: {status: migration_in_progress, action: P0_single_writer}
+  compact: {status: mature, action: P1_contract_only}
+  server: {status: mature_god_session, action: P1_owner_facades}
+  sandbox: {status: implementation_present_evidence_limited, action: TEST_CLOSURE}
+  mcp: {status: mature, action: TEST_CLOSURE}
+  subagent: {status: mature, action: TEST_CLOSURE}

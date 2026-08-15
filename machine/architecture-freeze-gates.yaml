@@ -1,0 +1,14 @@
+schema: 1
+subject_commit: 16da0cfea98d69987739a319ff6ae42cfd432d2c
+gates:
+  A_truth: {required: true, check: canonical_truth}
+  B_loop: {required: true, check: single_query_loop}
+  C_turn_preparation: {required: true, check: single_turn_preparation_owner}
+  D_permission: {required: true, check: no_implicit_bypass}
+  E_execution: {required: true, check: normal_execution_boundary}
+  F_task_state: {required: true, check: single_runtime_task_writer}
+  G_extension: {required: true, check: trust_before_activation}
+  H_persistence: {required: true, check: no_ephemeral_privilege_resume}
+  I_legacy: {required: true, check: legacy_production_paths_zero_or_declared}
+  J_test_truth: {required: true, check: quarantine_and_evidence_consistent}
+freeze_status_on_pass: ARCHITECTURE_FREEZE

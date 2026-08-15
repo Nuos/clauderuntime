@@ -1,0 +1,16 @@
+schema: 1
+project: ClaudeRuntime
+repository: Nuos/clauderuntime
+subject_entry_commit: 16da0cfea98d69987739a319ff6ae42cfd432d2c
+reference:
+  product: Claude Code
+  version: 2.1.88
+  source_kind: recovered_source_map_snapshot
+  commit: a8a678cb6244e6770e1e421767ff0987a1d95549
+  paper: arXiv:2604.14228v2
+status:
+  functional: FUNCTIONALLY_SIMILAR_CORE_COMPLETE
+  architecture: FINAL_CLOSURE_REQUIRED
+  parity: PARTIAL_NOT_RELEASE_GATE
+  evidence: REBASE_REQUIRED
+next_gate: ARCHITECTURE_FREEZE

@@ -1,0 +1,15 @@
+schema: 1
+subject_commit: 16da0cfea98d69987739a319ff6ae42cfd432d2c
+candidates:
+  - path: src/cli_backup
+    precondition: production_reference_count_zero
+    action: remove_or_move_outside_package
+  - symbol: QueryEngine._build_system_prompt_parts
+    precondition: TurnPreparationService_cutover_complete
+    action: delete_or_delegate_only
+  - symbol: agent_loop_compat.build_effective_system_prompt
+    precondition: TurnPreparationService_cutover_complete
+    action: compatibility_delegate_only
+  - symbol: legacy_background_task_maps
+    precondition: RuntimeTaskRegistry_single_writer
+    action: read_only_projection_then_remove

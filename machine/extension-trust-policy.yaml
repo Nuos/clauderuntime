@@ -1,0 +1,12 @@
+schema: 1
+subject_commit: 16da0cfea98d69987739a319ff6ae42cfd432d2c
+trust_levels: [bundled, managed, user, project, mcp]
+activation:
+  project_requires_workspace_trust: true
+  discovery_may_execute_code: false
+  partial_activation_rollback_required: true
+collision:
+  exact_same_hash: dedupe
+  same_precedence_different_content: reject
+  project_over_managed: deny_by_default
+  silent_overwrite: forbidden

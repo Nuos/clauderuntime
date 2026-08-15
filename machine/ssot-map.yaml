@@ -1,0 +1,14 @@
+schema: 1
+subject_commit: 16da0cfea98d69987739a319ff6ae42cfd432d2c
+current_truth:
+  baseline: docs/baseline/PROJECT_BASELINE.md
+  status: docs/status/current.md
+  active_plan: docs/plans/active/CURRENT_PLAN.md
+  behavior_bible: docs/governance/BEHAVIOR_BIBLE.md
+  reference_lock: docs/reference/reference-lock.yaml
+  difference_registry: docs/reference-differences/registry.yaml
+  parity_scorecard: docs/parity/scorecards/latest.yaml
+rules:
+  current_must_not_point_to_archive: true
+  all_machine_assets_require_subject_commit: true
+  stale_subject_is_error: true

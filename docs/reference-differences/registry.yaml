@@ -1,7 +1,7 @@
 schema_version: 1
-purpose: "Track known differences between Claude Code 2.1.88 reference behavior and ClaudeRuntime Python behavior. B6 hierarchical alignment: reference-confirmed behavior must align; only unknown implementation details may use functional-core adaptation, with explicit annotations."
+purpose: "Track known differences between Claude Code 2.1.88 reference behavior and ClaudeRuntime Python behavior. B6 hierarchical alignment: reference-confirmed behavior must align; only unknown implementation details may use functional-core adaptation, with explicit annotations. B7: registry is part of the canonical truth graph and binds to the same subject_commit as all CURRENT assets."
 strategy: hierarchical_reference_alignment
-repository_head: dc7393bb05de7dc328d5206e19ba2e15997c1656
+subject_commit: 16da0cfea98d69987739a319ff6ae42cfd432d2c
 reference_version: 2.1.88
 reference_certainty_vocabulary:
   - R1_CONFIRMED

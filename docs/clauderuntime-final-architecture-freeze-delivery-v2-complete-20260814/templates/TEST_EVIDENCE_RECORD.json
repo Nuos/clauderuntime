@@ -1,0 +1,12 @@
+{
+  "subject_commit": "",
+  "evidence_type": "TESTED_CI",
+  "command_or_check": "",
+  "result": "PASS",
+  "environment": {
+    "os": "",
+    "python": ""
+  },
+  "timestamp": "",
+  "artifact_refs": []
+}
