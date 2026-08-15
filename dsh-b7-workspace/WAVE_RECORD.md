@@ -148,7 +148,29 @@
   roundtrip / 能力判定结果全部不变（委托等价性测试证明）
 - rollback：回退本提交即可
 
-## W7 — CI / Platform / Evidence Truth ⏳
+## W7 — CI / Platform / Evidence Truth ✅（2026-08-15）
+
+- 交付包校验脚本迁入 repo `scripts/`：check_reference_lock / check_quarantine_manifest
+  / check_architecture_freeze / check_delivery_integrity / generate_ci_deselect_args
+  / run_delivery_validation（全部 PASS）。
+- CI workflow 改造：5 个手写 `--deselect` 删除 → `$(python scripts/generate_ci_deselect_args.py)`
+  从 machine/ci-quarantine.yaml 生成（单事实源，Behavior Bible §O）；docs-governance
+  作业新增 quarantine manifest + reference lock 校验；新增声明矩阵校验作业
+  （python 3.10/3.12/3.14 + macOS/Ubuntu/Windows 为声明，实跑 macOS import smoke；
+  真机隔离项 PENDING_REAL_DEVICE，Behavior Bible §P）。
+- `scripts/record_evidence.py`：evidence 记录按 machine/evidence-schema.json 校验
+  （subject_commit/evidence_type/command/result/environment/timestamp）。
+- 测试：tests/test_b7_ci_truth.py 8 项（manifest 单源、CI 无手抄、矩阵声明、
+  evidence schema）。
+- 已知说明：pack 的 check_delivery_integrity 已适配指向包 manifest（97 文件 PASS）。
+
+### changed owner / unchanged semantics / rollback
+- changed owner：CI quarantine 唯一源 = machine/ci-quarantine.yaml（生成式）；
+  evidence 记录 schema 校验
+- unchanged semantics：deselect 结果与之前手写完全一致（5 项逐一验证）
+- rollback：回退本提交即可
+
+## W8 — Identity / Legacy Cleanup ⏳
 
 ## W8 — Identity / Legacy Cleanup ⏳
 

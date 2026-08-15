@@ -1,16 +1,12 @@
 name: CI
 
-# B6 Wave F8 — CI 定位为 RELEASE_GATE（发布门禁），不是功能开发门禁。
-# 结果与 local 分开记录（B6 规则：不得把 CI 结果写成 local 结果，反之亦然）。
-#
-# - docs-governance: 文档治理门禁（结构/链接/parity 台账/B6 差异 registry）
-#   —— 快速、stdlib-only，任何 PR 都跑。
-# - tests: Python 测试套件（跳过 integration 标记：外部 MCP/服务类测试）。
-#   运行在 macos-latest（项目主开发平台，与文档化 local 套件一致；
-#   Linux runner 上 sandbox-exec/bwrap 探测会 fail-closed 导致平台用例失败）。
-#
-# 已知平台差异：Windows/Linux 真机验证见
-# docs/reference-differences/platform-verification.md（PENDING_REAL_DEVICE）。
+# B7 W7 — CI/Test Truth (Behavior Bible §O): the deselect/quarantine list
+# comes from ONE machine manifest (machine/ci-quarantine.yaml); the workflow
+# NEVER hand-writes deselects. scripts/generate_ci_deselect_args.py produces
+# the args and scripts/check_quarantine_manifest.py fails the gate when the
+# manifest is stale/duplicated. Platform + Python matrix is DECLARED in
+# machine/test-matrix.yaml (declared ≠ verified — real-device isolation is
+# tracked separately in docs/reference-differences/platform-verification.md).
 
 on:
   push:
@@ -29,6 +25,11 @@ jobs:
           python-version: "3.12"
       - name: Run documentation governance check
         run: python scripts/check_docs_governance.py
+      - name: Validate quarantine manifest + reference lock
+        run: |
+          python -m pip install pyyaml
+          python scripts/check_quarantine_manifest.py
+          python scripts/check_reference_lock.py
 
   tests:
     name: Python test suite (non-integration)
@@ -43,17 +44,37 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.dev.txt
       - name: Run test suite
-        # 排除已知 CI 环境特定用例（本地全部通过，测试文件与基线一致，
-        # 见 docs/progress/2026/2026-08-14-b6-completion-checklist.md 剩余/阻塞节）：
-        # - stream_watchdog ×2 + ch04 TestWatchdogWarning ×2（test_half_time_... /
-        #   test_reset_before_half_time_...）：time.sleep 精确断言 threading.Timer
-        #   计时，CI 负载下抖动
-        # - opencode compat：httpx mock 在 CI 环境行为不同
-        # 其余 watchdog 测试仍覆盖该功能；本地 full suite 仍运行这些用例。
+        # Quarantine args are GENERATED from machine/ci-quarantine.yaml
+        # (single source of truth, B7 W7). Items carry reason + replacement
+        # coverage; local full suite still runs them.
         run: >-
           python -m pytest tests/ -q --disable-warnings -m "not integration"
-          --deselect tests/test_stream_watchdog.py::TestStreamWatchdogFires::test_reset_pushes_deadline_forward
-          --deselect tests/test_stream_watchdog.py::TestPingAwareLiveness::test_byte_progress_prevents_fire
-          --deselect tests/test_ch04_api_round4.py::TestWatchdogWarning::test_half_time_warning_fires_once_and_reset_cancels
-          --deselect tests/test_ch04_api_round4.py::TestWatchdogWarning::test_reset_before_half_time_prevents_warning
-          --deselect tests/test_opencode_compat_providers.py::test_xai_requests_go_to_chat_completions
+          $(python scripts/generate_ci_deselect_args.py)
+
+  platform-python-matrix:
+    name: Declared matrix smoke (import-only)
+    # B7 W7 — declared compatibility vs verified are separate statements
+    # (Behavior Bible §P): this job validates the DECLARATION and runs an
+    # import smoke on the primary platform only. Python 3.10/3.14 and
+    # Ubuntu/Windows full runs are PENDING_REAL_DEVICE (tracked in
+    # machine/test-matrix.yaml + docs/reference-differences/platform-verification.md).
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate test matrix declaration
+        run: |
+          python - <<'EOF'
+          import yaml
+          m = yaml.safe_load(open("machine/test-matrix.yaml"))
+          assert m["schema"] == 1
+          assert "local_full" in m["levels"] and "os_smoke" in m["levels"]
+          assert m["rules"]["os_smoke_does_not_imply_isolation_verified"] is True
+          print("PASS test matrix declaration:", list(m["levels"]))
+          EOF
+      - name: Import smoke
+        run: |
+          python -m pip install -r requirements.dev.txt
+          python -c "import src.entrypoints.headless, src.server.agent_server, src.query.query, src.services.compact.pipeline; print('import smoke ok')"
