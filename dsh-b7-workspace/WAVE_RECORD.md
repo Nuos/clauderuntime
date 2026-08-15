@@ -66,7 +66,29 @@
 - unchanged semantics：system prompt 输出与历史字节一致（等价性测试证明），零漂移
 - rollback：回退本提交即可（服务为新增代码，旧函数保持签名）
 
-## W3 — Extension Trust Boundary ⏳
+## W3 — Extension Trust Boundary ✅（2026-08-15）
+
+- 新建 `src/runtime/extension_activation.py`：`ExtensionDescriptor` +
+  `ExtensionActivationGate`（ALLOW/DENY/REQUIRE_TRUST/INVALID/COLLISION）+ provenance
+  ledger（name→scope+hash，可审计）；policy 读 `machine/extension-trust-policy.yaml`。
+- 决策顺序确定性：INVALID（结构）→ 策略 DENY（project_over_managed）→ COLLISION
+  （同 hash dedupe / 不同内容 reject / silent overwrite forbidden）→ REQUIRE_TRUST
+  （project/user/mcp scope 未信任 workspace）→ ALLOW。
+- 插件 loader 注册动作包到 gate 后：`register_plugin(workspace_trusted=, gate=)` 非
+  ALLOW 即抛 PluginError（不再静默覆盖）；`load_plugins_from_directories` 批量共享
+  一个 gate，跨目录同名插件确定性冲突。
+- 未改 Plugin/MCP/Skill/Hook 内部机制（只统一 activation 生命周期边界）。
+- 测试：`tests/test_b7_extension_activation.py` 17 项（矩阵 + loader 接线 + 审计）；
+  既有插件/技能测试 70 项通过。
+
+### changed owner / unchanged semantics / rollback
+- changed owner：extension activation 决策 = ExtensionActivationGate（loader 注册动作
+  包到门后）
+- unchanged semantics：Plugin/MCP/Skill/Hook 加载内部机制不变；仅同名覆盖从静默改为
+  确定性 reject
+- rollback：回退本提交即可（gate 为新增代码，loader 参数向后兼容）
+
+## W4 — Task / Session / Persistence Owner ⏳
 
 ## W4 — Task / Session / Persistence Owner ⏳
 

@@ -109,9 +109,38 @@ def load_plugin_from_directory(
     return plugin
 
 
-def register_plugin(plugin: LoadedPlugin) -> None:
+def register_plugin(
+    plugin: LoadedPlugin,
+    *,
+    workspace_trusted: bool = True,
+    gate: Any | None = None,
+) -> None:
+    """Register a plugin behind the extension activation gate (B7 W3).
+
+    The loader register action is now wrapped by the trust-before-activation
+    boundary (Behavior Bible §G): a COLLISION / REQUIRE_TRUST / INVALID / DENY
+    decision raises :class:`PluginError` instead of silently registering —
+    silent name overwrites are forbidden. ``gate`` may be shared across a load
+    batch so same-name plugins from different directories collide
+    deterministically; when omitted a fresh gate is used (isolated decision).
+    """
+    from src.runtime.extension_activation import (
+        ActivationBehavior,
+        ExtensionActivationGate,
+        descriptor_from_loaded_plugin,
+    )
+
+    gate = gate or ExtensionActivationGate()
+    descriptor = descriptor_from_loaded_plugin(plugin)
+    decision = gate.decide(descriptor, workspace_trusted=workspace_trusted)
+    if decision.behavior is not ActivationBehavior.ALLOW:
+        raise PluginError(
+            plugin.name,
+            f"plugin activation denied by extension gate: {decision.reason}",
+        )
+    gate.activate(descriptor, workspace_trusted=workspace_trusted)
     _loaded_plugins[plugin.name] = plugin
-    logger.debug("Registered plugin: %s", plugin.name)
+    logger.debug("Registered plugin: %s (gate: %s)", plugin.name, decision.reason)
 
 
 def unregister_plugin(name: str) -> bool:
@@ -137,14 +166,28 @@ def load_plugins_from_directories(
     directories: list[str | Path],
     *,
     source: str = "user",
+    workspace_trusted: bool = True,
+    gate: Any | None = None,
 ) -> PluginDiscoveryResult:
     combined = PluginDiscoveryResult()
+    # One gate per batch so same-name plugins across directories collide
+    # deterministically instead of silently overwriting (B7 W3).
+    from src.runtime.extension_activation import ExtensionActivationGate
+
+    batch_gate = gate or ExtensionActivationGate()
     for directory in directories:
         result = discover_plugins(directory)
         for plugin in result.plugins:
             plugin.source = source
-            register_plugin(plugin)
-            combined.plugins.append(plugin)
+            try:
+                register_plugin(
+                    plugin,
+                    workspace_trusted=workspace_trusted,
+                    gate=batch_gate,
+                )
+                combined.plugins.append(plugin)
+            except PluginError as e:
+                combined.errors.append(e)
         combined.errors.extend(result.errors)
     return combined
 
