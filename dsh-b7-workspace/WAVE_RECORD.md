@@ -88,9 +88,26 @@
   确定性 reject
 - rollback：回退本提交即可（gate 为新增代码，loader 参数向后兼容）
 
-## W4 — Task / Session / Persistence Owner ⏳
+## W4 — Task / Session / Persistence Owner ✅（2026-08-15）
 
-## W4 — Task / Session / Persistence Owner ⏳
+- `RuntimeTaskRegistry` 单写 owner 落实：`ToolContext.background_bash_tasks` 改为
+  **只读投影** `LegacyTaskProjection`（get/[]/values/items 从 registry 实时派生；
+  setitem/delitem/update/clear/pop/setdefault 一律 RuntimeError）。
+- 消除双写：`background.py` spawn 与 reaper 的 legacy dict 镜像删除（registry 唯一写）。
+- stuck-task guard 计数迁移到 `context.stuck_task_tracking`（派生遥测，非任务状态），
+  不再在 legacy dict 上做原地计数。
+- `SessionLifecycle`（src/runtime/session_lifecycle.py）：start/resume/fork/rewind/end
+  生命周期 owner；`validate_durable_metadata` 拒绝 api_key/permission/trust/mcp/
+  thread/handle 等 ephemeral 字段；resume 委托既有 durable 恢复并断言无 live handle。
+- 测试：test_b7_task_single_writer 10 项 + test_b7_session_lifecycle 9 项；既有
+  tasks/tool_system/server/resume 285 项通过（仅 3 项 pty 环境失败）。
+
+### changed owner / unchanged semantics / rollback
+- changed owner：runtime task 写 = RuntimeTaskRegistry 唯一（legacy 只读投影）；
+  session 生命周期 = SessionLifecycle（resume 委托既有机制）
+- unchanged semantics：legacy 读取方继续工作（投影形状 = to_legacy_dict）；
+  任务状态机/恢复行为不变
+- rollback：回退本提交即可（投影为新增；loader 调用点向后兼容）
 
 ## W5 — Context / Compact Closure ⏳
 
