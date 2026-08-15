@@ -7,9 +7,18 @@ candidates:
   - symbol: QueryEngine._build_system_prompt_parts
     precondition: TurnPreparationService_cutover_complete
     action: delete_or_delegate_only
+    status: cutover_pending_w6
+    note: "W2 introduced TurnPreparationService (src/runtime/turn_preparation.py) as the
+      canonical owner; the engine path still assembles via the same shared
+      build_full_system_prompt_blocks helper. W6 (Query/Server Ownership
+      Extraction) completes the facade cutover."
   - symbol: agent_loop_compat.build_effective_system_prompt
     precondition: TurnPreparationService_cutover_complete
     action: compatibility_delegate_only
+    status: cutover_complete
+    note: "W2: now a thin adapter delegating to
+      TurnPreparationService.assemble_system_prompt_blocks; byte-equivalent
+      output proven by tests/test_b7_turn_preparation.py."
   - symbol: legacy_background_task_maps
     precondition: RuntimeTaskRegistry_single_writer
     action: read_only_projection_then_remove

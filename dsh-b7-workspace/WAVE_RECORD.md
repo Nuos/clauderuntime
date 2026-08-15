@@ -47,9 +47,24 @@
   从 allow 变为 fail-closed
 - rollback：回退本提交即可（默认值 + 校验为独立改动）
 
-## W2 — Canonical Turn Preparation ⏳
+## W2 — Canonical Turn Preparation ✅（2026-08-15）
 
-## W2 — Canonical Turn Preparation ⏳
+- 新建 `src/runtime/turn_preparation.py`：`PreparedTurn`（8 字段，frozen）+
+  `TurnPreparationService`（无模型调用/无副作用/无 bypass）。
+- `assemble_system_prompt_blocks` = canonical 冷启动块列表唯一实现（从
+  `build_effective_system_prompt` 原样迁入，含 coordinator 分支与尾块缓存作用域）。
+- `agent_loop_compat.build_effective_system_prompt` → 薄包装委托服务（无组装逻辑），
+  headless/TUI/server cutover 路径 owner=1。
+- `QueryEngine._build_system_prompt_parts` 保留为 legacy adapter（共享同一
+  build_full_system_prompt_blocks helper），W6 完成 facade 收口
+  （machine/deprecation-plan.yaml 记录 cutover_pending_w6）。
+- 测试：`tests/test_b7_turn_preparation.py` 7 项（字节级等价、薄包装委托、无组装
+  import、PreparedTurn 形状/不突变/冻结）；既有 212 项受影响测试全部通过。
+
+### changed owner / unchanged semantics / rollback
+- changed owner：turn preparation 唯一 owner = TurnPreparationService（cutover 路径）
+- unchanged semantics：system prompt 输出与历史字节一致（等价性测试证明），零漂移
+- rollback：回退本提交即可（服务为新增代码，旧函数保持签名）
 
 ## W3 — Extension Trust Boundary ⏳
 

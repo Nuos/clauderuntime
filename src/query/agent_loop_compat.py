@@ -183,195 +183,28 @@ def build_effective_system_prompt(
     mcp_servers: list[Any] | None = None,
     query_source: str = "main",
 ) -> list[dict[str, Any]]:
-    """Assemble the cold-start system prompt for the headless+TUI cutover.
+    """B7 W2 — thin compatibility adapter for the canonical turn owner.
 
-    Returns the FULL system prompt as a **block list** (``list[dict]``) so the
-    ``query()`` loop still engages prompt caching: the canonical base sections
-    (``build_full_system_prompt_blocks`` — intro / # Doing tasks / # Executing
-    actions / # Using your tools / # Tone / output-efficiency / env / memory /
-    skills / …) with the resolved output-style prompt **appended**, then the
-    existing workspace + git + CLAWCODEX.md context preserved as a trailing
-    (uncached) block.
-
-    Why this exists: the TUI (``tui/agent_bridge.py``) and headless
-    (``entrypoints/headless.py``) cutover routes through ``query()``, which
-    passes ``params.system_prompt`` **verbatim** to the model — it has no base
-    build of its own. The engine/REPL path (``engine.py:124-188``) does the
-    canonical build when ``system_prompt`` is unset, but the cutover pre-sets
-    it, so before this fix the live TUI/headless agent received **no base
-    instructions** at all (only the style line + context). This helper restores
-    them, mirroring the engine's ``build_full_system_prompt_blocks`` +
-    ``append_system_prompt`` shape.
-
-    CLAWCODEX.md note: ``build_full_system_prompt_blocks``' memory section is
-    *auto-memory* (``MEMORY.md`` via ``load_memory_prompt``), **not** CLAWCODEX.md.
-    On the engine path CLAWCODEX.md is injected into the *messages* via
-    ``prepend_user_context``; the cutover does not do that, so we keep
-    ``build_context_prompt_parts`` (whose second half emits
-    ``## Project Instructions``) to preserve CLAWCODEX.md — option (b) in
-    ``my-docs/get-parity-by-folder/live-base-system-prompt-gap-analysis.md``.
-    This overlaps the base ``# Environment`` section on CWD/date (a benign,
-    documented duplication).
-
-    ``tools``/``tool_registry`` are deliberately NOT passed to
-    ``build_full_system_prompt_blocks`` (matching ``engine.py:167``): tool
-    schemas reach the model via the API ``tools=`` param, so emitting a prose
-    tool-docs section here would double-send them. ``provider`` feeds the
-    global cache-scope gate; ``mcp_servers`` ALSO feeds the REQUEST-scoped
-    ``_build_mcp_instructions_section`` (C2 — server-authored instructions),
-    so it is no longer inert here; ``None`` is safe (no instructions section
-    + disables the cross-user global scope, which TUI/headless should not use).
-
-    Coordinator mode (``CLAUDE_CODE_COORDINATOR_MODE`` truthy): the
-    coordinator orchestration prompt REPLACES the base blocks entirely,
-    ``style_prompt`` still appends, and the trailing context block is kept
-    and extended with the ``workerToolsContext`` entry — mirrors
-    ``utils/systemPrompt.ts:63-75`` + ``QueryEngine.ts:300-306``. This
-    builder only ever serves the MAIN loop (subagents build their prompts
-    via ``get_agent_system_prompt``), so the branch cannot leak into worker
-    prompts — the structural equivalent of TS's
-    ``!mainThreadAgentDefinition`` guard.
+    The full cold-start assembly (base blocks + output style + trailing
+    workspace/git/CLAWCODEX.md context, coordinator branch included) now lives
+    in :meth:`TurnPreparationService.assemble_system_prompt_blocks`
+    (``src/runtime/turn_preparation.py``). This function delegates so the
+    headless / TUI / server cutover callers keep their historical signature
+    while prompt construction has exactly ONE owner (Behavior Bible §F). It
+    carries no assembly logic of its own; see
+    ``machine/deprecation-plan.yaml`` (compatibility_delegate_only).
     """
-    # Local imports — context_system is a heavier dep; only the cutover
-    # callers need it, no need to drag it into agent_loop_compat's import time.
-    from ..context_system import build_context_prompt_parts
-    from ..context_system.prompt_assembly import build_full_system_prompt_blocks
-    from ..context_system.system_prompt_cache import CacheScope
-    from ..coordinator.mode import is_coordinator_mode
+    from ..runtime.turn_preparation import TurnPreparationService
 
     cwd = str(tool_context.cwd or tool_context.workspace_root)
-
-    coordinator = is_coordinator_mode()
-    if coordinator:
-        # Coordinator mode: the orchestration prompt REPLACES the entire base
-        # block set — no # Doing tasks, no tool guidance, no tone (mirrors
-        # ``utils/systemPrompt.ts:63-75``, where the coordinator prompt swaps
-        # in for defaultSystemPrompt while appendSystemPrompt is preserved).
-        # ``style_prompt`` is this builder's append-channel, so it survives;
-        # the trailing workspace/git/CLAWCODEX.md context block below is also
-        # kept — TS coordinator sessions keep userContext/systemContext
-        # (``QueryEngine.ts:300-306`` replaces only the default prompt).
-        from ..coordinator import get_coordinator_system_prompt
-        from ..state.cache_state import should_1h_cache_ttl
-
-        blocks: list[dict[str, Any]] = [{
-            "type": "text",
-            "text": get_coordinator_system_prompt(),
-            "_cache_scope": CacheScope.SESSION.value,
-        }]
-        if style_prompt:
-            blocks.append({
-                "type": "text",
-                "text": style_prompt,
-                "_cache_scope": CacheScope.SESSION.value,
-            })
-        # One cache marker on the LAST stable block — the same convention
-        # build_full_system_prompt_blocks applies to each scope-group's
-        # final block (prompt_assembly.py:699-761), reusing its TTL selector.
-        blocks[-1]["cache_control"] = {
-            "type": "ephemeral",
-            "ttl": "1h" if should_1h_cache_ttl(query_source) else "5m",
-        }
-    else:
-        # Skills listing (best-effort; mirrors engine.py:183).
-        try:
-            from ..command_system import get_skill_tool_commands
-            skills = get_skill_tool_commands(cwd)
-        except Exception:
-            skills = None
-
-        blocks = build_full_system_prompt_blocks(
-            cwd=cwd,
-            output_style="default",          # style is appended below (mirror engine.py:169)
-            append_system_prompt=style_prompt,
-            query_source=query_source,
-            provider=provider,
-            mcp_servers=mcp_servers,
-            skills=skills,
-        )
-
-    # Preserve the workspace + git + CLAWCODEX.md context (CLAWCODEX.md is NOT
-    # in the base blocks above), but as TWO trailing blocks split by volatility.
-    #
-    # The snapshot half is REQUEST-scope. It embeds ``git status`` (and file
-    # counts / top-level entries) that mutate the moment the agent edits a file
-    # — for a coding agent, essentially every turn. For DeepSeek,
-    # ``query._split_system_prompt_blocks`` relocates REQUEST-scope sections out
-    # of the byte-stable ``system + tools + history`` prefix into a trailing
-    # tail; without the tag this snapshot would sit in the prefix and a single
-    # mid-session file edit would bust the cache for the whole prefix.
-    #
-    # The instructions half (``## Project Instructions``, i.e. CLAWCODEX.md) is
-    # SESSION-scope. It is read once and fixed for the session, and the tail is
-    # not free: it sits after the conversation, so it is re-sent and re-billed
-    # as a cache miss on EVERY request. A large CLAWCODEX.md was paying its full
-    # token count per turn for nothing. Keeping it in the cached prefix is the
-    # same trade Reasonix makes (internal/boot/boot.go: project instructions
-    # "fold into the system prompt exactly here, once ... so memory costs
-    # nothing per turn").
-    #
-    # Snapshot is appended first so the flattened prompt keeps the order
-    # ``build_context_prompt`` produced; providers that do not relocate
-    # REQUEST scope therefore see unchanged bytes.
-    try:
-        context_snapshot, context_instructions = build_context_prompt_parts(
-            tool_context.workspace_root,
-            cwd=tool_context.cwd,
-        )
-    except Exception:
-        context_snapshot, context_instructions = "", ""
-    context_prompt = context_snapshot
-
-    if coordinator:
-        # workerToolsContext — TS merges this into the per-session userContext
-        # (``QueryEngine.ts:300-306``); this port's userContext channel on the
-        # live path is the trailing context block (same route CLAWCODEX.md / git
-        # status already take), rendered with the ``# {key}\n{value}`` entry
-        # idiom of prepend_user_context (prompt_assembly.py:255-256). MCP
-        # server names come from the ToolContext's connected-client catalog
-        # (agent_server.py publishes ``tool_context.mcp_clients``); the
-        # scratchpad line is surfaced whenever the dir resolves — TS gates it
-        # on Statsig ``tengu_scratch``, which this port does not have (the
-        # module-documented divergence).
-        from ..coordinator.mode import get_coordinator_user_context
-
-        try:
-            from ..permissions.filesystem import get_scratchpad_dir
-            scratchpad_dir: str | None = get_scratchpad_dir()
-        except Exception:
-            scratchpad_dir = None
-        worker_ctx = get_coordinator_user_context(
-            getattr(tool_context, "mcp_clients", None),
-            scratchpad_dir=scratchpad_dir,
-        ).get("workerToolsContext", "")
-        if worker_ctx:
-            # Session-stable (MCP server names + scratchpad dir), so it rides
-            # with the instructions half rather than the live snapshot.
-            entry = f"# workerToolsContext\n{worker_ctx}"
-            context_instructions = (
-                f"{context_instructions}\n\n{entry}"
-                if context_instructions.strip()
-                else entry
-            )
-
-    # Snapshot first, instructions second: that is the order
-    # ``build_context_prompt`` produced, and providers which do not relocate
-    # REQUEST scope flatten blocks in list order — so their bytes are
-    # unchanged. Only DeepSeek pulls the REQUEST block out to the tail.
-    if context_prompt.strip():
-        blocks = blocks + [{
-            "type": "text",
-            "text": context_prompt,
-            "_cache_scope": CacheScope.REQUEST.value,
-        }]
-    if context_instructions.strip():
-        blocks = blocks + [{
-            "type": "text",
-            "text": context_instructions,
-            "_cache_scope": CacheScope.SESSION.value,
-        }]
-
-    return blocks
+    return TurnPreparationService.assemble_system_prompt_blocks(
+        cwd=cwd,
+        style_prompt=style_prompt,
+        tool_context=tool_context,
+        provider=provider,
+        mcp_servers=mcp_servers,
+        query_source=query_source,
+    )
 
 
 @dataclass(frozen=True)
