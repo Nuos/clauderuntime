@@ -109,7 +109,25 @@
   任务状态机/恢复行为不变
 - rollback：回退本提交即可（投影为新增；loader 调用点向后兼容）
 
-## W5 — Context / Compact Closure ⏳
+## W5 — Context / Compact Closure ✅（2026-08-15）
+
+- 新增 `src/services/compact/compression_outcome.py`：frozen `CompressionOutcome`
+  （changed/stage/warnings/hard_limit_reached/artifacts/tokens_before/tokens_after）
+  + `build_outcome` / `outcome_from_layers` 纯函数（共享构建逻辑）。
+- 五阶段 pipeline：`CompressionResult.outcome` 字段；所有返回路径（含 early-exit）
+  携带 outcome；各层失败改为收集 warnings（不再只 log 吞掉）。
+- manual compact：`CompactionResult.outcome` 字段（stage=manual_compact /
+  manual_partial_compact），与 automatic pipeline 共用 contract 不混淆 trigger。
+- **未改五阶段算法**（顺序/各层逻辑原样），仅加结构化证据（Behavior Bible §H）。
+- 测试：`tests/test_b7_compression_outcome.py` 9 项；既有压缩/查询测试 118 项通过。
+
+### changed owner / unchanged semantics / rollback
+- changed owner：压缩证据产出 = CompressionOutcome（统一 contract）
+- unchanged semantics：五阶段算法与顺序不变；CompressionResult/CompactionResult
+  向后兼容（新增字段带默认值）
+- rollback：回退本提交即可
+
+## W6 — Query/Server Ownership Extraction ⏳
 
 ## W6 — Query/Server Ownership Extraction ⏳
 

@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from ...types.content_blocks import TextBlock, ToolUseBlock
+from .compression_outcome import CompressionOutcome, build_outcome
 from ...types.messages import (
     Message,
     UserMessage,
@@ -148,6 +149,11 @@ class CompactionResult:
     user_display_message: str | None = None
     trigger: str = "manual"
     tokens_saved: int = 0
+    # B7 W5 — structured evidence of the compaction pass (Context Law §H);
+    # shared contract with the automatic pipeline without conflating triggers.
+    outcome: CompressionOutcome = field(
+        default_factory=lambda: CompressionOutcome(changed=False)
+    )
 
 
 @dataclass
@@ -519,6 +525,13 @@ async def compact_conversation(
         user_display_message=user_display,
         trigger=context.trigger,
         tokens_saved=tokens_saved,
+        outcome=build_outcome(
+            changed=True,
+            stage="manual_compact",
+            hard_limit_reached=False,
+            tokens_before=pre_compact_tokens,
+            tokens_after=post_compact_tokens,
+        ),
     )
 
 
@@ -689,4 +702,11 @@ async def partial_compact_conversation(
         compaction_usage=compaction_usage,
         trigger=context.trigger,
         tokens_saved=pre_compact_tokens,
+        outcome=build_outcome(
+            changed=True,
+            stage="manual_partial_compact",
+            hard_limit_reached=False,
+            tokens_before=pre_compact_tokens,
+            tokens_after=0 if pre_compact_tokens is not None else None,
+        ),
     )

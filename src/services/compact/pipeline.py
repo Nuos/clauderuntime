@@ -16,6 +16,7 @@ from typing import Any
 from ...types.messages import Message
 from ...providers.base import BaseProvider
 
+from .compression_outcome import CompressionOutcome, outcome_from_layers
 from .tool_result_budget import apply_tool_result_budget
 from .snip_compact import snip_compact
 from .context_collapse import ContextCollapseStore, get_context_collapse_state
@@ -39,6 +40,12 @@ class CompressionResult:
     tokens_saved: int = 0
     layers_applied: list[str] = field(default_factory=list)
     autocompact_result: Any | None = None  # CompactionResult if layer 5 ran
+    # B7 W5 — structured evidence of the pass (Context Law §H). Every
+    # compression entry point returns one, so callers can record what
+    # happened instead of a bare bool.
+    outcome: CompressionOutcome = field(
+        default_factory=lambda: CompressionOutcome(changed=False)
+    )
 
 
 @dataclass
@@ -171,7 +178,25 @@ class CompressionPipeline:
         cfg = self._config
         total_saved = 0
         layers_applied: list[str] = []
+        warnings: list[str] = []
         current_messages = messages
+        autocompact_result = None
+
+        def _result() -> CompressionResult:
+            # B7 W5 — every return path carries structured outcome evidence.
+            return CompressionResult(
+                messages=current_messages,
+                tokens_saved=total_saved,
+                layers_applied=layers_applied,
+                autocompact_result=autocompact_result,
+                outcome=outcome_from_layers(
+                    layers_applied=layers_applied,
+                    warnings=warnings,
+                    hard_limit_reached=autocompact_result is not None,
+                    tokens_before=input_token_count,
+                    tokens_saved=total_saved,
+                ),
+            )
 
         # --- Layer 1: Tool Result Budget ---
         try:
@@ -185,12 +210,9 @@ class CompressionPipeline:
                 layers_applied.append("tool_result_budget")
                 logger.debug("Layer 1 (tool_result_budget): saved %d tokens", saved)
                 if not cfg.source_aligned and total_saved >= cfg.early_exit_tokens:
-                    return CompressionResult(
-                        messages=current_messages,
-                        tokens_saved=total_saved,
-                        layers_applied=layers_applied,
-                    )
-        except Exception:
+                    return _result()
+        except Exception as e:
+            warnings.append(f"tool_result_budget: {e}")
             logger.warning("Layer 1 (tool_result_budget) failed", exc_info=True)
 
         # --- Layer 2: Snip Compact ---
@@ -204,12 +226,9 @@ class CompressionPipeline:
                 layers_applied.append("snip_compact")
                 logger.debug("Layer 2 (snip_compact): saved %d tokens", saved)
                 if not cfg.source_aligned and total_saved >= cfg.early_exit_tokens:
-                    return CompressionResult(
-                        messages=current_messages,
-                        tokens_saved=total_saved,
-                        layers_applied=layers_applied,
-                    )
-        except Exception:
+                    return _result()
+        except Exception as e:
+            warnings.append(f"snip_compact: {e}")
             logger.warning("Layer 2 (snip_compact) failed", exc_info=True)
 
         # --- Layer 3: Microcompact ---
@@ -230,12 +249,9 @@ class CompressionPipeline:
                 layers_applied.append("microcompact")
                 logger.debug("Layer 3 (microcompact): saved %d tokens", saved)
                 if not cfg.source_aligned and total_saved >= cfg.early_exit_tokens:
-                    return CompressionResult(
-                        messages=current_messages,
-                        tokens_saved=total_saved,
-                        layers_applied=layers_applied,
-                    )
-        except Exception:
+                    return _result()
+        except Exception as e:
+            warnings.append(f"microcompact: {e}")
             logger.warning("Layer 3 (microcompact) failed", exc_info=True)
 
         # --- Layer 4: Context Collapse ---
@@ -245,11 +261,11 @@ class CompressionPipeline:
                 current_messages = store.project_view(current_messages)
                 layers_applied.append("context_collapse")
                 logger.debug("Layer 4 (context_collapse): projected %d commits", len(store.commits))
-        except Exception:
+        except Exception as e:
+            warnings.append(f"context_collapse: {e}")
             logger.warning("Layer 4 (context_collapse) failed", exc_info=True)
 
         # --- Layer 5: Autocompact ---
-        autocompact_result = None
         if cfg.provider is not None and cfg.model:
             try:
                 result = await auto_compact_if_needed(
@@ -296,15 +312,11 @@ class CompressionPipeline:
                         "Layer 5 (autocompact): saved %d tokens, %d -> %d msgs",
                         result.tokens_saved, n_before, len(current_messages),
                     )
-            except Exception:
+            except Exception as e:
+                warnings.append(f"autocompact: {e}")
                 logger.warning("Layer 5 (autocompact) failed", exc_info=True)
 
-        return CompressionResult(
-            messages=current_messages,
-            tokens_saved=total_saved,
-            layers_applied=layers_applied,
-            autocompact_result=autocompact_result,
-        )
+        return _result()
 
 
 async def run_compression_pipeline(
